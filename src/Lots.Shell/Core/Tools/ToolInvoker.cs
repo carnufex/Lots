@@ -14,6 +14,9 @@ public interface IToolSource
 {
     Task<IReadOnlyList<ToolDescriptor>> ListAsync(CancellationToken ct);
     Task<string> CallAsync(string name, string argumentsJson, CancellationToken ct);
+
+    /// <summary>Name of the server (as in the profile) that provides the tool, if the source knows it.</summary>
+    Task<string?> ServerOfAsync(string toolName, CancellationToken ct) => Task.FromResult<string?>(null);
 }
 
 /// <summary>
@@ -27,6 +30,16 @@ public sealed class ToolInvoker(IEnumerable<IToolSource> sources, ProfileRegistr
     public const int MaxOutputChars = 8_000;
 
     private readonly IReadOnlyList<IToolSource> _sources = sources.ToList();
+
+    /// <summary>The backend auth strategy (ADR 0004) the profile declares for the server providing this tool.</summary>
+    public async Task<string?> AuthStrategyAsync(string toolName, string profileName, CancellationToken ct)
+    {
+        var profile = RequireProfile(profileName);
+        foreach (var source in _sources)
+            if (await source.ServerOfAsync(toolName, ct) is { } server)
+                return profile.Servers.FirstOrDefault(s => s.Name == server)?.Auth;
+        return null;
+    }
 
     /// <summary>The policy decision for a call, without executing it.</summary>
     public PolicyResult Evaluate(ToolCall call, Principal principal, string profileName) =>

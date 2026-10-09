@@ -34,6 +34,8 @@ public class AgentRunnerTests
             Task.FromResult<IReadOnlyList<ToolDescriptor>>(tools.Select(t =>
                 new ToolDescriptor(t.Name, t.Name, JsonDocument.Parse("{\"type\":\"object\"}").RootElement.Clone())).ToList());
 
+        public Task<string?> ServerOfAsync(string toolName, CancellationToken ct) => Task.FromResult<string?>("sample");
+
         public Task<string> CallAsync(string name, string argumentsJson, CancellationToken ct)
         {
             Called.Add(name);
@@ -343,6 +345,7 @@ public class AgentRunnerTests
         Assert.Equal(2, rows.Count);
         var list = rows[0];
         Assert.Equal(("list", AuditDecision.Allowed, "ok", "alice", TestProfiles.Name, 1), (list.Tool, list.Decision, list.ResultStatus, list.UserId, list.Profile, list.ProfileVersion));
+        Assert.Equal(AuthStrategies.SharedServiceAccount, list.BackendAuth);
         var restart = rows[1];
         Assert.Equal(("restart", AuditDecision.Denied, (string?)null), (restart.Tool, restart.Decision, restart.ResultStatus));
         Assert.Contains("grants Write", restart.Reason);

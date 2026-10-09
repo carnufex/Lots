@@ -9,7 +9,7 @@ public sealed record AuditQuery(string? User = null, DateTimeOffset? From = null
 
 public sealed record AuditDto(
     Guid Id, DateTimeOffset At, string User, string Roles, string Profile, int ProfileVersion, Guid RunId,
-    string Tool, string? Arguments, string Decision, string Reason, string? Approver, string? Result);
+    string Tool, string? Arguments, string Decision, string Reason, string? Approver, string? Result, string? BackendAuth);
 
 /// <summary>
 /// Read access to the audit log for admins and auditors (<c>Auth:AuditRoles</c>, default admin,auditor).
@@ -43,6 +43,6 @@ public sealed class ListAuditEndpoint(LotsDbContext db, ICurrentPrincipal who, I
 
         await Send.OkAsync(rows.Select(a => new AuditDto(
             a.Id, a.At, a.UserId, a.Roles, a.Profile, a.ProfileVersion, a.RunId, a.Tool, a.ArgumentsJson,
-            a.Decision.ToString(), a.Reason, a.ApproverId, a.ResultStatus)).ToList(), ct);
+            a.Decision.ToString(), a.Reason, a.ApproverId, a.ResultStatus, a.BackendAuth)).ToList(), ct);
     }
 }

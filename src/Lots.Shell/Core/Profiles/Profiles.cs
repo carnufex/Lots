@@ -5,7 +5,21 @@ using YamlDotNet.Serialization.NamingConventions;
 namespace Lots.Shell.Core.Profiles;
 
 /// <summary>An MCP server a profile talks to.</summary>
-public sealed record McpServerConfig(string Name, string Url);
+/// <summary>An MCP server a profile talks to and the ADR 0004 strategy used to authenticate towards it.</summary>
+public sealed record McpServerConfig(string Name, string Url, string Auth = AuthStrategies.SharedServiceAccount);
+
+/// <summary>The backend authentication strategies of ADR 0004, strongest first.</summary>
+public static class AuthStrategies
+{
+    public const string Delegated = "delegated";
+    public const string UserConnected = "user-connected";
+    public const string Impersonation = "impersonation";
+    public const string ServiceAccountPerRole = "service-account-per-role";
+    public const string SharedServiceAccount = "shared-service-account";
+
+    public static readonly IReadOnlyList<string> All =
+        [Delegated, UserConnected, Impersonation, ServiceAccountPerRole, SharedServiceAccount];
+}
 
 /// <summary>A tool the profile exposes, with the risk class an administrator assigned to it.</summary>
 public sealed record ProfileTool(string Name, ToolRisk Risk);
@@ -69,7 +83,13 @@ public static class ProfileParser
         {
             if (string.IsNullOrWhiteSpace(s.Name) || !Uri.TryCreate(s.Url, UriKind.Absolute, out var u) || u.Scheme is not ("http" or "https"))
                 Err($"server '{s.Name}' needs a name and an absolute http(s) url");
-            else servers.Add(new McpServerConfig(s.Name!, s.Url!));
+            else
+            {
+                var auth = string.IsNullOrWhiteSpace(s.Auth) ? AuthStrategies.SharedServiceAccount : s.Auth.Trim().ToLowerInvariant();
+                if (!AuthStrategies.All.Contains(auth))
+                    Err($"server '{s.Name}' has unknown auth strategy '{s.Auth}' ({string.Join('|', AuthStrategies.All)})");
+                else servers.Add(new McpServerConfig(s.Name!, s.Url!, auth));
+            }
         }
         Duplicates(servers.Select(s => s.Name), "server", Err);
 
@@ -129,7 +149,7 @@ public static class ProfileParser
         public List<RoleDoc>? Roles { get; set; }
     }
 
-    private sealed class ServerDoc { public string? Name { get; set; } public string? Url { get; set; } }
+    private sealed class ServerDoc { public string? Name { get; set; } public string? Url { get; set; } public string? Auth { get; set; } }
     private sealed class ToolDoc { public string? Name { get; set; } public string? Risk { get; set; } }
 
     private sealed class RoleDoc

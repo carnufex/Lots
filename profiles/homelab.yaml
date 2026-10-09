@@ -10,6 +10,7 @@ instructions: |
 servers:
   - name: homelab
     url: http://mcp-homelab:8080/mcp
+    auth: shared-service-account   # ADR 0009: read-only Docker socket proxy
 
 # A tool is only visible and callable if it is declared here and a role grants its risk class.
 tools:

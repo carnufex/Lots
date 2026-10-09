@@ -58,6 +58,14 @@ public sealed class McpToolSource(IReadOnlyList<McpServerConfig> servers, ILogge
         }
     }
 
+    public async Task<string?> ServerOfAsync(string toolName, CancellationToken ct)
+    {
+        await ListAsync(ct);
+        await _gate.WaitAsync(ct);
+        try { return _toolServer.GetValueOrDefault(toolName); }
+        finally { _gate.Release(); }
+    }
+
     public async Task<string> CallAsync(string name, string argumentsJson, CancellationToken ct)
     {
         McpClient client;

@@ -57,6 +57,7 @@ public sealed class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbC
             e.Property(x => x.Tool).HasMaxLength(256).IsRequired();
             e.Property(x => x.Profile).HasMaxLength(128);
             e.Property(x => x.ApproverId).HasMaxLength(256);
+            e.Property(x => x.BackendAuth).HasMaxLength(64);
             e.Property(x => x.ResultStatus).HasMaxLength(16);
         });
 
@@ -160,6 +161,8 @@ public sealed class AuditRecord
     public AuditDecision Decision { get; set; }
     public string Reason { get; set; } = "";
     public string? ApproverId { get; set; }
+    /// <summary>Backend auth strategy (ADR 0004) used for the call, if it was executed.</summary>
+    public string? BackendAuth { get; set; }
     /// <summary>ok / error for executed calls, null otherwise.</summary>
     public string? ResultStatus { get; set; }
 }

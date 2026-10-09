@@ -114,6 +114,19 @@ public class ProfileParserTests
         Assert.Equal("http://s1:8080/mcp", p.Servers.Single().Url);
     }
 
+    private static string WithAuth(string auth) =>
+        string.Join(Environment.NewLine, new[] { "name: demo", "version: 1", "servers:", "  - name: s1", "    url: http://s1:8080/mcp", auth.Length > 0 ? $"    auth: {auth}" : "" });
+
+    [Fact]
+    public void Server_auth_strategy_defaults_to_shared_service_account_and_rejects_unknown_ones()
+    {
+        Assert.Equal(AuthStrategies.SharedServiceAccount, ProfileParser.Parse(WithAuth("")).Servers.Single().Auth);
+        Assert.Equal(AuthStrategies.Delegated, ProfileParser.Parse(WithAuth("Delegated")).Servers.Single().Auth);
+
+        var ex = Assert.Throws<ProfileException>(() => ProfileParser.Parse(WithAuth("magic")));
+        Assert.Contains(ex.Errors, e => e.Contains("unknown auth strategy 'magic'"));
+    }
+
     [Fact]
     public void Reports_all_problems_at_once()
     {

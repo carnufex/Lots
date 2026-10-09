@@ -204,8 +204,9 @@ public sealed class AgentRunner(
                 result = await tools.InvokeAsync(call, principal, run.Profile, ct);
             }
             sw.Stop();
+            var backendAuth = audit == AuditDecision.Allowed ? await tools.AuthStrategyAsync(call.Name, run.Profile, ct) : null;
             Audit(run, principal, call, audit, policy.Reason, approver,
-                audit == AuditDecision.Allowed ? (result.StartsWith("Error:", StringComparison.Ordinal) ? "error" : "ok") : null);
+                audit == AuditDecision.Allowed ? (result.StartsWith("Error:", StringComparison.Ordinal) ? "error" : "ok") : null, backendAuth);
             Add(run, new ChatMessage("tool", result, ToolCallId: call.Id));
             run.Steps.Add(new RunStepRecord
             {
@@ -246,13 +247,13 @@ public sealed class AgentRunner(
             : $"[empty reply; finish_reason={r.FinishReason}; reasoning: {Cut(r.Message.Reasoning?[..Math.Min(r.Message.Reasoning.Length, 300)]) ?? "none"}]";
 
     /// <summary>Appends an audit row. It is saved together with the effect it describes, never separately.</summary>
-    private void Audit(RunRecord run, Principal principal, ToolCall call, AuditDecision decision, string reason, string? approver, string? resultStatus) =>
+    private void Audit(RunRecord run, Principal principal, ToolCall call, AuditDecision decision, string reason, string? approver, string? resultStatus, string? backendAuth = null) =>
         db.AuditLog.Add(new AuditRecord
         {
             Id = Guid.NewGuid(), At = clock.GetUtcNow(), UserId = principal.UserId, Roles = run.Roles,
             Profile = run.Profile, ProfileVersion = profiles.Find(run.Profile)?.Version ?? 0, RunId = run.Id,
             Tool = call.Name, ArgumentsJson = call.ArgumentsJson, Decision = decision, Reason = reason,
-            ApproverId = approver, ResultStatus = resultStatus,
+            ApproverId = approver, ResultStatus = resultStatus, BackendAuth = backendAuth,
         });
 
     private static int NextStepSeq(RunRecord run) => run.Steps.Count == 0 ? 0 : run.Steps.Max(x => x.Seq) + 1;
