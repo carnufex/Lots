@@ -1,0 +1,29 @@
+[
+  {
+    "id": "list-running",
+    "question": "Which containers are currently running?",
+    "expectedTools": ["list_containers"],
+    "expectedFacts": ["lots-shell"]
+  },
+  {
+    "id": "unhealthy",
+    "question": "Are any containers unhealthy right now? If so, which ones?",
+    "expectedTools": ["list_containers"]
+  },
+  {
+    "id": "postgres-state",
+    "question": "Is the lots-postgres-1 container running and healthy?",
+    "expectedTools": ["list_containers"],
+    "expectedFacts": ["healthy"]
+  },
+  {
+    "id": "shell-logs",
+    "question": "Show me what the lots-shell-1 container logged recently.",
+    "expectedTools": ["get_container_logs"]
+  },
+  {
+    "id": "stopped",
+    "question": "Are there stopped or exited containers on this host? Name a few.",
+    "expectedTools": ["list_containers"]
+  }
+]

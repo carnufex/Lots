@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Lots.Shell\Lots.Shell.csproj" />
+    <ProjectReference Include="..\..\src\Lots.Evals\Lots.Evals.csproj" />
   </ItemGroup>
 
 </Project>

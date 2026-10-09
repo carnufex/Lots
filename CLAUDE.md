@@ -65,8 +65,10 @@ Labels: `needs-human`, `decision`, `blocked`, `type:feature|bug|chore`, `area:co
 - Build/test: `dotnet test`
 - Run locally: `docker compose up --build` (shell on `http://localhost:8088`, override with `LOTS_PORT`; `GET /health`, `GET /health/ready`)
 - New migration: `dotnet ef migrations add <Name> --project src/Lots.Shell -o Persistence/Migrations`
-- Evals: to be added.
+
 - Live model test (opt-in): `LOTS_TEST_MODEL_URL=http://192.168.1.215:11434/v1 LOTS_TEST_MODEL=<model> dotnet test --filter Live`
 - MCP servers: configure `Mcp:Servers:0:Name|Url|ReadTools[]` (env `Mcp__Servers__0__Url=...`). Tools are deny-by-default: only names in `ReadTools` (or the server's readOnlyHint when `TrustReadOnlyHint=true`) are visible to the model.
 - Homelab MCP server: `docker compose up` also starts `mcp-homelab` (`http://localhost:8089/mcp`, tools `list_containers`, `get_container_logs`) behind a read-only `docker-proxy`.
 - Runs API: `POST /runs {"prompt": "..."}` -> 202 + id; `GET /runs/{id}` returns status, final answer and the step trace. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to export GenAI-convention spans.
+- Local CI gate (GitHub Actions is billing-blocked): `bash scripts/ci.sh` (build, test, build images, fail on root images).
+- Evals (needs the stack running with a reachable model): `dotnet run --project src/Lots.Evals -- --url http://localhost:8088 --file evals/homelab.json`; report in `evals/report.md`.
