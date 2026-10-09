@@ -40,7 +40,12 @@ public class OidcAuthTests : IClassFixture<WebApplicationFactory<Program>>
                 s.RemoveAll<DbContextOptions<LotsDbContext>>();
                 s.RemoveAll(typeof(Microsoft.EntityFrameworkCore.Infrastructure.IDbContextOptionsConfiguration<LotsDbContext>));
                 s.AddDbContext<LotsDbContext>(o => o.UseInMemoryDatabase(dbName));
-                s.AddSingleton(TestProfiles.Registry());
+                var delegated = new Lots.Shell.Core.Profiles.Profile("deleg", 1, "", "",
+                    [new Lots.Shell.Core.Profiles.McpServerConfig("b", "http://b/mcp", Lots.Shell.Core.Profiles.AuthStrategies.Delegated,
+                        new Lots.Shell.Core.Profiles.ServerCredentials(Lots.Shell.Core.Profiles.CredentialTypes.TokenExchange,
+                            TokenUrl: "https://sts/token", ClientId: "lots", Audience: "b"))],
+                    [], [new Lots.Shell.Core.Profiles.ProfileRole("operator", [Lots.Shell.Core.Tools.ToolRisk.Read], [])]);
+                s.AddSingleton(new Lots.Shell.Core.Profiles.ProfileRegistry(TestProfiles.Registry().All.Concat([delegated])));
                 // Stand in for the IdP: fixed signing key, no metadata discovery.
                 s.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, o =>
                 {
@@ -107,6 +112,24 @@ public class OidcAuthTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.Equal(HttpStatusCode.OK, (await client.SendAsync(Req(HttpMethod.Get, $"/runs/{id}", alice))).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await client.SendAsync(Req(HttpMethod.Get, $"/runs/{id}", Token("bob", ["operator"])))).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await client.SendAsync(Req(HttpMethod.Get, $"/runs/{id}", Token("root", ["admin"])))).StatusCode);
+    }
+
+    [Fact]
+    public async Task Login_token_is_kept_encrypted_only_for_runs_that_use_delegated_servers()
+    {
+        var client = _factory.CreateClient();
+        var token = Token("alice", ["operator"]);
+
+        var delegatedRun = (await (await client.SendAsync(Req(HttpMethod.Post, "/runs", token, new { prompt = "x", profile = "deleg" }))).Content.ReadFromJsonAsync<Started>())!.Id;
+        var plainRun = (await (await client.SendAsync(Req(HttpMethod.Post, "/runs", token, new { prompt = "x", profile = TestProfiles.Name }))).Content.ReadFromJsonAsync<Started>())!.Id;
+
+        using var scope = _factory.Services.CreateScope();
+        var runs = scope.ServiceProvider.GetRequiredService<LotsDbContext>().Runs;
+        var withToken = await runs.SingleAsync(r => r.Id == delegatedRun);
+        Assert.False(string.IsNullOrEmpty(withToken.SubjectTokenProtected));
+        Assert.DoesNotContain(token, withToken.SubjectTokenProtected!); // encrypted, not the raw JWT
+        Assert.NotNull(withToken.SubjectTokenExpiresAt);
+        Assert.Null((await runs.SingleAsync(r => r.Id == plainRun)).SubjectTokenProtected);
     }
 
     [Fact]

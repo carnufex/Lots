@@ -1,4 +1,5 @@
 using FastEndpoints;
+using Lots.Shell.Core.Mcp;
 using Lots.Shell.Core.Policy;
 using Lots.Shell.Core.Profiles;
 using Lots.Shell.Persistence;
@@ -10,7 +11,7 @@ public sealed record StartRunRequest(string Prompt, string? Profile = null);
 
 public sealed record StartRunResponse(Guid Id, string Status);
 
-public sealed class StartRunEndpoint(LotsDbContext db, TimeProvider clock, ProfileRegistry profiles, IConfiguration config, ICurrentPrincipal who)
+public sealed class StartRunEndpoint(LotsDbContext db, TimeProvider clock, ProfileRegistry profiles, IConfiguration config, ICurrentPrincipal who, SubjectTokenVault vault)
     : Endpoint<StartRunRequest, StartRunResponse>
 {
     public override void Configure()
@@ -45,6 +46,19 @@ public sealed class StartRunEndpoint(LotsDbContext db, TimeProvider clock, Profi
             Id = Guid.NewGuid(), Prompt = req.Prompt, Profile = profile.Name, UserId = me.UserId, Roles = string.Join(',', me.Roles),
             CreatedAt = now, UpdatedAt = now,
         };
+        // Only runs whose profile uses delegated servers keep the user's login token (encrypted), and only until the
+        // run ends. It is exchanged per call for a backend-scoped token and never sent to a backend itself.
+        if (profile.Servers.Any(s => s.Auth == AuthStrategies.Delegated)
+            && AuthSetup.IsOidc(config)
+            && HttpContext.Request.Headers.Authorization.ToString() is { } auth
+            && auth.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+        {
+            run.SubjectTokenProtected = vault.Protect(auth["Bearer ".Length..].Trim());
+            run.SubjectTokenExpiresAt = long.TryParse(HttpContext.User.FindFirst("exp")?.Value, out var exp)
+                ? DateTimeOffset.FromUnixTimeSeconds(exp)
+                : now.AddMinutes(5);
+        }
+
         db.Runs.Add(run);
         await db.SaveChangesAsync(ct);
         await Send.ResponseAsync(new StartRunResponse(run.Id, run.Status.ToString()), 202, ct);

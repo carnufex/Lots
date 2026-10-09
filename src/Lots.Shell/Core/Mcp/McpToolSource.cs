@@ -7,17 +7,31 @@ using ModelContextProtocol.Client;
 namespace Lots.Shell.Core.Mcp;
 
 /// <summary>Exposes the tools of the configured MCP servers to the <see cref="ToolInvoker"/>.</summary>
-/// <remarks>Risk classes are not decided here: they come from the profile, and policy decides per call.</remarks>
+/// <remarks>
+/// Risk classes are not decided here: they come from the profile, and policy decides per call.
+/// Servers with <c>auth: delegated</c> are reached with a per-user token (token exchange), so their client and tool
+/// catalog are kept per user and are only available inside a <see cref="DelegationContext"/>.
+/// </remarks>
 public sealed class McpToolSource(
-    IReadOnlyList<McpServerConfig> servers, ILoggerFactory loggers, TimeProvider? clock = null) : IToolSource, IAsyncDisposable
+    IReadOnlyList<McpServerConfig> servers, ILoggerFactory loggers, TimeProvider? clock = null, TokenExchangeClient? exchange = null)
+    : IToolSource, IAsyncDisposable
 {
     private static readonly TimeSpan CatalogTtl = TimeSpan.FromSeconds(60);
 
+    private sealed class State(McpClient client)
+    {
+        public McpClient Client { get; } = client;
+        public List<ToolDescriptor> Tools { get; set; } = [];
+        public DateTimeOffset At { get; set; } = DateTimeOffset.MinValue;
+    }
+
     private readonly SemaphoreSlim _gate = new(1, 1);
-    private readonly Dictionary<string, McpClient> _clients = [];
-    private readonly Dictionary<string, string> _toolServer = [];
-    private List<ToolDescriptor> _catalog = [];
-    private DateTimeOffset _catalogAt = DateTimeOffset.MinValue;
+    private readonly Dictionary<(string Server, string User), State> _states = [];
+
+    private static bool IsDelegated(McpServerConfig s) => s.Auth == AuthStrategies.Delegated;
+
+    /// <summary>"" for shared servers, the user for delegated ones, null if a delegated server has no user context.</summary>
+    private static string? UserKey(McpServerConfig s) => IsDelegated(s) ? DelegationContext.Current?.UserId : "";
 
     public async Task<IReadOnlyList<ToolDescriptor>> ListAsync(CancellationToken ct)
     {
@@ -26,32 +40,17 @@ public sealed class McpToolSource(
         await _gate.WaitAsync(ct);
         try
         {
-            if (DateTimeOffset.UtcNow - _catalogAt < CatalogTtl) return _catalog;
-
             var catalog = new List<ToolDescriptor>();
-            _toolServer.Clear();
             foreach (var server in servers)
             {
-                try
-                {
-                    var client = await ClientAsync(server, ct);
-                    foreach (var tool in await client.ListToolsAsync(cancellationToken: ct))
-                    {
-                        if (_toolServer.ContainsKey(tool.Name)) continue; // first server wins on name clashes
-                        _toolServer[tool.Name] = server.Name;
-                        catalog.Add(new ToolDescriptor(tool.Name, tool.Description ?? "", tool.JsonSchema.Clone()));
-                    }
-                }
-                catch (Exception ex) when (ex is not OperationCanceledException)
-                {
-                    loggers.CreateLogger<McpToolSource>().LogWarning(ex, "MCP server {Server} unavailable", server.Name);
-                    _clients.Remove(server.Name); // reconnect next time
-                }
+                if (UserKey(server) is not { } user) continue;
+                var state = await RefreshAsync(server, user, ct);
+                if (state is null) continue;
+                foreach (var tool in state.Tools)
+                    if (catalog.All(t => t.Name != tool.Name)) // first server wins on name clashes
+                        catalog.Add(tool);
             }
-
-            _catalog = catalog;
-            _catalogAt = DateTimeOffset.UtcNow;
-            return _catalog;
+            return catalog;
         }
         finally
         {
@@ -63,19 +62,19 @@ public sealed class McpToolSource(
     {
         await ListAsync(ct);
         await _gate.WaitAsync(ct);
-        try { return _toolServer.GetValueOrDefault(toolName); }
+        try { return Find(toolName)?.Server.Name; }
         finally { _gate.Release(); }
     }
 
     public async Task<string> CallAsync(string name, string argumentsJson, CancellationToken ct)
     {
+        await ListAsync(ct); // make sure the catalog of the current user's context is loaded (cheap: cached)
         McpClient client;
         await _gate.WaitAsync(ct);
         try
         {
-            if (!_toolServer.TryGetValue(name, out var serverName))
-                throw new InvalidOperationException($"No MCP server provides tool '{name}'.");
-            client = _clients[serverName];
+            client = Find(name)?.State.Client
+                     ?? throw new InvalidOperationException($"No MCP server provides tool '{name}'.");
         }
         finally
         {
@@ -98,12 +97,56 @@ public sealed class McpToolSource(
         return result.IsError == true ? $"Error from tool '{name}': {output}" : output;
     }
 
-    private async Task<McpClient> ClientAsync(McpServerConfig server, CancellationToken ct)
+    /// <summary>Caller holds the gate.</summary>
+    private (McpServerConfig Server, State State)? Find(string toolName)
     {
-        if (_clients.TryGetValue(server.Name, out var existing)) return existing;
+        foreach (var server in servers)
+            if (UserKey(server) is { } user
+                && _states.TryGetValue((server.Name, user), out var state)
+                && state.Tools.Any(t => t.Name == toolName))
+                return (server, state);
+        return null;
+    }
+
+    /// <summary>Caller holds the gate. Returns null if the server is unavailable.</summary>
+    private async Task<State?> RefreshAsync(McpServerConfig server, string user, CancellationToken ct)
+    {
+        var key = (server.Name, user);
+        try
+        {
+            if (!_states.TryGetValue(key, out var state))
+            {
+                state = new State(await ConnectAsync(server, ct));
+                _states[key] = state;
+            }
+
+            if (DateTimeOffset.UtcNow - state.At >= CatalogTtl)
+            {
+                state.Tools = (await state.Client.ListToolsAsync(cancellationToken: ct))
+                    .Select(t => new ToolDescriptor(t.Name, t.Description ?? "", t.JsonSchema.Clone()))
+                    .ToList();
+                state.At = DateTimeOffset.UtcNow;
+            }
+            return state;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            loggers.CreateLogger<McpToolSource>().LogWarning(ex, "MCP server {Server} unavailable", server.Name);
+            _states.Remove(key); // reconnect next time
+            return null;
+        }
+    }
+
+    private async Task<McpClient> ConnectAsync(McpServerConfig server, CancellationToken ct)
+    {
         var options = new HttpClientTransportOptions { Endpoint = new Uri(server.Url), Name = server.Name };
         IClientTransport transport;
-        if (server.Credentials is { } credentials)
+        if (IsDelegated(server))
+        {
+            var ex = exchange ?? throw new InvalidOperationException($"Server '{server.Name}' is delegated but no token exchange is configured.");
+            transport = new HttpClientTransport(options, new HttpClient(new DelegatedBearerHandler(server, ex)), loggers, ownsHttpClient: true);
+        }
+        else if (server.Credentials is { } credentials)
         {
             // The token is attached per request, so it is refreshed transparently when it expires.
             var provider = new BackendTokenProvider(credentials, new HttpClient(), clock ?? TimeProvider.System);
@@ -113,13 +156,11 @@ public sealed class McpToolSource(
         {
             transport = new HttpClientTransport(options, loggers);
         }
-        var client = await McpClient.CreateAsync(transport, loggerFactory: loggers, cancellationToken: ct);
-        _clients[server.Name] = client;
-        return client;
+        return await McpClient.CreateAsync(transport, loggerFactory: loggers, cancellationToken: ct);
     }
 
     public async ValueTask DisposeAsync()
     {
-        foreach (var c in _clients.Values) await c.DisposeAsync();
+        foreach (var s in _states.Values) await s.Client.DisposeAsync();
     }
 }

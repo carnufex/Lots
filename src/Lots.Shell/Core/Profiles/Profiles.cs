@@ -16,12 +16,16 @@ public static class CredentialTypes
 
     /// <summary>OAuth client-credentials grant (Authentik style, optionally with a service account username/app password).</summary>
     public const string OAuthClientCredentials = "oauth-client-credentials";
+
+    /// <summary>RFC 8693: the user's token is exchanged for one for this backend (auth: delegated).</summary>
+    public const string TokenExchange = "token-exchange";
 }
 
 /// <summary>How the shell authenticates to a server. Secrets are referenced by environment variable name, never stored.</summary>
 public sealed record ServerCredentials(
     string Type, string? TokenEnv = null, string? TokenUrl = null, string? ClientId = null,
-    string? Username = null, string? PasswordEnv = null, string? Scope = null);
+    string? Username = null, string? PasswordEnv = null, string? Scope = null,
+    string? ClientSecretEnv = null, string? Audience = null);
 
 /// <summary>The backend authentication strategies of ADR 0004, strongest first.</summary>
 public static class AuthStrategies
@@ -106,6 +110,13 @@ public static class ProfileParser
                 else
                 {
                     var creds = ParseCredentials(s, Err);
+                    var exchangeType = creds?.Type == CredentialTypes.TokenExchange;
+                    if (auth == AuthStrategies.Delegated && s.Credentials is not null && !exchangeType)
+                        Err($"server '{s.Name}' is delegated and needs credentials of type {CredentialTypes.TokenExchange}");
+                    if (auth == AuthStrategies.Delegated && s.Credentials is null)
+                        Err($"server '{s.Name}' is delegated and needs token-exchange credentials");
+                    if (auth != AuthStrategies.Delegated && exchangeType)
+                        Err($"server '{s.Name}': token-exchange credentials require auth: delegated");
                     if (s.Credentials is null || creds is not null) servers.Add(new McpServerConfig(s.Name!, s.Url!, auth, creds));
                 }
             }
@@ -156,8 +167,16 @@ public static class ProfileParser
                     return null;
                 }
                 return new ServerCredentials(type, TokenUrl: c.TokenUrl, ClientId: c.ClientId, Username: c.Username, PasswordEnv: c.PasswordEnv, Scope: c.Scope);
+            case CredentialTypes.TokenExchange:
+                if (!Uri.TryCreate(c.TokenUrl, UriKind.Absolute, out var tu) || tu.Scheme is not ("http" or "https")
+                    || string.IsNullOrWhiteSpace(c.ClientId) || string.IsNullOrWhiteSpace(c.Audience))
+                {
+                    err($"server '{s.Name}' credentials: tokenUrl (absolute http(s)), clientId and audience are required for token-exchange");
+                    return null;
+                }
+                return new ServerCredentials(type, TokenUrl: c.TokenUrl, ClientId: c.ClientId, Scope: c.Scope, ClientSecretEnv: c.ClientSecretEnv, Audience: c.Audience);
             default:
-                err($"server '{s.Name}' credentials: unknown type '{c.Type}' ({CredentialTypes.Bearer}|{CredentialTypes.OAuthClientCredentials})");
+                err($"server '{s.Name}' credentials: unknown type '{c.Type}' ({CredentialTypes.Bearer}|{CredentialTypes.OAuthClientCredentials}|{CredentialTypes.TokenExchange})");
                 return null;
         }
     }
@@ -208,6 +227,8 @@ public static class ProfileParser
         public string? Username { get; set; }
         public string? PasswordEnv { get; set; }
         public string? Scope { get; set; }
+        public string? ClientSecretEnv { get; set; }
+        public string? Audience { get; set; }
     }
     private sealed class ToolDoc { public string? Name { get; set; } public string? Risk { get; set; } }
 

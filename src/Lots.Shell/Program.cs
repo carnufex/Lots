@@ -1,4 +1,5 @@
 using Lots.Shell.Core.Mcp;
+using Microsoft.AspNetCore.DataProtection;
 using Lots.Shell.Core.Policy;
 using Lots.Shell.Core.Profiles;
 using Lots.Shell.Core.Models;
@@ -19,8 +20,17 @@ builder.Services.Configure<AgentOptions>(builder.Configuration.GetSection(AgentO
 builder.Services.AddSingleton(TimeProvider.System);
 // Profiles are config as code: loaded from YAML at startup; an invalid manifest stops the shell.
 builder.Services.AddSingleton(sp => ProfileRegistry.LoadDirectory(sp.GetRequiredService<IConfiguration>()["Profiles:Path"] ?? "profiles"));
+builder.Services.AddSingleton(sp => new TokenExchangeClient(new HttpClient(), sp.GetRequiredService<TimeProvider>()));
 builder.Services.AddSingleton<IToolSource>(sp =>
-    new McpToolSource(sp.GetRequiredService<ProfileRegistry>().Servers, sp.GetRequiredService<ILoggerFactory>()));
+    new McpToolSource(sp.GetRequiredService<ProfileRegistry>().Servers, sp.GetRequiredService<ILoggerFactory>(),
+        sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<TokenExchangeClient>()));
+
+// Encrypts the login tokens kept on delegated runs. Set DataProtection:KeysPath to a persistent volume so tokens
+// survive restarts; otherwise keys are ephemeral and an unreadable token simply makes delegated calls fail.
+var dataProtection = builder.Services.AddDataProtection().SetApplicationName("lots");
+if (builder.Configuration["DataProtection:KeysPath"] is { Length: > 0 } keysPath)
+    dataProtection.PersistKeysToFileSystem(new DirectoryInfo(keysPath));
+builder.Services.AddSingleton<SubjectTokenVault>();
 builder.Services.AddScoped<ToolInvoker>();
 builder.Services.AddScoped<AgentRunner>();
 builder.Services.AddScoped<RunLeases>();

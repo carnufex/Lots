@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
+using Lots.Shell.Core.Mcp;
 using Lots.Shell.Core.Models;
 using Lots.Shell.Core.Policy;
 using Lots.Shell.Core.Profiles;
@@ -37,7 +38,8 @@ public sealed class AgentRunner(
     ProfileRegistry profiles,
     IOptions<AgentOptions> options,
     TimeProvider clock,
-    IOptions<ModelOptions>? modelOptions = null)
+    IOptions<ModelOptions>? modelOptions = null,
+    SubjectTokenVault? vault = null)
 {
     public static readonly ActivitySource Telemetry = new("Lots.Shell");
     private const int MaxTraceResultChars = 2000;
@@ -60,6 +62,10 @@ public sealed class AgentRunner(
             Add(run, new ChatMessage("user", run.Prompt));
         }
         await SaveAsync(run);
+
+        // Delegated servers are reached with the run user's own (exchanged) token for the duration of this call.
+        using var delegation = DelegationContext.Enter(new DelegationContext(
+            run.UserId, vault?.Unprotect(run.SubjectTokenProtected), run.SubjectTokenExpiresAt, clock));
 
         try
         {
@@ -134,6 +140,13 @@ public sealed class AgentRunner(
         {
             run.Status = RunStatus.Failed;
             run.Error = ex.Message;
+        }
+
+        // A finished run no longer needs the user's login token.
+        if (run.Status is RunStatus.Completed or RunStatus.Failed)
+        {
+            run.SubjectTokenProtected = null;
+            run.SubjectTokenExpiresAt = null;
         }
 
         await SaveAsync(run);

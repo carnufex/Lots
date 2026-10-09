@@ -53,6 +53,9 @@ spec:
             {{- if .Values.profiles.files }}
             - { name: Profiles__Path, value: /profiles }
             {{- end }}
+            {{- if .Values.dataProtection.existingClaim }}
+            - { name: DataProtection__KeysPath, value: /keys }
+            {{- end }}
             {{- if .Values.profiles.defaultProfile }}
             - { name: Agent__DefaultProfile, value: {{ .Values.profiles.defaultProfile | quote }} }
             {{- end }}
@@ -95,6 +98,9 @@ spec:
             {{- if .Values.profiles.files }}
             - { name: profiles, mountPath: /profiles, readOnly: true }
             {{- end }}
+            {{- if .Values.dataProtection.existingClaim }}
+            - { name: keys, mountPath: /keys }
+            {{- end }}
       volumes:
         - name: tmp
           emptyDir: {}
@@ -102,6 +108,11 @@ spec:
         - name: profiles
           configMap:
             name: {{ include "lots.name" . }}-profiles
+        {{- end }}
+        {{- if .Values.dataProtection.existingClaim }}
+        - name: keys
+          persistentVolumeClaim:
+            claimName: {{ .Values.dataProtection.existingClaim }}
         {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector: {{- toYaml . | nindent 8 }}

@@ -91,6 +91,9 @@ public sealed class RunRecord
     /// <summary>Worker currently executing the run, and until when (unix ms). See RunLeases.</summary>
     public string? LeaseOwner { get; set; }
     public long? LeaseUntilMs { get; set; }
+    /// <summary>The user's login token, encrypted, kept only for runs that use delegated servers; cleared when the run ends.</summary>
+    public string? SubjectTokenProtected { get; set; }
+    public DateTimeOffset? SubjectTokenExpiresAt { get; set; }
     public List<RunMessageRecord> Messages { get; set; } = [];
     public List<RunStepRecord> Steps { get; set; } = [];
 }
