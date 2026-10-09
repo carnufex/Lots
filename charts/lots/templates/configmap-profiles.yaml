@@ -1,0 +1,12 @@
+{{- if .Values.profiles.files }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "lots.name" . }}-profiles
+  labels: {{- include "lots.labels" . | nindent 4 }}
+data:
+{{- range $file, $yaml := .Values.profiles.files }}
+  {{ $file }}: |
+{{ $yaml | indent 4 }}
+{{- end }}
+{{- end }}

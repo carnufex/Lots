@@ -1,0 +1,84 @@
+# Lots shell. Works on plain Kubernetes and on OpenShift (restricted SCC): non-root with an arbitrary UID,
+# no host mounts, no privileged ports, read-only root filesystem, all capabilities dropped.
+
+image:
+  repository: registry.rosenvall.se/carnufex/lots-shell
+  tag: ""            # defaults to the chart appVersion
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+# More than one replica needs run leases (issue #26); keep 1 until then.
+replicaCount: 1
+
+auth:
+  mode: Oidc          # Oidc | Dev. Dev authenticates everyone as one user: local development only.
+  oidc:
+    authority: ""     # required for Oidc, e.g. https://authentik.example.com/application/o/lots/
+    clientId: lots
+    audience: ""
+    userClaim: sub
+    roleClaim: roles
+  adminRoles: admin
+  auditRoles: "admin,auditor"
+
+database:
+  # PostgreSQL is external. The Secret must contain the Npgsql connection string.
+  existingSecret: ""
+  connectionStringKey: connection-string
+  migrateOnStartup: true
+
+model:
+  baseUrl: ""         # OpenAI-compatible endpoint, e.g. http://ollama:11434/v1
+  name: ""
+  apiKey:
+    existingSecret: ""
+    key: api-key
+
+# Profiles. Empty: use the profiles baked into the image. Otherwise: file name -> YAML manifest, mounted as a ConfigMap.
+profiles:
+  files: {}
+  defaultProfile: ""
+
+# Extra environment variables sourced from Secrets, e.g. the password a profile references via passwordEnv.
+extraSecretEnv: []
+#  - name: CMDB_AGENT_TOKEN
+#    secretName: cmdb-agent
+#    key: token
+
+# Optional OTLP endpoint for GenAI traces.
+otlpEndpoint: ""
+
+service:
+  port: 80
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  host: lots.example.com
+  tls:
+    secretName: ""
+
+# OpenShift: expose with a Route instead of an Ingress.
+route:
+  enabled: false
+  host: ""
+  tlsTermination: edge
+
+# Homelab MCP server. It needs Docker access through a READ-ONLY socket proxy that you provide (no host
+# mounts in this chart), so it is off by default.
+mcpHomelab:
+  enabled: false
+  image:
+    repository: registry.rosenvall.se/carnufex/lots-mcp-homelab
+    tag: ""
+  dockerUrl: http://docker-proxy:2375
+
+resources:
+  requests: { cpu: 100m, memory: 256Mi }
+  limits: { memory: 512Mi }
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+podAnnotations: {}

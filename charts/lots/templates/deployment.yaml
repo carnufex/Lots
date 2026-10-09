@@ -1,0 +1,126 @@
+{{- if and (eq (lower .Values.auth.mode) "oidc") (not .Values.auth.oidc.authority) }}
+{{- fail "auth.oidc.authority is required when auth.mode is Oidc" }}
+{{- end }}
+{{- if not .Values.database.existingSecret }}
+{{- fail "database.existingSecret is required (a Secret holding the PostgreSQL connection string)" }}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "lots.name" . }}
+  labels: {{- include "lots.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: Recreate   # a single worker per database until run leases exist
+  selector:
+    matchLabels: {{- include "lots.selector" . | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "lots.selector" . | nindent 8 }}
+      annotations:
+        {{- if .Values.profiles.files }}
+        checksum/profiles: {{ toYaml .Values.profiles.files | sha256sum }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}{{ toYaml . | nindent 8 }}{{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      automountServiceAccountToken: false
+      securityContext: {{- include "lots.podSecurityContext" . | nindent 8 }}
+      containers:
+        - name: shell
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext: {{- include "lots.containerSecurityContext" . | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - { name: HOME, value: /tmp }
+            - { name: Auth__Mode, value: {{ .Values.auth.mode | quote }} }
+            - { name: Auth__Oidc__Authority, value: {{ .Values.auth.oidc.authority | quote }} }
+            - { name: Auth__Oidc__ClientId, value: {{ .Values.auth.oidc.clientId | quote }} }
+            - { name: Auth__Oidc__Audience, value: {{ .Values.auth.oidc.audience | quote }} }
+            - { name: Auth__Oidc__UserClaim, value: {{ .Values.auth.oidc.userClaim | quote }} }
+            - { name: Auth__Oidc__RoleClaim, value: {{ .Values.auth.oidc.roleClaim | quote }} }
+            - { name: Auth__AdminRoles, value: {{ .Values.auth.adminRoles | quote }} }
+            - { name: Auth__AuditRoles, value: {{ .Values.auth.auditRoles | quote }} }
+            - { name: Database__MigrateOnStartup, value: {{ .Values.database.migrateOnStartup | quote }} }
+            - { name: Model__BaseUrl, value: {{ .Values.model.baseUrl | quote }} }
+            - { name: Model__Model, value: {{ .Values.model.name | quote }} }
+            {{- if .Values.profiles.files }}
+            - { name: Profiles__Path, value: /profiles }
+            {{- end }}
+            {{- if .Values.profiles.defaultProfile }}
+            - { name: Agent__DefaultProfile, value: {{ .Values.profiles.defaultProfile | quote }} }
+            {{- end }}
+            {{- if .Values.otlpEndpoint }}
+            - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: {{ .Values.otlpEndpoint | quote }} }
+            {{- end }}
+            - name: ConnectionStrings__Lots
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret }}
+                  key: {{ .Values.database.connectionStringKey }}
+            {{- if .Values.model.apiKey.existingSecret }}
+            - { name: Model__ApiKeyEnv, value: LOTS_MODEL_API_KEY }
+            - name: LOTS_MODEL_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.model.apiKey.existingSecret }}
+                  key: {{ .Values.model.apiKey.key }}
+            {{- end }}
+            {{- range .Values.extraSecretEnv }}
+            - name: {{ .name }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .secretName }}
+                  key: {{ .key }}
+            {{- end }}
+          startupProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 3
+            failureThreshold: 40
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: { path: /health/ready, port: http }
+            periodSeconds: 10
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+            {{- if .Values.profiles.files }}
+            - { name: profiles, mountPath: /profiles, readOnly: true }
+            {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        {{- if .Values.profiles.files }}
+        - name: profiles
+          configMap:
+            name: {{ include "lots.name" . }}-profiles
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity: {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "lots.name" . }}
+  labels: {{- include "lots.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "lots.selector" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: http

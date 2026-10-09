@@ -9,6 +9,9 @@ echo "== build + test"
 dotnet build --nologo -v q
 dotnet test --nologo --no-build -v q
 
+echo "== helm chart"
+bash scripts/check-chart.sh
+
 [[ "${1:-}" == "--no-images" ]] && { echo "== images skipped"; exit 0; }
 
 echo "== images"

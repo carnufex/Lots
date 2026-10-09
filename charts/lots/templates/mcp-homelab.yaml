@@ -1,0 +1,49 @@
+{{- if .Values.mcpHomelab.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "lots.name" . }}-mcp-homelab
+  labels: {{- include "lots.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: lots-mcp-homelab
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: lots-mcp-homelab
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext: {{- include "lots.podSecurityContext" . | nindent 8 }}
+      containers:
+        - name: mcp
+          image: "{{ .Values.mcpHomelab.image.repository }}:{{ .Values.mcpHomelab.image.tag | default .Chart.AppVersion }}"
+          securityContext: {{- include "lots.containerSecurityContext" . | nindent 12 }}
+          ports:
+            - { name: http, containerPort: 8080 }
+          env:
+            - { name: HOME, value: /tmp }
+            - { name: Docker__Url, value: {{ .Values.mcpHomelab.dockerUrl | quote }} }
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "lots.name" . }}-mcp-homelab
+  labels: {{- include "lots.labels" . | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/name: lots-mcp-homelab
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - { name: http, port: 8080, targetPort: http }
+{{- end }}
