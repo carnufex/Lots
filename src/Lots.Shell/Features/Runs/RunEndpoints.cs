@@ -51,6 +51,27 @@ public sealed class StartRunEndpoint(LotsDbContext db, TimeProvider clock, Profi
     }
 }
 
+public sealed record RunSummaryDto(Guid Id, string Prompt, string Profile, string User, string Status, DateTimeOffset CreatedAt);
+
+/// <summary>The caller's runs, newest first. Admins (<c>Auth:AdminRoles</c>) see everyone's.</summary>
+public sealed class ListRunsEndpoint(LotsDbContext db, ICurrentPrincipal who, IConfiguration config) : EndpointWithoutRequest<List<RunSummaryDto>>
+{
+    public override void Configure() => Get("/runs");
+
+    public override async Task HandleAsync(CancellationToken ct)
+    {
+        var me = who.Get(HttpContext);
+        var admins = (config["Auth:AdminRoles"] ?? "admin").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var isAdmin = me.Roles.Any(r => admins.Contains(r, StringComparer.OrdinalIgnoreCase));
+
+        var q = db.Runs.AsNoTracking().AsQueryable();
+        if (!isAdmin) q = q.Where(r => r.UserId == me.UserId);
+
+        var runs = await q.OrderByDescending(r => r.CreatedAt).Take(100).ToListAsync(ct);
+        await Send.OkAsync(runs.Select(r => new RunSummaryDto(r.Id, r.Prompt, r.Profile, r.UserId, r.Status.ToString(), r.CreatedAt)).ToList(), ct);
+    }
+}
+
 public sealed record GetRunRequest(Guid Id);
 
 public sealed record StepDto(

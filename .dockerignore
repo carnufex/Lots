@@ -3,3 +3,5 @@
 .git/
 .vs/
 .env
+web/node_modules/
+web/dist/

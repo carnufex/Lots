@@ -52,6 +52,8 @@ if (app.Configuration.GetValue("Database:MigrateOnStartup", true))
 if (!AuthSetup.IsOidc(app.Configuration))
     app.Logger.LogWarning("Auth:Mode is Dev: every request is authenticated as the configured dev user. Local development only.");
 
+app.UseDefaultFiles();
+app.UseStaticFiles(); // the browser app, built into wwwroot
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseFastEndpoints();

@@ -1,3 +1,10 @@
+FROM node:24-alpine AS web
+WORKDIR /web
+COPY web/package.json web/package-lock.json ./
+RUN npm ci
+COPY web/ ./
+RUN npm run build
+
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 COPY Lots.slnx ./
@@ -11,6 +18,7 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 COPY --from=build /app .
 COPY profiles/ /app/profiles/
+COPY --from=web /web/dist/ /app/wwwroot/
 # OpenShift-compatible: runs as an arbitrary UID with group 0; no privileged port.
 RUN chgrp -R 0 /app && chmod -R g=u /app
 ENV ASPNETCORE_URLS=http://+:8080 DOTNET_EnableDiagnostics=0
