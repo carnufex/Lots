@@ -4,6 +4,9 @@ services:
       context: .
       dockerfile: src/Lots.Shell/Dockerfile
     environment:
+      Model__BaseUrl: ${LOTS_MODEL_URL:-http://host.docker.internal:11434/v1}
+      Model__Model: ${LOTS_MODEL:-}
+      Model__ApiKeyEnv: ${LOTS_MODEL_KEY_ENV:-}
       ConnectionStrings__Lots: Host=postgres;Database=lots;Username=lots;Password=${POSTGRES_PASSWORD:-lots-dev}
     ports:
       - "${LOTS_PORT:-8088}:8080"
