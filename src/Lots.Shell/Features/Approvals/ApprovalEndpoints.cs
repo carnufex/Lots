@@ -23,7 +23,6 @@ public sealed class ListApprovalsEndpoint(LotsDbContext db, ProfileRegistry prof
     public override void Configure()
     {
         Get("/approvals");
-        AllowAnonymous(); // identity comes from ICurrentPrincipal
     }
 
     /// <summary>Pending approvals the caller is allowed to decide.</summary>
@@ -104,7 +103,6 @@ public sealed class ApproveEndpoint(LotsDbContext db, ProfileRegistry profiles, 
     public override void Configure()
     {
         Post("/approvals/{Id}/approve");
-        AllowAnonymous();
     }
 }
 
@@ -114,6 +112,5 @@ public sealed class DenyEndpoint(LotsDbContext db, ProfileRegistry profiles, ICu
     public override void Configure()
     {
         Post("/approvals/{Id}/deny");
-        AllowAnonymous();
     }
 }

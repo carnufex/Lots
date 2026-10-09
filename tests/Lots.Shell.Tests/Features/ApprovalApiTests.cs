@@ -53,8 +53,10 @@ public class ApprovalApiTests : IClassFixture<WebApplicationFactory<Program>>
             b.ConfigureAppConfiguration((_, c) => c.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Database:MigrateOnStartup"] = "false",
+                ["Auth:Mode"] = "Dev",
                 ["ConnectionStrings:Lots"] = "Host=none",
                 ["Auth:Dev:AllowHeaders"] = "true",
+                ["Auth:Dev:Roles"] = "admin", // header-less calls (polling) act as an admin who may read any run
             }));
             b.ConfigureServices(s =>
             {

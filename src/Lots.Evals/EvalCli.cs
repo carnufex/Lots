@@ -50,7 +50,7 @@ public static class EvalCli
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
-    /// <summary>Usage: Lots.Evals [--url http://localhost:8088] [--file evals/homelab.json] [--report evals/report.md]</summary>
+    /// <summary>Usage: Lots.Evals [--token <jwt> or LOTS_TOKEN] [--url http://localhost:8088] [--file evals/homelab.json] [--report evals/report.md]</summary>
     public static async Task<int> Main(string[] args)
     {
         var url = Arg(args, "--url") ?? "http://localhost:8088";
@@ -60,6 +60,8 @@ public static class EvalCli
         var cases = JsonSerializer.Deserialize<List<EvalCase>>(await File.ReadAllTextAsync(file), Json)
                     ?? throw new InvalidOperationException("No eval cases found.");
         using var http = new HttpClient { BaseAddress = new Uri(url), Timeout = TimeSpan.FromSeconds(30) };
+        var token = Arg(args, "--token") ?? Environment.GetEnvironmentVariable("LOTS_TOKEN");
+        if (!string.IsNullOrEmpty(token)) http.DefaultRequestHeaders.Authorization = new("Bearer", token);
 
         var results = new List<EvalResult>();
         foreach (var c in cases)

@@ -17,6 +17,7 @@ public class HealthTests(WebApplicationFactory<Program> factory) : IClassFixture
                 c.AddInMemoryCollection(new Dictionary<string, string?>
                 {
                     ["Database:MigrateOnStartup"] = "false",
+                ["Auth:Mode"] = "Dev",
                     ["Agent:RunWorkerEnabled"] = "false",
                     ["ConnectionStrings:Lots"] = "Host=localhost;Database=none",
                 }));

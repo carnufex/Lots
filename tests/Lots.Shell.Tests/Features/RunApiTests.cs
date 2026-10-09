@@ -32,6 +32,7 @@ public class RunApiTests : IClassFixture<WebApplicationFactory<Program>>
             b.ConfigureAppConfiguration((_, c) => c.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Database:MigrateOnStartup"] = "false",
+                ["Auth:Mode"] = "Dev",
                 ["ConnectionStrings:Lots"] = "Host=none",
             }));
             b.ConfigureServices(s =>

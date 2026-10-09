@@ -16,7 +16,6 @@ public sealed class StartRunEndpoint(LotsDbContext db, TimeProvider clock, Profi
     public override void Configure()
     {
         Post("/runs");
-        AllowAnonymous(); // M1: local only, OIDC arrives in M2
     }
 
     public override async Task HandleAsync(StartRunRequest req, CancellationToken ct)
@@ -62,20 +61,22 @@ public sealed record RunDto(
     Guid Id, string Prompt, string Status, string? FinalAnswer, string? Error,
     DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, IReadOnlyList<StepDto> Steps);
 
-public sealed class GetRunEndpoint(LotsDbContext db) : Endpoint<GetRunRequest, RunDto>
+/// <summary>A run can be read by its owner and by admins (<c>Auth:AdminRoles</c>, default admin). Others get 404.</summary>
+public sealed class GetRunEndpoint(LotsDbContext db, ICurrentPrincipal who, IConfiguration config) : Endpoint<GetRunRequest, RunDto>
 {
     public override void Configure()
     {
         Get("/runs/{Id}");
-        AllowAnonymous();
     }
 
     public override async Task HandleAsync(GetRunRequest req, CancellationToken ct)
     {
         var run = await db.Runs.AsNoTracking().Include(r => r.Steps).SingleOrDefaultAsync(r => r.Id == req.Id, ct);
-        if (run is null)
+        var me = who.Get(HttpContext);
+        var admins = (config["Auth:AdminRoles"] ?? "admin").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (run is null || (run.UserId != me.UserId && !me.Roles.Any(r => admins.Contains(r, StringComparer.OrdinalIgnoreCase))))
         {
-            await Send.NotFoundAsync(ct);
+            await Send.NotFoundAsync(ct); // do not reveal that someone else's run exists
             return;
         }
 

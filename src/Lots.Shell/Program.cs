@@ -12,6 +12,7 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.AddLotsAuth();
 builder.Services.AddFastEndpoints();
 builder.Services.AddModelClient(builder.Configuration);
 builder.Services.Configure<AgentOptions>(builder.Configuration.GetSection(AgentOptions.Section));
@@ -20,7 +21,6 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton(sp => ProfileRegistry.LoadDirectory(sp.GetRequiredService<IConfiguration>()["Profiles:Path"] ?? "profiles"));
 builder.Services.AddSingleton<IToolSource>(sp =>
     new McpToolSource(sp.GetRequiredService<ProfileRegistry>().Servers, sp.GetRequiredService<ILoggerFactory>()));
-builder.Services.AddSingleton<ICurrentPrincipal, DevPrincipal>();
 builder.Services.AddScoped<ToolInvoker>();
 builder.Services.AddScoped<AgentRunner>();
 if (builder.Configuration.GetValue("Agent:RunWorkerEnabled", true))
@@ -41,6 +41,7 @@ builder.Services.AddOpenTelemetry()
 var app = builder.Build();
 
 _ = app.Services.GetRequiredService<ProfileRegistry>(); // fail fast on invalid profiles
+AuthSetup.Validate(app.Configuration); // fail fast unless Auth:Mode is explicit
 
 if (app.Configuration.GetValue("Database:MigrateOnStartup", true))
 {
@@ -48,6 +49,11 @@ if (app.Configuration.GetValue("Database:MigrateOnStartup", true))
     await scope.ServiceProvider.GetRequiredService<LotsDbContext>().Database.MigrateAsync();
 }
 
+if (!AuthSetup.IsOidc(app.Configuration))
+    app.Logger.LogWarning("Auth:Mode is Dev: every request is authenticated as the configured dev user. Local development only.");
+
+app.UseAuthentication();
+app.UseAuthorization();
 app.UseFastEndpoints();
 app.Run();
 

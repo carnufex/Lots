@@ -21,7 +21,6 @@ public sealed class ListAuditEndpoint(LotsDbContext db, ICurrentPrincipal who, I
     public override void Configure()
     {
         Get("/audit");
-        AllowAnonymous(); // identity comes from ICurrentPrincipal
     }
 
     public override async Task HandleAsync(AuditQuery req, CancellationToken ct)
