@@ -23,6 +23,7 @@ builder.Services.AddSingleton<IToolSource>(sp =>
     new McpToolSource(sp.GetRequiredService<ProfileRegistry>().Servers, sp.GetRequiredService<ILoggerFactory>()));
 builder.Services.AddScoped<ToolInvoker>();
 builder.Services.AddScoped<AgentRunner>();
+builder.Services.AddScoped<RunLeases>();
 if (builder.Configuration.GetValue("Agent:RunWorkerEnabled", true))
     builder.Services.AddHostedService<RunWorker>();
 builder.Services.AddDbContext<LotsDbContext>(o =>

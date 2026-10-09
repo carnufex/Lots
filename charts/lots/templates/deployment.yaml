@@ -12,7 +12,7 @@ metadata:
 spec:
   replicas: {{ .Values.replicaCount }}
   strategy:
-    type: Recreate   # a single worker per database until run leases exist
+    type: RollingUpdate   # safe: runs are leased, so replicas never execute the same run
   selector:
     matchLabels: {{- include "lots.selector" . | nindent 6 }}
   template:

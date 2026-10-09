@@ -7,7 +7,7 @@ image:
   pullPolicy: IfNotPresent
 imagePullSecrets: []
 
-# More than one replica needs run leases (issue #26); keep 1 until then.
+# Replicas are safe: every replica runs a worker, and a run is executed by whoever holds its lease.
 replicaCount: 1
 
 auth:

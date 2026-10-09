@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Lots.Shell.Persistence;
 
-public sealed class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(options)
+public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(options)
 {
     public DbSet<RunRecord> Runs => Set<RunRecord>();
     public DbSet<RunMessageRecord> RunMessages => Set<RunMessageRecord>();
@@ -22,6 +22,7 @@ public sealed class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbC
             e.HasIndex(x => x.UserId);
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
             e.HasIndex(x => x.Status);
+            e.Property(x => x.LeaseOwner).HasMaxLength(256);
             e.HasMany(x => x.Messages).WithOne().HasForeignKey(x => x.RunId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(x => x.Steps).WithOne().HasForeignKey(x => x.RunId).OnDelete(DeleteBehavior.Cascade);
         });
@@ -87,6 +88,9 @@ public sealed class RunRecord
     public DateTimeOffset UpdatedAt { get; set; }
     public string? FinalAnswer { get; set; }
     public string? Error { get; set; }
+    /// <summary>Worker currently executing the run, and until when (unix ms). See RunLeases.</summary>
+    public string? LeaseOwner { get; set; }
+    public long? LeaseUntilMs { get; set; }
     public List<RunMessageRecord> Messages { get; set; } = [];
     public List<RunStepRecord> Steps { get; set; } = [];
 }
