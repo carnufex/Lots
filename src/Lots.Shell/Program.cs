@@ -2,6 +2,8 @@ using Lots.Shell.Core.Mcp;
 using Lots.Shell.Core.Models;
 using Lots.Shell.Core.Runs;
 using Lots.Shell.Core.Tools;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using FastEndpoints;
 using Lots.Shell.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -20,6 +22,16 @@ if (builder.Configuration.GetValue("Agent:RunWorkerEnabled", true))
     builder.Services.AddHostedService<RunWorker>();
 builder.Services.AddDbContext<LotsDbContext>(o =>
     o.UseNpgsql(builder.Configuration.GetConnectionString("Lots")));
+
+// Traces follow the OpenTelemetry GenAI semantic conventions; exported only when an OTLP endpoint is configured.
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(r => r.AddService("lots-shell"))
+    .WithTracing(t =>
+    {
+        t.AddSource(AgentRunner.Telemetry.Name).AddAspNetCoreInstrumentation();
+        if (!string.IsNullOrEmpty(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]))
+            t.AddOtlpExporter();
+    });
 
 var app = builder.Build();
 

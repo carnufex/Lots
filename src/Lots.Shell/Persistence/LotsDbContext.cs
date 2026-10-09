@@ -6,6 +6,7 @@ public sealed class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbC
 {
     public DbSet<RunRecord> Runs => Set<RunRecord>();
     public DbSet<RunMessageRecord> RunMessages => Set<RunMessageRecord>();
+    public DbSet<RunStepRecord> RunSteps => Set<RunStepRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -17,6 +18,7 @@ public sealed class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbC
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
             e.HasIndex(x => x.Status);
             e.HasMany(x => x.Messages).WithOne().HasForeignKey(x => x.RunId).OnDelete(DeleteBehavior.Cascade);
+            e.HasMany(x => x.Steps).WithOne().HasForeignKey(x => x.RunId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<RunMessageRecord>(e =>
@@ -24,6 +26,14 @@ public sealed class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbC
             e.ToTable("run_messages");
             e.HasKey(x => new { x.RunId, x.Seq });
             e.Property(x => x.Role).HasMaxLength(16).IsRequired();
+        });
+
+        modelBuilder.Entity<RunStepRecord>(e =>
+        {
+            e.ToTable("run_steps");
+            e.HasKey(x => new { x.RunId, x.Seq });
+            e.Property(x => x.Kind).HasConversion<string>().HasMaxLength(16).IsRequired();
+            e.Property(x => x.Name).HasMaxLength(256).IsRequired();
         });
     }
 }
@@ -41,6 +51,7 @@ public sealed class RunRecord
     public string? FinalAnswer { get; set; }
     public string? Error { get; set; }
     public List<RunMessageRecord> Messages { get; set; } = [];
+    public List<RunStepRecord> Steps { get; set; } = [];
 }
 
 /// <summary>One message of the run's conversation, in order. Written after every step.</summary>
@@ -53,4 +64,24 @@ public sealed class RunMessageRecord
     /// <summary>JSON array of tool calls for assistant messages.</summary>
     public string? ToolCallsJson { get; set; }
     public string? ToolCallId { get; set; }
+}
+
+public enum StepKind { ModelCall, ToolCall }
+
+/// <summary>Trace entry: one model call or one tool call of a run.</summary>
+public sealed class RunStepRecord
+{
+    public Guid RunId { get; set; }
+    public int Seq { get; set; }
+    public StepKind Kind { get; set; }
+    /// <summary>Model name for model calls, tool name for tool calls.</summary>
+    public required string Name { get; set; }
+    public string? ToolCallId { get; set; }
+    public string? ArgumentsJson { get; set; }
+    /// <summary>Truncated result (tool output or model reply text).</summary>
+    public string? Result { get; set; }
+    public long LatencyMs { get; set; }
+    public int? PromptTokens { get; set; }
+    public int? CompletionTokens { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
 }

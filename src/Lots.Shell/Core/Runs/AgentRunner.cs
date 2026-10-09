@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Lots.Shell.Core.Models;
 using Lots.Shell.Core.Tools;
@@ -25,14 +26,18 @@ public sealed class AgentRunner(
     IModelClient model,
     ToolInvoker tools,
     IOptions<AgentOptions> options,
-    TimeProvider clock)
+    TimeProvider clock,
+    IOptions<ModelOptions>? modelOptions = null)
 {
+    public static readonly ActivitySource Telemetry = new("Lots.Shell");
+    private const int MaxTraceResultChars = 2000;
+
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private readonly AgentOptions _options = options.Value;
 
     public async Task ExecuteAsync(Guid runId, CancellationToken ct)
     {
-        var run = await db.Runs.Include(r => r.Messages).SingleAsync(r => r.Id == runId, ct);
+        var run = await db.Runs.Include(r => r.Messages).Include(r => r.Steps).SingleAsync(r => r.Id == runId, ct);
         if (run.Status is RunStatus.Completed or RunStatus.Failed) return;
 
         run.Status = RunStatus.Running;
@@ -68,9 +73,29 @@ public sealed class AgentRunner(
                     break;
                 }
 
+                var modelName = modelOptions?.Value.Model ?? "";
+                using var activity = Telemetry.StartActivity($"chat {modelName}", ActivityKind.Client);
+                activity?.SetTag("gen_ai.operation.name", "chat");
+                activity?.SetTag("gen_ai.request.model", modelName);
+                activity?.SetTag("lots.run.id", run.Id.ToString());
                 var response = await model.CompleteAsync(ToMessages(run), definitions, ct);
+                activity?.SetTag("gen_ai.usage.input_tokens", response.Usage.PromptTokens);
+                activity?.SetTag("gen_ai.usage.output_tokens", response.Usage.CompletionTokens);
                 modelCalls++;
                 Add(run, response.Message);
+                run.Steps.Add(new RunStepRecord
+                {
+                    RunId = run.Id,
+                    Seq = NextStepSeq(run),
+                    Kind = StepKind.ModelCall,
+                    Name = modelName,
+                    Result = Cut(response.Message.Content),
+                    ArgumentsJson = response.Message.ToolCalls is null ? null : JsonSerializer.Serialize(response.Message.ToolCalls, Json),
+                    LatencyMs = (long)response.Latency.TotalMilliseconds,
+                    PromptTokens = response.Usage.PromptTokens,
+                    CompletionTokens = response.Usage.CompletionTokens,
+                    CreatedAt = clock.GetUtcNow(),
+                });
                 await SaveAsync(run);
             }
         }
@@ -96,11 +121,34 @@ public sealed class AgentRunner(
         foreach (var call in calls.Where(c => !answered.Contains(c.Id)))
         {
             ct.ThrowIfCancellationRequested();
+            using var activity = Telemetry.StartActivity($"execute_tool {call.Name}", ActivityKind.Internal);
+            activity?.SetTag("gen_ai.operation.name", "execute_tool");
+            activity?.SetTag("gen_ai.tool.name", call.Name);
+            activity?.SetTag("gen_ai.tool.call.id", call.Id);
+            var sw = Stopwatch.StartNew();
             var result = await tools.InvokeAsync(call, ct);
+            sw.Stop();
             Add(run, new ChatMessage("tool", result, ToolCallId: call.Id));
+            run.Steps.Add(new RunStepRecord
+            {
+                RunId = run.Id,
+                Seq = NextStepSeq(run),
+                Kind = StepKind.ToolCall,
+                Name = call.Name,
+                ToolCallId = call.Id,
+                ArgumentsJson = call.ArgumentsJson,
+                Result = Cut(result),
+                LatencyMs = sw.ElapsedMilliseconds,
+                CreatedAt = clock.GetUtcNow(),
+            });
             await SaveAsync(run); // persisted per tool call: a restart never re-executes a finished call
         }
     }
+
+    private static int NextStepSeq(RunRecord run) => run.Steps.Count == 0 ? 0 : run.Steps.Max(x => x.Seq) + 1;
+
+    private static string? Cut(string? s) =>
+        s is null || s.Length <= MaxTraceResultChars ? s : s[..MaxTraceResultChars] + "...[truncated in trace]";
 
     private static void Add(RunRecord run, ChatMessage m)
     {

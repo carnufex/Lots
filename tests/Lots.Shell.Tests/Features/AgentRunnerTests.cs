@@ -66,11 +66,18 @@ public class AgentRunnerTests
 
         await Runner(db, model, tools).ExecuteAsync(id, default);
 
-        var run = await db.Runs.Include(r => r.Messages).SingleAsync();
+        var run = await db.Runs.Include(r => r.Messages).Include(r => r.Steps).SingleAsync();
         Assert.Equal(RunStatus.Completed, run.Status);
         Assert.Equal("none", run.FinalAnswer);
         Assert.Equal(["system", "user", "assistant", "tool", "assistant"], run.Messages.OrderBy(m => m.Seq).Select(m => m.Role));
         Assert.Equal(["list_containers"], tools.Called);
+
+        var steps = run.Steps.OrderBy(s => s.Seq).ToList();
+        Assert.Equal([StepKind.ModelCall, StepKind.ToolCall, StepKind.ModelCall], steps.Select(s => s.Kind));
+        Assert.Equal("list_containers", steps[1].Name);
+        Assert.Equal("c1", steps[1].ToolCallId);
+        Assert.Equal("ok", steps[1].Result);
+        Assert.Equal(1, steps[0].PromptTokens);
     }
 
     [Fact]
