@@ -10,6 +10,7 @@ RUN dotnet publish src/Lots.Shell/Lots.Shell.csproj -c Release -o /app --no-rest
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 COPY --from=build /app .
+COPY profiles/ /app/profiles/
 # OpenShift-compatible: runs as an arbitrary UID with group 0; no privileged port.
 RUN chgrp -R 0 /app && chmod -R g=u /app
 ENV ASPNETCORE_URLS=http://+:8080 DOTNET_EnableDiagnostics=0

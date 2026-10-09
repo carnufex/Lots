@@ -1,4 +1,5 @@
 using Lots.Shell.Core.Mcp;
+using Lots.Shell.Core.Profiles;
 using Lots.Shell.Core.Models;
 using Lots.Shell.Core.Runs;
 using Lots.Shell.Core.Tools;
@@ -14,8 +15,10 @@ builder.Services.AddFastEndpoints();
 builder.Services.AddModelClient(builder.Configuration);
 builder.Services.Configure<AgentOptions>(builder.Configuration.GetSection(AgentOptions.Section));
 builder.Services.AddSingleton(TimeProvider.System);
-builder.Services.Configure<McpOptions>(builder.Configuration.GetSection(McpOptions.Section));
-builder.Services.AddSingleton<IToolSource, McpToolSource>();
+// Profiles are config as code: loaded from YAML at startup; an invalid manifest stops the shell.
+builder.Services.AddSingleton(sp => ProfileRegistry.LoadDirectory(sp.GetRequiredService<IConfiguration>()["Profiles:Path"] ?? "profiles"));
+builder.Services.AddSingleton<IToolSource>(sp =>
+    new McpToolSource(sp.GetRequiredService<ProfileRegistry>().Servers, sp.GetRequiredService<ILoggerFactory>()));
 builder.Services.AddScoped<ToolInvoker>();
 builder.Services.AddScoped<AgentRunner>();
 if (builder.Configuration.GetValue("Agent:RunWorkerEnabled", true))
@@ -34,6 +37,8 @@ builder.Services.AddOpenTelemetry()
     });
 
 var app = builder.Build();
+
+_ = app.Services.GetRequiredService<ProfileRegistry>(); // fail fast on invalid profiles
 
 if (app.Configuration.GetValue("Database:MigrateOnStartup", true))
 {

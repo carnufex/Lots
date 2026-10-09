@@ -1,37 +1,17 @@
 using System.Text;
 using System.Text.Json;
+using Lots.Shell.Core.Profiles;
 using Lots.Shell.Core.Tools;
-using Microsoft.Extensions.Options;
 using ModelContextProtocol.Client;
 
 namespace Lots.Shell.Core.Mcp;
 
-public sealed class McpOptions
-{
-    public const string Section = "Mcp";
-    public List<McpServerConfig> Servers { get; set; } = [];
-}
-
-public sealed class McpServerConfig
-{
-    public required string Name { get; set; }
-    /// <summary>Streamable HTTP endpoint of the MCP server.</summary>
-    public required string Url { get; set; }
-    /// <summary>Tools classified as read-only by an administrator. Everything else is deny-by-default (Write).</summary>
-    public List<string> ReadTools { get; set; } = [];
-    /// <summary>
-    /// Also trust the server's own readOnlyHint annotation. Off by default: a server must not be able to
-    /// grant itself permissions.
-    /// </summary>
-    public bool TrustReadOnlyHint { get; set; }
-}
-
 /// <summary>Exposes the tools of the configured MCP servers to the <see cref="ToolInvoker"/>.</summary>
-public sealed class McpToolSource(IOptions<McpOptions> options, ILoggerFactory loggers) : IToolSource, IAsyncDisposable
+/// <remarks>Risk classes are not decided here: they come from the profile, and policy decides per call.</remarks>
+public sealed class McpToolSource(IReadOnlyList<McpServerConfig> servers, ILoggerFactory loggers) : IToolSource, IAsyncDisposable
 {
     private static readonly TimeSpan CatalogTtl = TimeSpan.FromSeconds(60);
 
-    private readonly McpOptions _options = options.Value;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly Dictionary<string, McpClient> _clients = [];
     private readonly Dictionary<string, string> _toolServer = [];
@@ -40,7 +20,7 @@ public sealed class McpToolSource(IOptions<McpOptions> options, ILoggerFactory l
 
     public async Task<IReadOnlyList<ToolDescriptor>> ListAsync(CancellationToken ct)
     {
-        if (_options.Servers.Count == 0) return [];
+        if (servers.Count == 0) return [];
 
         await _gate.WaitAsync(ct);
         try
@@ -49,7 +29,7 @@ public sealed class McpToolSource(IOptions<McpOptions> options, ILoggerFactory l
 
             var catalog = new List<ToolDescriptor>();
             _toolServer.Clear();
-            foreach (var server in _options.Servers)
+            foreach (var server in servers)
             {
                 try
                 {
@@ -58,7 +38,7 @@ public sealed class McpToolSource(IOptions<McpOptions> options, ILoggerFactory l
                     {
                         if (_toolServer.ContainsKey(tool.Name)) continue; // first server wins on name clashes
                         _toolServer[tool.Name] = server.Name;
-                        catalog.Add(new ToolDescriptor(tool.Name, tool.Description ?? "", tool.JsonSchema.Clone(), Classify(server, tool)));
+                        catalog.Add(new ToolDescriptor(tool.Name, tool.Description ?? "", tool.JsonSchema.Clone()));
                     }
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
@@ -107,13 +87,6 @@ public sealed class McpToolSource(IOptions<McpOptions> options, ILoggerFactory l
         var output = text.ToString().TrimEnd();
 
         return result.IsError == true ? $"Error from tool '{name}': {output}" : output;
-    }
-
-    private static ToolRisk Classify(McpServerConfig server, McpClientTool tool)
-    {
-        if (server.ReadTools.Contains(tool.Name)) return ToolRisk.Read;
-        if (server.TrustReadOnlyHint && tool.ProtocolTool.Annotations?.ReadOnlyHint == true) return ToolRisk.Read;
-        return tool.ProtocolTool.Annotations?.DestructiveHint == false ? ToolRisk.Write : ToolRisk.Destructive;
     }
 
     private async Task<McpClient> ClientAsync(McpServerConfig server, CancellationToken ct)

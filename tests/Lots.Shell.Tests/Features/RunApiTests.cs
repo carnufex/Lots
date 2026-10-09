@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using Lots.Shell.Core.Models;
+using Lots.Shell.Core.Profiles;
 using Lots.Shell.Core.Tools;
 using Lots.Shell.Persistence;
 using Microsoft.AspNetCore.Hosting;
@@ -38,6 +39,7 @@ public class RunApiTests : IClassFixture<WebApplicationFactory<Program>>
                 s.RemoveAll<DbContextOptions<LotsDbContext>>();
                 s.RemoveAll(typeof(IDbContextOptionsConfiguration<LotsDbContext>));
                 s.AddDbContext<LotsDbContext>(o => o.UseInMemoryDatabase(dbName));
+                s.AddSingleton(TestProfiles.Registry());
                 s.RemoveAll<IModelClient>();
                 s.AddSingleton<IModelClient, CannedModel>();
             });

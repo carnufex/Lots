@@ -15,6 +15,9 @@ public sealed class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbC
             e.ToTable("runs");
             e.HasKey(x => x.Id);
             e.Property(x => x.Prompt).IsRequired();
+            e.Property(x => x.Profile).HasMaxLength(128);
+            e.Property(x => x.UserId).HasMaxLength(256);
+            e.HasIndex(x => x.UserId);
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
             e.HasIndex(x => x.Status);
             e.HasMany(x => x.Messages).WithOne().HasForeignKey(x => x.RunId).OnDelete(DeleteBehavior.Cascade);
@@ -45,6 +48,10 @@ public sealed class RunRecord
 {
     public Guid Id { get; set; }
     public required string Prompt { get; set; }
+    public string Profile { get; set; } = "";
+    public string UserId { get; set; } = "";
+    /// <summary>Comma-separated roles the run acts with, fixed when the run starts.</summary>
+    public string Roles { get; set; } = "";
     public RunStatus Status { get; set; } = RunStatus.Pending;
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }

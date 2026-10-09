@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Text.Json;
 using Lots.Shell.Core.Models;
+using Lots.Shell.Core.Policy;
+using Lots.Shell.Core.Profiles;
 using Lots.Shell.Core.Tools;
 using Lots.Shell.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -32,6 +34,7 @@ public sealed class AgentRunner(
     LotsDbContext db,
     IModelClient model,
     ToolInvoker tools,
+    ProfileRegistry profiles,
     IOptions<AgentOptions> options,
     TimeProvider clock,
     IOptions<ModelOptions>? modelOptions = null)
@@ -52,20 +55,22 @@ public sealed class AgentRunner(
         run.Status = RunStatus.Running;
         if (run.Messages.Count == 0)
         {
-            Add(run, new ChatMessage("system", _options.SystemPrompt));
+            var instructions = profiles.Find(run.Profile)?.Instructions;
+            Add(run, new ChatMessage("system", string.IsNullOrWhiteSpace(instructions) ? _options.SystemPrompt : _options.SystemPrompt + "\n\n" + instructions));
             Add(run, new ChatMessage("user", run.Prompt));
         }
         await SaveAsync(run);
 
         try
         {
-            var definitions = await tools.DefinitionsAsync(ct);
+            var principal = PrincipalOf(run);
+            var definitions = await tools.DefinitionsAsync(principal, run.Profile, ct);
             var modelCalls = run.Messages.Count(m => m.Role == "assistant");
 
             while (true)
             {
                 // Resume point: answer any tool calls of the last assistant message that have no result yet.
-                await AnswerPendingToolCallsAsync(run, ct);
+                await AnswerPendingToolCallsAsync(run, principal, ct);
 
                 var last = run.Messages.OrderBy(m => m.Seq).Last();
                 if (last.Role == "assistant" && last.ToolCallsJson is null)
@@ -133,7 +138,10 @@ public sealed class AgentRunner(
         await SaveAsync(run);
     }
 
-    private async Task AnswerPendingToolCallsAsync(RunRecord run, CancellationToken ct)
+    private static Principal PrincipalOf(RunRecord run) =>
+        new(run.UserId, run.Roles.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+
+    private async Task AnswerPendingToolCallsAsync(RunRecord run, Principal principal, CancellationToken ct)
     {
         var ordered = run.Messages.OrderBy(m => m.Seq).ToList();
         var lastAssistant = ordered.LastOrDefault(m => m.Role == "assistant");
@@ -151,7 +159,7 @@ public sealed class AgentRunner(
             activity?.SetTag("gen_ai.tool.name", call.Name);
             activity?.SetTag("gen_ai.tool.call.id", call.Id);
             var sw = Stopwatch.StartNew();
-            var result = await tools.InvokeAsync(call, ct);
+            var result = await tools.InvokeAsync(call, principal, run.Profile, ct);
             sw.Stop();
             Add(run, new ChatMessage("tool", result, ToolCallId: call.Id));
             run.Steps.Add(new RunStepRecord

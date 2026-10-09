@@ -1,5 +1,7 @@
 using System.ComponentModel;
 using Lots.Shell.Core.Mcp;
+using Lots.Shell.Core.Policy;
+using Lots.Shell.Core.Profiles;
 using Lots.Shell.Core.Models;
 using Lots.Shell.Core.Tools;
 using Microsoft.AspNetCore.Builder;
@@ -50,57 +52,44 @@ public sealed class McpServerFixture : IAsyncLifetime
 
 public class McpToolSourceTests(McpServerFixture server) : IClassFixture<McpServerFixture>
 {
-    private McpToolSource Source(Action<McpServerConfig>? configure = null)
-    {
-        var s = new McpServerConfig { Name = "sample", Url = server.Url, ReadTools = ["echo"] };
-        configure?.Invoke(s);
-        return new McpToolSource(Options.Create(new McpOptions { Servers = [s] }), NullLoggerFactory.Instance);
-    }
+    private McpToolSource Source() =>
+        new([new McpServerConfig("sample", server.Url)], NullLoggerFactory.Instance);
+
+    private static readonly Principal Operator = new("u1", ["operator"]);
 
     [Fact]
-    public async Task Lists_tools_with_deny_by_default_risk()
+    public async Task Lists_the_tools_of_the_server()
     {
         await using var source = Source();
 
-        var tools = (await source.ListAsync(default)).ToDictionary(t => t.Name);
+        var names = (await source.ListAsync(default)).Select(t => t.Name).Order().ToList();
 
-        Assert.Equal(ToolRisk.Read, tools["echo"].Risk);
-        Assert.NotEqual(ToolRisk.Read, tools["peek"].Risk); // the server's own hint is not trusted
-        Assert.Equal(ToolRisk.Destructive, tools["delete_all"].Risk);
-    }
-
-    [Fact]
-    public async Task Trusting_the_read_only_hint_is_opt_in()
-    {
-        await using var source = Source(s => s.TrustReadOnlyHint = true);
-
-        var tools = (await source.ListAsync(default)).ToDictionary(t => t.Name);
-
-        Assert.Equal(ToolRisk.Read, tools["peek"].Risk);
-        Assert.Equal(ToolRisk.Destructive, tools["delete_all"].Risk);
+        Assert.Equal(["delete_all", "echo", "peek"], names);
     }
 
     [Fact]
     public async Task Loop_can_call_a_tool_on_an_external_mcp_server_through_the_invoker()
     {
         await using var source = Source();
-        var invoker = new ToolInvoker([source]);
+        // echo is declared read, delete_all destructive, peek is not declared at all.
+        var registry = TestProfiles.Registry(("echo", ToolRisk.Read), ("delete_all", ToolRisk.Destructive));
+        var invoker = new ToolInvoker([source], registry);
 
-        var definitions = await invoker.DefinitionsAsync(default);
-        var ok = await invoker.InvokeAsync(new ToolCall("1", "echo", "{\"text\":\"hi\"}"), default);
-        var denied = await invoker.InvokeAsync(new ToolCall("2", "delete_all", "{}"), default);
+        var definitions = await invoker.DefinitionsAsync(Operator, TestProfiles.Name, default);
+        var ok = await invoker.InvokeAsync(new ToolCall("1", "echo", "{\"text\":\"hi\"}"), Operator, TestProfiles.Name, default);
+        var denied = await invoker.InvokeAsync(new ToolCall("2", "delete_all", "{}"), Operator, TestProfiles.Name, default);
+        var undeclared = await invoker.InvokeAsync(new ToolCall("3", "peek", "{}"), Operator, TestProfiles.Name, default);
 
         Assert.Equal(["echo"], definitions.Select(d => d.Name));
         Assert.Equal("echo:hi", ok);
         Assert.Contains("not permitted", denied);
+        Assert.Contains("not permitted", undeclared); // the server's own readOnly hint grants nothing
     }
 
     [Fact]
     public async Task Unreachable_server_yields_no_tools_instead_of_failing()
     {
-        await using var source = new McpToolSource(
-            Options.Create(new McpOptions { Servers = [new McpServerConfig { Name = "down", Url = "http://127.0.0.1:1/mcp" }] }),
-            NullLoggerFactory.Instance);
+        await using var source = new McpToolSource([new McpServerConfig("down", "http://127.0.0.1:1/mcp")], NullLoggerFactory.Instance);
 
         Assert.Empty(await source.ListAsync(default));
     }

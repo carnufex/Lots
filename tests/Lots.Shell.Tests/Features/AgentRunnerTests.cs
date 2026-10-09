@@ -1,5 +1,7 @@
 using System.Text.Json;
 using Lots.Shell.Core.Models;
+using Lots.Shell.Core.Profiles;
+using Lots.Shell.Core.Policy;
 using Lots.Shell.Core.Runs;
 using Lots.Shell.Core.Tools;
 using Lots.Shell.Persistence;
@@ -23,12 +25,14 @@ public class AgentRunnerTests
 
     private sealed class FakeTools(params (string Name, ToolRisk Risk)[] tools) : IToolSource
     {
+        public (string Name, ToolRisk Risk)[] Declared => tools;
+
         public List<string> Called { get; } = [];
         public Func<string, string> Output { get; set; } = _ => "ok";
 
         public Task<IReadOnlyList<ToolDescriptor>> ListAsync(CancellationToken ct) =>
             Task.FromResult<IReadOnlyList<ToolDescriptor>>(tools.Select(t =>
-                new ToolDescriptor(t.Name, t.Name, JsonDocument.Parse("{\"type\":\"object\"}").RootElement.Clone(), t.Risk)).ToList());
+                new ToolDescriptor(t.Name, t.Name, JsonDocument.Parse("{\"type\":\"object\"}").RootElement.Clone())).ToList());
 
         public Task<string> CallAsync(string name, string argumentsJson, CancellationToken ct)
         {
@@ -45,12 +49,22 @@ public class AgentRunnerTests
     private static LotsDbContext NewDb(string name) =>
         new(new DbContextOptionsBuilder<LotsDbContext>().UseInMemoryDatabase(name).Options);
 
-    private static AgentRunner Runner(LotsDbContext db, IModelClient model, FakeTools tools, int maxSteps = 12) =>
-        new(db, model, new ToolInvoker([tools]), Options.Create(new AgentOptions { MaxSteps = maxSteps }), TimeProvider.System);
+    /// <summary>A profile that declares exactly the fake tools with their risk classes; operator may read, admin may do everything.</summary>
+    private static ProfileRegistry RegistryFor(FakeTools tools) => TestProfiles.Registry(tools.Declared);
+
+    private static AgentRunner Runner(LotsDbContext db, IModelClient model, FakeTools tools, int maxSteps = 12)
+    {
+        var registry = RegistryFor(tools);
+        return new(db, model, new ToolInvoker([tools], registry), registry, Options.Create(new AgentOptions { MaxSteps = maxSteps }), TimeProvider.System);
+    }
 
     private static async Task<Guid> NewRun(LotsDbContext db)
     {
-        var run = new RunRecord { Id = Guid.NewGuid(), Prompt = "which containers are unhealthy?", CreatedAt = DateTimeOffset.UtcNow };
+        var run = new RunRecord
+        {
+            Id = Guid.NewGuid(), Prompt = "which containers are unhealthy?", CreatedAt = DateTimeOffset.UtcNow,
+            Profile = TestProfiles.Name, UserId = "u1", Roles = "operator",
+        };
         db.Runs.Add(run);
         await db.SaveChangesAsync();
         return run.Id;
@@ -93,7 +107,8 @@ public class AgentRunnerTests
 
         Assert.Empty(tools.Called);
         Assert.Contains("not permitted", seen!.Last(m => m.Role == "tool").Content);
-        Assert.Empty(await new ToolInvoker([tools]).DefinitionsAsync(default));
+        var registry = RegistryFor(tools);
+        Assert.Empty(await new ToolInvoker([tools], registry).DefinitionsAsync(new Principal("u1", ["operator"]), TestProfiles.Name, default));
     }
 
     [Fact]
@@ -172,7 +187,8 @@ public class AgentRunnerTests
             _ => CallTool("logs", "c1"), _ => CallTool("logs", "c2"), _ => CallTool("logs", "c3"),
             m => { lastRequest = m; return Answer("done"); });
         var id = await NewRun(db);
-        var runner = new AgentRunner(db, model, new ToolInvoker([tools]),
+        var registry = RegistryFor(tools);
+        var runner = new AgentRunner(db, model, new ToolInvoker([tools], registry), registry,
             Options.Create(new AgentOptions { MaxContextChars = 7_000 }), TimeProvider.System);
 
         await runner.ExecuteAsync(id, default);

@@ -7,10 +7,6 @@ services:
       Model__BaseUrl: ${LOTS_MODEL_URL:-http://host.docker.internal:11434/v1}
       Model__Model: ${LOTS_MODEL:-}
       Model__ApiKeyEnv: ${LOTS_MODEL_KEY_ENV:-}
-      Mcp__Servers__0__Name: homelab
-      Mcp__Servers__0__Url: http://mcp-homelab:8080/mcp
-      Mcp__Servers__0__ReadTools__0: list_containers
-      Mcp__Servers__0__ReadTools__1: get_container_logs
       ConnectionStrings__Lots: Host=postgres;Database=lots;Username=lots;Password=${POSTGRES_PASSWORD:-lots-dev}
     ports:
       - "${LOTS_PORT:-8088}:8080"

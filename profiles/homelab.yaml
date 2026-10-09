@@ -1,0 +1,26 @@
+# Homelab profile: inspect the Docker host. Declarative; loaded at startup.
+name: homelab
+version: 1
+description: Read-only insight into the homelab's Docker containers.
+instructions: |
+  You help operate a homelab. Use list_containers to see what exists and get_container_logs to find out why
+  something is failing. Prefer running containers unless the user asks about stopped ones.
+  Answer concisely and name the containers you refer to.
+
+servers:
+  - name: homelab
+    url: http://mcp-homelab:8080/mcp
+
+# A tool is only visible and callable if it is declared here and a role grants its risk class.
+tools:
+  - name: list_containers
+    risk: read
+  - name: get_container_logs
+    risk: read
+
+roles:
+  - name: operator
+    allow: [read]
+  - name: admin
+    allow: [read, write]
+    requireApproval: [write]
