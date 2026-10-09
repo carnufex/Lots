@@ -545,3 +545,45 @@ input.wide {
   color: var(--warn);
   border-color: #5a4a26;
 }
+
+/* voice */
+.btn.mic.recording {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.btn.mic.recording::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger);
+  margin-right: 8px;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn.mic.recording::before {
+    animation: none;
+  }
+}
+
+.speak {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: -16px 0 24px;
+  flex-wrap: wrap;
+}
+
+.speak input[type='checkbox'] {
+  width: auto;
+  vertical-align: middle;
+}

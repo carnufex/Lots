@@ -1,11 +1,13 @@
 import { useState } from 'react'
-import type { Api } from '../api'
-import type { ProfileInfo } from '../config'
+import type { Api, VoiceLanguage } from '../api'
+import type { ProfileInfo, VoiceConfig } from '../config'
+import MicButton from './MicButton'
 
-export default function NewRun({ api, profiles }: { api: Api; profiles: ProfileInfo[] }) {
+export default function NewRun({ api, profiles, voice }: { api: Api; profiles: ProfileInfo[]; voice: VoiceConfig }) {
   const [prompt, setPrompt] = useState('')
   const [profile, setProfile] = useState(profiles[0]?.name ?? '')
   const [busy, setBusy] = useState(false)
+  const [language, setLanguage] = useState<VoiceLanguage>('auto')
   const [error, setError] = useState<string | null>(null)
 
   const submit = async (e: React.FormEvent) => {
@@ -50,6 +52,16 @@ export default function NewRun({ api, profiles }: { api: Api; profiles: ProfileI
           <span className="muted">{profile}</span>
         )}
         <span className="grow" />
+        {voice.enabled && (
+          <>
+            <select aria-label="Speech language" value={language} onChange={(e) => setLanguage(e.target.value as VoiceLanguage)}>
+              <option value="auto">Auto</option>
+              <option value="sv">Svenska</option>
+              <option value="en">English</option>
+            </select>
+            <MicButton api={api} language={language} onText={(t) => setPrompt((p) => (p.trim() ? `${p.trim()} ${t}` : t))} />
+          </>
+        )}
         {error && (
           <span role="alert" className="error">
             {error}

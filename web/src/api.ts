@@ -72,6 +72,14 @@ export interface AuditFilter {
   to?: string
 }
 
+export interface Transcription {
+  text: string
+  language: string | null
+  durationSeconds: number | null
+}
+
+export type VoiceLanguage = 'auto' | 'sv' | 'en'
+
 export type RunStatus = 'Pending' | 'Running' | 'WaitingForApproval' | 'Completed' | 'Failed'
 
 export class ApiError extends Error {
@@ -89,7 +97,7 @@ export function createApi(auth: Auth) {
       ...init,
       headers: {
         // Only a request with a body declares one; FastEndpoints rejects an empty JSON body with 400.
-        ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+        ...(typeof init.body === 'string' ? { 'Content-Type': 'application/json' } : {}),
         ...(await auth.headers()),
         ...init.headers,
       },
@@ -101,6 +109,23 @@ export function createApi(auth: Auth) {
   return {
     listRuns: () => request<RunSummary[]>('/runs'),
     getRun: (id: string) => request<RunDetail>(`/runs/${id}`),
+    /** Dictation: audio in, text out. The text is only a draft for the user to review. */
+    transcribe: (audio: Blob, language: VoiceLanguage) => {
+      const form = new FormData()
+      form.append('Audio', audio, 'dictation.webm')
+      if (language !== 'auto') form.append('Language', language)
+      return request<Transcription>('/voice/transcribe', { method: 'POST', body: form })
+    },
+    /** The spoken final answer of a run, as an audio blob. */
+    speak: async (runId: string, language: VoiceLanguage): Promise<Blob> => {
+      const res = await fetch(`/runs/${runId}/speak`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await auth.headers()) },
+        body: JSON.stringify(language === 'auto' ? {} : { language }),
+      })
+      if (!res.ok) throw new ApiError(res.status, `${res.status} ${res.statusText}`)
+      return res.blob()
+    },
     listApprovals: () => request<Approval[]>('/approvals'),
     decide: (id: string, outcome: 'approve' | 'deny', comment: string) =>
       request<Approval>(`/approvals/${id}/${outcome}`, { method: 'POST', body: JSON.stringify({ comment: comment || null }) }),

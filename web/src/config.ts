@@ -11,10 +11,16 @@ export interface ProfileInfo {
   description: string
 }
 
+export interface VoiceConfig {
+  enabled: boolean
+  languages: string[]
+}
+
 export interface ClientConfig {
   authMode: 'dev' | 'oidc'
   oidc: OidcConfig | null
   profiles: ProfileInfo[]
+  voice: VoiceConfig
 }
 
 /** Public runtime configuration served by the shell (no secrets). */

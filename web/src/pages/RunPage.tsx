@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { isTerminal, type Api, type RunDetail, type Step } from '../api'
+import type { VoiceConfig } from '../config'
+import SpeakButton from '../components/SpeakButton'
 
 const POLL_MS = 1500
 
-export default function RunPage({ api, id }: { api: Api; id: string }) {
+export default function RunPage({ api, id, voice }: { api: Api; id: string; voice: VoiceConfig }) {
   const [run, setRun] = useState<RunDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -43,12 +45,12 @@ export default function RunPage({ api, id }: { api: Api; id: string }) {
         </p>
       )}
       {!run && !error && <p className="muted">Loading…</p>}
-      {run && <Detail run={run} reconnecting={error !== null} />}
+      {run && <Detail run={run} api={api} voice={voice} reconnecting={error !== null} />}
     </section>
   )
 }
 
-function Detail({ run, reconnecting }: { run: RunDetail; reconnecting: boolean }) {
+function Detail({ run, api, voice, reconnecting }: { run: RunDetail; api: Api; voice: VoiceConfig; reconnecting: boolean }) {
   const live = !isTerminal(run.status)
   const tokens = run.steps.reduce((n, s) => n + (s.promptTokens ?? 0) + (s.completionTokens ?? 0), 0)
 
@@ -63,9 +65,12 @@ function Detail({ run, reconnecting }: { run: RunDetail; reconnecting: boolean }
       </div>
 
       {run.status === 'Completed' && (
-        <div className="answer" aria-label="Answer">
-          {run.finalAnswer}
-        </div>
+        <>
+          <div className="answer" aria-label="Answer">
+            {run.finalAnswer}
+          </div>
+          {voice.enabled && run.finalAnswer && <SpeakButton api={api} runId={run.id} />}
+        </>
       )}
       {run.status === 'Failed' && (
         <div className="answer failed" role="alert">

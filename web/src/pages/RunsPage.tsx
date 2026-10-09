@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import type { Api, RunSummary } from '../api'
-import type { ProfileInfo } from '../config'
+import type { ProfileInfo, VoiceConfig } from '../config'
 import NewRun from '../components/NewRun'
 
 type Load = { state: 'loading' } | { state: 'error'; message: string } | { state: 'ok'; runs: RunSummary[] }
 
-export default function RunsPage({ api, profiles }: { api: Api; profiles: ProfileInfo[] }) {
+export default function RunsPage({ api, profiles, voice }: { api: Api; profiles: ProfileInfo[]; voice: VoiceConfig }) {
   const [load, setLoad] = useState<Load>({ state: 'loading' })
 
   useEffect(() => {
@@ -22,7 +22,7 @@ export default function RunsPage({ api, profiles }: { api: Api; profiles: Profil
   return (
     <section>
       <h1>Runs</h1>
-      <NewRun api={api} profiles={profiles} />
+      <NewRun api={api} profiles={profiles} voice={voice} />
       {load.state === 'loading' && <p className="muted">Loading…</p>}
       {load.state === 'error' && (
         <p role="alert" className="error">

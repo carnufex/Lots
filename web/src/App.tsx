@@ -114,8 +114,8 @@ function Shell({ config, auth, session }: { config: ClientConfig; auth: Auth; se
           </div>
         </header>
         <main>
-          {route.name === 'runs' && <RunsPage api={api} profiles={config.profiles} />}
-          {route.name === 'run' && <RunPage api={api} id={route.id} />}
+          {route.name === 'runs' && <RunsPage api={api} profiles={config.profiles} voice={config.voice} />}
+          {route.name === 'run' && <RunPage api={api} id={route.id} voice={config.voice} />}
           {route.name === 'approvals' && <ApprovalsPage api={api} />}
           {route.name === 'audit' && <AuditPage api={api} />}
         </main>
