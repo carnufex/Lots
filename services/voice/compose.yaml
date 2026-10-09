@@ -1,0 +1,25 @@
+# The voice service on the GPU PC. Needs Docker with the NVIDIA runtime.
+#   export VOICE_API_KEY=$(python -c "import secrets;print(secrets.token_urlsafe(32))")
+#   docker compose run --rm voice python scripts/fetch_models.py /models/piper   # once
+#   docker compose up -d
+services:
+  voice:
+    build: .
+    image: lots-voice:local
+    environment:
+      VOICE_API_KEY: ${VOICE_API_KEY:?set VOICE_API_KEY}
+    ports:
+      - "${VOICE_PORT:-8700}:8700"
+    volumes:
+      - voice-models:/models
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+
+volumes:
+  voice-models:

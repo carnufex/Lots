@@ -1,0 +1,28 @@
+[project]
+name = "lots-voice"
+version = "0.1.0"
+description = "Lots voice service: speech to text and text to speech (Swedish, English) behind an OpenAI-shaped API"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "python-multipart>=0.0.9",
+    "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+# Real engines. Kept optional so the API layer can be tested without a GPU or models.
+engines = [
+    "faster-whisper>=1.1",        # MIT
+    "sherpa-onnx>=1.12",          # Apache-2.0 (runs Piper VITS voices)
+    "nvidia-cublas-cu12",         # CUDA libraries for CTranslate2 on the GPU
+    "nvidia-cudnn-cu12",
+]
+test = ["pytest>=8", "httpx>=0.27"]
+
+[tool.setuptools.packages.find]
+include = ["voice*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

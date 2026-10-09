@@ -9,6 +9,10 @@ services:
       Auth__Oidc__Audience: ${LOTS_OIDC_AUDIENCE:-}
       CMDB_AGENT_TOKEN: ${CMDB_AGENT_TOKEN:-}   # example of a secret a profile references via passwordEnv; set it in your shell or .env
       Profiles__Path: /profiles
+      # Voice (ADR 0012): the voice service on the GPU PC; empty = voice off
+      Speech__BaseUrl: ${LOTS_VOICE_URL:-}
+      Speech__ApiKeyEnv: LOTS_VOICE_KEY
+      LOTS_VOICE_KEY: ${LOTS_VOICE_KEY:-}
       Model__BaseUrl: ${LOTS_MODEL_URL:-http://host.docker.internal:11434/v1}
       Model__Model: ${LOTS_MODEL:-}
       Model__ApiKeyEnv: ${LOTS_MODEL_KEY_ENV:-}
