@@ -15,6 +15,6 @@ public static class TestProfiles
             tools.Select(t => new ProfileTool(t.Name, t.Risk)).ToList(),
             [
                 new ProfileRole("operator", [ToolRisk.Read], []),
-                new ProfileRole("admin", [ToolRisk.Read, ToolRisk.Write], [ToolRisk.Write]),
+                new ProfileRole("admin", [ToolRisk.Read, ToolRisk.Write], [ToolRisk.Write], [ToolRisk.Write]),
             ])]);
 }

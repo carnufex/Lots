@@ -7,6 +7,7 @@ public sealed class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbC
     public DbSet<RunRecord> Runs => Set<RunRecord>();
     public DbSet<RunMessageRecord> RunMessages => Set<RunMessageRecord>();
     public DbSet<RunStepRecord> RunSteps => Set<RunStepRecord>();
+    public DbSet<ApprovalRecord> Approvals => Set<ApprovalRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -31,6 +32,19 @@ public sealed class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbC
             e.Property(x => x.Role).HasMaxLength(16).IsRequired();
         });
 
+        modelBuilder.Entity<ApprovalRecord>(e =>
+        {
+            e.ToTable("approvals");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.RunId, x.ToolCallId }).IsUnique();
+            e.HasIndex(x => x.Status);
+            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(16).IsRequired();
+            e.Property(x => x.ToolName).HasMaxLength(256).IsRequired();
+            e.Property(x => x.ToolCallId).HasMaxLength(256).IsRequired();
+            e.Property(x => x.RequestedBy).HasMaxLength(256).IsRequired();
+            e.Property(x => x.DecidedBy).HasMaxLength(256);
+        });
+
         modelBuilder.Entity<RunStepRecord>(e =>
         {
             e.ToTable("run_steps");
@@ -41,7 +55,7 @@ public sealed class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbC
     }
 }
 
-public enum RunStatus { Pending, Running, Completed, Failed }
+public enum RunStatus { Pending, Running, WaitingForApproval, Completed, Failed }
 
 /// <summary>A persisted agent run: a job that is created, stepped, persisted and resumable.</summary>
 public sealed class RunRecord
@@ -91,4 +105,22 @@ public sealed class RunStepRecord
     public int? PromptTokens { get; set; }
     public int? CompletionTokens { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
+}
+
+public enum ApprovalStatus { Pending, Approved, Denied }
+
+/// <summary>A tool call that policy let through only with approval. The run waits until it is decided.</summary>
+public sealed class ApprovalRecord
+{
+    public Guid Id { get; set; }
+    public Guid RunId { get; set; }
+    public required string ToolCallId { get; set; }
+    public required string ToolName { get; set; }
+    public string? ArgumentsJson { get; set; }
+    public required string RequestedBy { get; set; }
+    public DateTimeOffset RequestedAt { get; set; }
+    public ApprovalStatus Status { get; set; } = ApprovalStatus.Pending;
+    public string? DecidedBy { get; set; }
+    public DateTimeOffset? DecidedAt { get; set; }
+    public string? Comment { get; set; }
 }

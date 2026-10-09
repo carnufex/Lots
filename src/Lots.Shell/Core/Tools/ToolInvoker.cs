@@ -19,13 +19,18 @@ public interface IToolSource
 /// <summary>
 /// The single choke point for every tool call. Policy is evaluated here, per call, outside the model:
 /// a tool is visible and callable only if the profile declares it and one of the principal's roles grants its
-/// risk class. Calls that would need approval are not executed until approvals exist (see #15).
+/// risk class. Calls that need approval are executed only when the caller passes <c>approved: true</c>, which the
+/// agent runner does after a recorded approval.
 /// </summary>
 public sealed class ToolInvoker(IEnumerable<IToolSource> sources, ProfileRegistry profiles)
 {
     public const int MaxOutputChars = 8_000;
 
     private readonly IReadOnlyList<IToolSource> _sources = sources.ToList();
+
+    /// <summary>The policy decision for a call, without executing it.</summary>
+    public PolicyResult Evaluate(ToolCall call, Principal principal, string profileName) =>
+        PolicyEngine.Decide(principal, RequireProfile(profileName), call.Name);
 
     /// <summary>Tools the model may see for this principal and profile. Everything else is not shown at all.</summary>
     public async Task<IReadOnlyList<ToolDefinition>> DefinitionsAsync(Principal principal, string profileName, CancellationToken ct)
@@ -44,13 +49,13 @@ public sealed class ToolInvoker(IEnumerable<IToolSource> sources, ProfileRegistr
     /// Executes a tool call if policy allows it. Never throws for denied or failing tools: the model gets an
     /// error string as the tool result. The result is untrusted data and is size-capped.
     /// </summary>
-    public async Task<string> InvokeAsync(ToolCall call, Principal principal, string profileName, CancellationToken ct)
+    public async Task<string> InvokeAsync(ToolCall call, Principal principal, string profileName, CancellationToken ct, bool approved = false)
     {
         var decision = PolicyEngine.Decide(principal, RequireProfile(profileName), call.Name);
         if (decision.Decision == Decision.Deny)
             return $"Error: tool '{call.Name}' is not available or not permitted.";
-        if (decision.Decision == Decision.RequireApproval)
-            return $"Error: tool '{call.Name}' requires approval, which is not available yet.";
+        if (decision.Decision == Decision.RequireApproval && !approved)
+            return $"Error: tool '{call.Name}' requires approval.";
 
         IToolSource? source = null;
         foreach (var s in _sources)

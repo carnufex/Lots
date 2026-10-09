@@ -36,6 +36,15 @@ public static class PolicyEngine
             : new(Decision.RequireApproval, $"{tool.Risk} tools need approval");
     }
 
+    /// <summary>True if one of the principal's roles may approve calls of this tool's risk class.</summary>
+    public static bool CanApprove(Principal principal, Profile profile, string toolName)
+    {
+        var tool = profile.Tools.FirstOrDefault(t => string.Equals(t.Name, toolName, StringComparison.Ordinal));
+        return tool is not null && profile.Roles
+            .Where(r => principal.Roles.Contains(r.Name, StringComparer.OrdinalIgnoreCase))
+            .Any(r => r.MayApprove.Contains(tool.Risk));
+    }
+
     /// <summary>The tools a principal may see at all (allowed or allowed-with-approval).</summary>
     public static IReadOnlyList<string> VisibleTools(Principal principal, Profile profile) =>
         profile.Tools.Where(t => Decide(principal, profile, t.Name).Decision != Decision.Deny).Select(t => t.Name).ToList();

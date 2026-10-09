@@ -1,4 +1,5 @@
 using FastEndpoints;
+using Lots.Shell.Core.Policy;
 using Lots.Shell.Core.Profiles;
 using Lots.Shell.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -9,7 +10,7 @@ public sealed record StartRunRequest(string Prompt, string? Profile = null);
 
 public sealed record StartRunResponse(Guid Id, string Status);
 
-public sealed class StartRunEndpoint(LotsDbContext db, TimeProvider clock, ProfileRegistry profiles, IConfiguration config)
+public sealed class StartRunEndpoint(LotsDbContext db, TimeProvider clock, ProfileRegistry profiles, IConfiguration config, ICurrentPrincipal who)
     : Endpoint<StartRunRequest, StartRunResponse>
 {
     public override void Configure()
@@ -36,14 +37,13 @@ public sealed class StartRunEndpoint(LotsDbContext db, TimeProvider clock, Profi
             return;
         }
 
-        // Until OIDC (#16) the acting user comes from configuration. Roles are fixed on the run when it starts.
-        var userId = config["Auth:Dev:UserId"] ?? "dev";
-        var roles = config["Auth:Dev:Roles"] ?? "operator";
+        // Roles are fixed on the run when it starts: the run acts with the permissions its user had then.
+        var me = who.Get(HttpContext);
 
         var now = clock.GetUtcNow();
         var run = new RunRecord
         {
-            Id = Guid.NewGuid(), Prompt = req.Prompt, Profile = profile.Name, UserId = userId, Roles = roles,
+            Id = Guid.NewGuid(), Prompt = req.Prompt, Profile = profile.Name, UserId = me.UserId, Roles = string.Join(',', me.Roles),
             CreatedAt = now, UpdatedAt = now,
         };
         db.Runs.Add(run);

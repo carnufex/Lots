@@ -1,4 +1,5 @@
 using Lots.Shell.Core.Mcp;
+using Lots.Shell.Core.Policy;
 using Lots.Shell.Core.Profiles;
 using Lots.Shell.Core.Models;
 using Lots.Shell.Core.Runs;
@@ -19,6 +20,7 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton(sp => ProfileRegistry.LoadDirectory(sp.GetRequiredService<IConfiguration>()["Profiles:Path"] ?? "profiles"));
 builder.Services.AddSingleton<IToolSource>(sp =>
     new McpToolSource(sp.GetRequiredService<ProfileRegistry>().Servers, sp.GetRequiredService<ILoggerFactory>()));
+builder.Services.AddSingleton<ICurrentPrincipal, DevPrincipal>();
 builder.Services.AddScoped<ToolInvoker>();
 builder.Services.AddScoped<AgentRunner>();
 if (builder.Configuration.GetValue("Agent:RunWorkerEnabled", true))

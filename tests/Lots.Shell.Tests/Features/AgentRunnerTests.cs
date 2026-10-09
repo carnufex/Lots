@@ -229,4 +229,101 @@ public class AgentRunnerTests
         Assert.Equal(RunStatus.Failed, run.Status);
         Assert.Contains("empty answer", run.Error);
     }
+
+    private static async Task<Guid> NewRunAs(LotsDbContext db, string roles)
+    {
+        var run = new RunRecord
+        {
+            Id = Guid.NewGuid(), Prompt = "change something", CreatedAt = DateTimeOffset.UtcNow,
+            Profile = TestProfiles.Name, UserId = "alice", Roles = roles,
+        };
+        db.Runs.Add(run);
+        await db.SaveChangesAsync();
+        return run.Id;
+    }
+
+    [Fact]
+    public async Task Write_tool_pauses_the_run_until_approved_and_then_runs_exactly_once()
+    {
+        var name = nameof(Write_tool_pauses_the_run_until_approved_and_then_runs_exactly_once);
+        var tools = new FakeTools(("restart", ToolRisk.Write));
+        Guid id;
+
+        using (var db1 = NewDb(name))
+        {
+            id = await NewRunAs(db1, "admin");
+            await Runner(db1, new ScriptedModel(_ => CallTool("restart", "w1")), tools).ExecuteAsync(id, default);
+
+            var paused = await db1.Runs.SingleAsync();
+            Assert.Equal(RunStatus.WaitingForApproval, paused.Status);
+            var approval = await db1.Approvals.SingleAsync();
+            Assert.Equal(ApprovalStatus.Pending, approval.Status);
+            Assert.Equal("restart", approval.ToolName);
+            Assert.Equal("alice", approval.RequestedBy);
+            Assert.Empty(tools.Called);
+        }
+
+        // "Restart": fresh context, still waiting. Executing again must not run the tool or add a second approval.
+        using (var db2 = NewDb(name))
+        {
+            await Runner(db2, new ScriptedModel(), tools).ExecuteAsync(id, default);
+            Assert.Equal(RunStatus.WaitingForApproval, (await db2.Runs.SingleAsync()).Status);
+            Assert.Single(await db2.Approvals.ToListAsync());
+            Assert.Empty(tools.Called);
+
+            var approval = await db2.Approvals.SingleAsync();
+            approval.Status = ApprovalStatus.Approved;
+            approval.DecidedBy = "bob";
+            await db2.SaveChangesAsync();
+        }
+
+        using (var db3 = NewDb(name))
+        {
+            var model = new ScriptedModel(_ => Answer("restarted"));
+            await Runner(db3, model, tools).ExecuteAsync(id, default);
+
+            var run = await db3.Runs.SingleAsync();
+            Assert.Equal(RunStatus.Completed, run.Status);
+            Assert.Equal("restarted", run.FinalAnswer);
+            Assert.Equal(["restart"], tools.Called);
+        }
+    }
+
+    [Fact]
+    public async Task Denied_approval_is_reported_to_the_model_and_the_tool_never_runs()
+    {
+        var db = NewDb(nameof(Denied_approval_is_reported_to_the_model_and_the_tool_never_runs));
+        var tools = new FakeTools(("restart", ToolRisk.Write));
+        var id = await NewRunAs(db, "admin");
+        await Runner(db, new ScriptedModel(_ => CallTool("restart", "w1")), tools).ExecuteAsync(id, default);
+
+        var approval = await db.Approvals.SingleAsync();
+        approval.Status = ApprovalStatus.Denied;
+        approval.DecidedBy = "bob";
+        approval.Comment = "not during business hours";
+        await db.SaveChangesAsync();
+
+        IReadOnlyList<ChatMessage>? seen = null;
+        await Runner(db, new ScriptedModel(m => { seen = m; return Answer("ok, skipping"); }), tools).ExecuteAsync(id, default);
+
+        Assert.Empty(tools.Called);
+        var result = seen!.Last(m => m.Role == "tool").Content!;
+        Assert.Contains("denied by bob", result);
+        Assert.Contains("not during business hours", result);
+        Assert.Equal(RunStatus.Completed, (await db.Runs.SingleAsync()).Status);
+    }
+
+    [Fact]
+    public async Task Operator_never_sees_or_triggers_a_write_tool()
+    {
+        var db = NewDb(nameof(Operator_never_sees_or_triggers_a_write_tool));
+        var tools = new FakeTools(("restart", ToolRisk.Write));
+        var id = await NewRunAs(db, "operator");
+
+        await Runner(db, new ScriptedModel(_ => CallTool("restart"), _ => Answer("cannot")), tools).ExecuteAsync(id, default);
+
+        Assert.Empty(tools.Called);
+        Assert.Empty(await db.Approvals.ToListAsync());
+        Assert.Equal(RunStatus.Completed, (await db.Runs.SingleAsync()).Status);
+    }
 }

@@ -13,8 +13,14 @@ public sealed record ProfileTool(string Name, ToolRisk Risk);
 /// <summary>
 /// What a role may do within a profile. <see cref="Allow"/> lists risk classes the role may use;
 /// classes in <see cref="RequireApproval"/> (a subset of Allow) additionally need an approval per call.
+/// <see cref="Approve"/> lists classes the role may approve.
 /// </summary>
-public sealed record ProfileRole(string Name, IReadOnlyList<ToolRisk> Allow, IReadOnlyList<ToolRisk> RequireApproval);
+public sealed record ProfileRole(
+    string Name, IReadOnlyList<ToolRisk> Allow, IReadOnlyList<ToolRisk> RequireApproval, IReadOnlyList<ToolRisk>? Approve = null)
+{
+    /// <summary>Risk classes this role may approve for other (or the same) users' runs.</summary>
+    public IReadOnlyList<ToolRisk> MayApprove => Approve ?? [];
+}
 
 /// <summary>A pluggable domain: MCP servers, tool risk classes, role grants and instructions.</summary>
 public sealed record Profile(
@@ -84,7 +90,8 @@ public static class ProfileParser
             var approval = ParseRisks(r.RequireApproval, $"role '{r.Name}' requireApproval", Err);
             foreach (var a in approval.Where(a => !allow.Contains(a)))
                 Err($"role '{r.Name}' requires approval for '{a}' but does not allow it");
-            roles.Add(new ProfileRole(r.Name, allow, approval));
+            var mayApprove = ParseRisks(r.Approve, $"role '{r.Name}' approve", Err);
+            roles.Add(new ProfileRole(r.Name, allow, approval, mayApprove));
         }
         Duplicates(roles.Select(r => r.Name), "role", Err);
 
@@ -130,6 +137,7 @@ public static class ProfileParser
         public string? Name { get; set; }
         public List<string>? Allow { get; set; }
         public List<string>? RequireApproval { get; set; }
+        public List<string>? Approve { get; set; }
     }
 }
 

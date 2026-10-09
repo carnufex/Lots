@@ -24,3 +24,4 @@ roles:
   - name: admin
     allow: [read, write]
     requireApproval: [write]
+    approve: [write]

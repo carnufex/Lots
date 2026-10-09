@@ -70,7 +70,8 @@ public sealed class AgentRunner(
             while (true)
             {
                 // Resume point: answer any tool calls of the last assistant message that have no result yet.
-                await AnswerPendingToolCallsAsync(run, principal, ct);
+                if (await AnswerPendingToolCallsAsync(run, principal, ct))
+                    return; // paused: waiting for an approval; the run resumes when it is decided
 
                 var last = run.Messages.OrderBy(m => m.Seq).Last();
                 if (last.Role == "assistant" && last.ToolCallsJson is null)
@@ -141,11 +142,12 @@ public sealed class AgentRunner(
     private static Principal PrincipalOf(RunRecord run) =>
         new(run.UserId, run.Roles.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
 
-    private async Task AnswerPendingToolCallsAsync(RunRecord run, Principal principal, CancellationToken ct)
+    /// <summary>Executes the tool calls that have no result yet. Returns true if the run had to pause for an approval.</summary>
+    private async Task<bool> AnswerPendingToolCallsAsync(RunRecord run, Principal principal, CancellationToken ct)
     {
         var ordered = run.Messages.OrderBy(m => m.Seq).ToList();
         var lastAssistant = ordered.LastOrDefault(m => m.Role == "assistant");
-        if (lastAssistant?.ToolCallsJson is null) return;
+        if (lastAssistant?.ToolCallsJson is null) return false;
 
         var calls = JsonSerializer.Deserialize<List<ToolCall>>(lastAssistant.ToolCallsJson, Json)!;
         var answered = ordered.Where(m => m.Seq > lastAssistant.Seq && m.Role == "tool")
@@ -159,7 +161,35 @@ public sealed class AgentRunner(
             activity?.SetTag("gen_ai.tool.name", call.Name);
             activity?.SetTag("gen_ai.tool.call.id", call.Id);
             var sw = Stopwatch.StartNew();
-            var result = await tools.InvokeAsync(call, principal, run.Profile, ct);
+            string result;
+            if (tools.Evaluate(call, principal, run.Profile).Decision == Decision.RequireApproval)
+            {
+                var approval = await db.Approvals.SingleOrDefaultAsync(a => a.RunId == run.Id && a.ToolCallId == call.Id, ct);
+                if (approval is null)
+                {
+                    db.Approvals.Add(new ApprovalRecord
+                    {
+                        Id = Guid.NewGuid(), RunId = run.Id, ToolCallId = call.Id, ToolName = call.Name,
+                        ArgumentsJson = call.ArgumentsJson, RequestedBy = principal.UserId, RequestedAt = clock.GetUtcNow(),
+                    });
+                    run.Status = RunStatus.WaitingForApproval;
+                    await SaveAsync(run);
+                    return true;
+                }
+                if (approval.Status == ApprovalStatus.Pending)
+                {
+                    run.Status = RunStatus.WaitingForApproval;
+                    await SaveAsync(run);
+                    return true;
+                }
+                result = approval.Status == ApprovalStatus.Denied
+                    ? $"Error: the request to run '{call.Name}' was denied by {approval.DecidedBy}" + (string.IsNullOrWhiteSpace(approval.Comment) ? "." : $": {approval.Comment}")
+                    : await tools.InvokeAsync(call, principal, run.Profile, ct, approved: true);
+            }
+            else
+            {
+                result = await tools.InvokeAsync(call, principal, run.Profile, ct);
+            }
             sw.Stop();
             Add(run, new ChatMessage("tool", result, ToolCallId: call.Id));
             run.Steps.Add(new RunStepRecord
@@ -176,6 +206,8 @@ public sealed class AgentRunner(
             });
             await SaveAsync(run); // persisted per tool call: a restart never re-executes a finished call
         }
+
+        return false;
     }
 
     internal List<ChatMessage> FitToBudget(List<ChatMessage> messages)
