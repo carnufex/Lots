@@ -86,6 +86,16 @@ public sealed class ListRunsEndpoint(LotsDbContext db, ICurrentPrincipal who, IC
     }
 }
 
+/// <summary>Who may read a run: its owner and admins (<c>Auth:AdminRoles</c>, default admin).</summary>
+public static class RunAccess
+{
+    public static bool CanRead(RunRecord run, Principal me, IConfiguration config)
+    {
+        var admins = (config["Auth:AdminRoles"] ?? "admin").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return run.UserId == me.UserId || me.Roles.Any(r => admins.Contains(r, StringComparer.OrdinalIgnoreCase));
+    }
+}
+
 public sealed record GetRunRequest(Guid Id);
 
 public sealed record StepDto(
@@ -108,8 +118,7 @@ public sealed class GetRunEndpoint(LotsDbContext db, ICurrentPrincipal who, ICon
     {
         var run = await db.Runs.AsNoTracking().Include(r => r.Steps).SingleOrDefaultAsync(r => r.Id == req.Id, ct);
         var me = who.Get(HttpContext);
-        var admins = (config["Auth:AdminRoles"] ?? "admin").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (run is null || (run.UserId != me.UserId && !me.Roles.Any(r => admins.Contains(r, StringComparer.OrdinalIgnoreCase))))
+        if (run is null || !RunAccess.CanRead(run, me, config))
         {
             await Send.NotFoundAsync(ct); // do not reveal that someone else's run exists
             return;

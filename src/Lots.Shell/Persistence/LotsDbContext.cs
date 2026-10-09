@@ -9,6 +9,7 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
     public DbSet<RunStepRecord> RunSteps => Set<RunStepRecord>();
     public DbSet<ApprovalRecord> Approvals => Set<ApprovalRecord>();
     public DbSet<AuditRecord> AuditLog => Set<AuditRecord>();
+    public DbSet<VoiceUsageRecord> VoiceUsage => Set<VoiceUsageRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -45,6 +46,18 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
             e.Property(x => x.ToolCallId).HasMaxLength(256).IsRequired();
             e.Property(x => x.RequestedBy).HasMaxLength(256).IsRequired();
             e.Property(x => x.DecidedBy).HasMaxLength(256);
+        });
+
+        modelBuilder.Entity<VoiceUsageRecord>(e =>
+        {
+            e.ToTable("voice_usage");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.UserId, x.At });
+            e.Property(x => x.UserId).HasMaxLength(256).IsRequired();
+            e.Property(x => x.Direction).HasMaxLength(8).IsRequired();
+            e.Property(x => x.Language).HasMaxLength(8);
+            e.Property(x => x.Provider).HasMaxLength(256);
+            e.Property(x => x.Outcome).HasMaxLength(16).IsRequired();
         });
 
         modelBuilder.Entity<AuditRecord>(e =>
@@ -172,4 +185,22 @@ public sealed class AuditRecord
     public string? BackendAuth { get; set; }
     /// <summary>ok / error for executed calls, null otherwise.</summary>
     public string? ResultStatus { get; set; }
+}
+
+/// <summary>
+/// One speech call (ADR 0013). Metadata only: never the audio, never the text. Stt = dictation, Tts = a spoken answer.
+/// </summary>
+public sealed class VoiceUsageRecord
+{
+    public Guid Id { get; set; }
+    public DateTimeOffset At { get; set; }
+    public required string UserId { get; set; }
+    public required string Direction { get; set; }
+    public string? Language { get; set; }
+    public double? AudioSeconds { get; set; }
+    public int? Characters { get; set; }
+    public long LatencyMs { get; set; }
+    public string? Provider { get; set; }
+    public required string Outcome { get; set; }
+    public Guid? RunId { get; set; }
 }
