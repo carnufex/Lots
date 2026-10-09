@@ -326,4 +326,26 @@ public class AgentRunnerTests
         Assert.Empty(await db.Approvals.ToListAsync());
         Assert.Equal(RunStatus.Completed, (await db.Runs.SingleAsync()).Status);
     }
+
+    [Fact]
+    public async Task Every_decision_is_audited_with_user_profile_and_outcome()
+    {
+        var db = NewDb(nameof(Every_decision_is_audited_with_user_profile_and_outcome));
+        var tools = new FakeTools(("list", ToolRisk.Read), ("restart", ToolRisk.Write));
+        var id = await NewRunAs(db, "operator");
+        var model = new ScriptedModel(
+            _ => new ChatMessage("assistant", null, [new ToolCall("a", "list", "{}"), new ToolCall("b", "restart", "{}")]),
+            _ => Answer("done"));
+
+        await Runner(db, model, tools).ExecuteAsync(id, default);
+
+        var rows = (await db.AuditLog.ToListAsync()).OrderBy(r => r.Tool).ToList();
+        Assert.Equal(2, rows.Count);
+        var list = rows[0];
+        Assert.Equal(("list", AuditDecision.Allowed, "ok", "alice", TestProfiles.Name, 1), (list.Tool, list.Decision, list.ResultStatus, list.UserId, list.Profile, list.ProfileVersion));
+        var restart = rows[1];
+        Assert.Equal(("restart", AuditDecision.Denied, (string?)null), (restart.Tool, restart.Decision, restart.ResultStatus));
+        Assert.Contains("grants Write", restart.Reason);
+        Assert.DoesNotContain("restart", tools.Called);
+    }
 }

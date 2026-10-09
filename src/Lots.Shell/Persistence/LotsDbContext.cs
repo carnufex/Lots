@@ -8,6 +8,7 @@ public sealed class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbC
     public DbSet<RunMessageRecord> RunMessages => Set<RunMessageRecord>();
     public DbSet<RunStepRecord> RunSteps => Set<RunStepRecord>();
     public DbSet<ApprovalRecord> Approvals => Set<ApprovalRecord>();
+    public DbSet<AuditRecord> AuditLog => Set<AuditRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -43,6 +44,20 @@ public sealed class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbC
             e.Property(x => x.ToolCallId).HasMaxLength(256).IsRequired();
             e.Property(x => x.RequestedBy).HasMaxLength(256).IsRequired();
             e.Property(x => x.DecidedBy).HasMaxLength(256);
+        });
+
+        modelBuilder.Entity<AuditRecord>(e =>
+        {
+            e.ToTable("audit_log");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.UserId, x.At });
+            e.HasIndex(x => x.RunId);
+            e.Property(x => x.Decision).HasConversion<string>().HasMaxLength(32).IsRequired();
+            e.Property(x => x.UserId).HasMaxLength(256).IsRequired();
+            e.Property(x => x.Tool).HasMaxLength(256).IsRequired();
+            e.Property(x => x.Profile).HasMaxLength(128);
+            e.Property(x => x.ApproverId).HasMaxLength(256);
+            e.Property(x => x.ResultStatus).HasMaxLength(16);
         });
 
         modelBuilder.Entity<RunStepRecord>(e =>
@@ -123,4 +138,28 @@ public sealed class ApprovalRecord
     public string? DecidedBy { get; set; }
     public DateTimeOffset? DecidedAt { get; set; }
     public string? Comment { get; set; }
+}
+
+public enum AuditDecision { Allowed, Denied, ApprovalRequested, ApprovalGranted, ApprovalRefused, ApprovalDenied }
+
+/// <summary>
+/// Append-only accountability record: who did what under which profile version, what policy decided and
+/// who approved. Rows are only ever inserted. Not the trace (that is for debugging).
+/// </summary>
+public sealed class AuditRecord
+{
+    public Guid Id { get; set; }
+    public DateTimeOffset At { get; set; }
+    public required string UserId { get; set; }
+    public string Roles { get; set; } = "";
+    public string Profile { get; set; } = "";
+    public int ProfileVersion { get; set; }
+    public Guid RunId { get; set; }
+    public required string Tool { get; set; }
+    public string? ArgumentsJson { get; set; }
+    public AuditDecision Decision { get; set; }
+    public string Reason { get; set; } = "";
+    public string? ApproverId { get; set; }
+    /// <summary>ok / error for executed calls, null otherwise.</summary>
+    public string? ResultStatus { get; set; }
 }

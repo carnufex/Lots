@@ -74,6 +74,8 @@ public class ApprovalApiTests : IClassFixture<WebApplicationFactory<Program>>
 
     private sealed record Run(string Status, string? FinalAnswer);
 
+    private sealed record AuditRow(string User, string Tool, string Decision, string? Approver, string? Result, string Profile, int ProfileVersion, Guid RunId);
+
     private sealed record Approval(Guid Id, Guid RunId, string Tool, string RequestedBy, string Status, string? DecidedBy);
 
     private static HttpRequestMessage As(HttpMethod method, string url, string user, string roles, object? body = null)
@@ -124,6 +126,17 @@ public class ApprovalApiTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.Equal("Completed", await WaitForStatusAsync(client, id, "Completed", "Failed"));
         Assert.Equal(["restart"], _tool.Called);
         Assert.Equal("done: restarted", (await client.GetFromJsonAsync<Run>($"/runs/{id}"))!.FinalAnswer);
+
+        // Audit: requested, granted by bob, executed with bob as approver; readable only by admins/auditors.
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.SendAsync(As(HttpMethod.Get, "/audit", "carol", "operator"))).StatusCode);
+        var audit = (await (await client.SendAsync(As(HttpMethod.Get, $"/audit?runId={id}", "dave", "auditor"))).Content.ReadFromJsonAsync<List<AuditRow>>())!;
+        Assert.Equal(["Allowed", "ApprovalGranted", "ApprovalRequested"], audit.Select(a => a.Decision).Order());
+        var executed = audit.Single(a => a.Decision == "Allowed");
+        Assert.Equal(("alice", "restart", "bob", "ok"), (executed.User, executed.Tool, executed.Approver, executed.Result));
+        Assert.Equal((TestProfiles.Name, 1), (executed.Profile, executed.ProfileVersion));
+        Assert.Equal("bob", audit.Single(a => a.Decision == "ApprovalGranted").Approver);
+        var byUser = (await (await client.SendAsync(As(HttpMethod.Get, "/audit?user=nobody", "dave", "auditor"))).Content.ReadFromJsonAsync<List<AuditRow>>())!;
+        Assert.Empty(byUser);
 
         var again = await client.SendAsync(As(HttpMethod.Post, $"/approvals/{pending.Id}/deny", "bob", "admin", new { }));
         Assert.Equal(HttpStatusCode.Conflict, again.StatusCode);

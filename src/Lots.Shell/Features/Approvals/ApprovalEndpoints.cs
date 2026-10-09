@@ -81,6 +81,14 @@ public abstract class DecideEndpoint(LotsDbContext db, ProfileRegistry profiles,
         approval.DecidedAt = now;
         approval.Comment = req.Comment;
 
+        db.AuditLog.Add(new AuditRecord
+        {
+            Id = Guid.NewGuid(), At = now, UserId = run.UserId, Roles = run.Roles, Profile = run.Profile,
+            ProfileVersion = profile.Version, RunId = run.Id, Tool = approval.ToolName, ArgumentsJson = approval.ArgumentsJson,
+            Decision = outcome == ApprovalStatus.Approved ? AuditDecision.ApprovalGranted : AuditDecision.ApprovalRefused,
+            Reason = req.Comment ?? "", ApproverId = me.UserId,
+        });
+
         // The worker picks the run up again and continues right after the paused tool call.
         if (run.Status == RunStatus.WaitingForApproval) run.Status = RunStatus.Pending;
         run.UpdatedAt = now;

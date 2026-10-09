@@ -162,7 +162,10 @@ public sealed class AgentRunner(
             activity?.SetTag("gen_ai.tool.call.id", call.Id);
             var sw = Stopwatch.StartNew();
             string result;
-            if (tools.Evaluate(call, principal, run.Profile).Decision == Decision.RequireApproval)
+            var policy = tools.Evaluate(call, principal, run.Profile);
+            AuditDecision audit;
+            string? approver = null;
+            if (policy.Decision == Decision.RequireApproval)
             {
                 var approval = await db.Approvals.SingleOrDefaultAsync(a => a.RunId == run.Id && a.ToolCallId == call.Id, ct);
                 if (approval is null)
@@ -173,6 +176,7 @@ public sealed class AgentRunner(
                         ArgumentsJson = call.ArgumentsJson, RequestedBy = principal.UserId, RequestedAt = clock.GetUtcNow(),
                     });
                     run.Status = RunStatus.WaitingForApproval;
+                    Audit(run, principal, call, AuditDecision.ApprovalRequested, policy.Reason, null, null);
                     await SaveAsync(run);
                     return true;
                 }
@@ -182,15 +186,26 @@ public sealed class AgentRunner(
                     await SaveAsync(run);
                     return true;
                 }
-                result = approval.Status == ApprovalStatus.Denied
-                    ? $"Error: the request to run '{call.Name}' was denied by {approval.DecidedBy}" + (string.IsNullOrWhiteSpace(approval.Comment) ? "." : $": {approval.Comment}")
-                    : await tools.InvokeAsync(call, principal, run.Profile, ct, approved: true);
+                approver = approval.DecidedBy;
+                if (approval.Status == ApprovalStatus.Denied)
+                {
+                    audit = AuditDecision.ApprovalDenied;
+                    result = $"Error: the request to run '{call.Name}' was denied by {approval.DecidedBy}" + (string.IsNullOrWhiteSpace(approval.Comment) ? "." : $": {approval.Comment}");
+                }
+                else
+                {
+                    audit = AuditDecision.Allowed;
+                    result = await tools.InvokeAsync(call, principal, run.Profile, ct, approved: true);
+                }
             }
             else
             {
+                audit = policy.Decision == Decision.Deny ? AuditDecision.Denied : AuditDecision.Allowed;
                 result = await tools.InvokeAsync(call, principal, run.Profile, ct);
             }
             sw.Stop();
+            Audit(run, principal, call, audit, policy.Reason, approver,
+                audit == AuditDecision.Allowed ? (result.StartsWith("Error:", StringComparison.Ordinal) ? "error" : "ok") : null);
             Add(run, new ChatMessage("tool", result, ToolCallId: call.Id));
             run.Steps.Add(new RunStepRecord
             {
@@ -229,6 +244,16 @@ public sealed class AgentRunner(
         r.Message.ToolCalls is not null
             ? null
             : $"[empty reply; finish_reason={r.FinishReason}; reasoning: {Cut(r.Message.Reasoning?[..Math.Min(r.Message.Reasoning.Length, 300)]) ?? "none"}]";
+
+    /// <summary>Appends an audit row. It is saved together with the effect it describes, never separately.</summary>
+    private void Audit(RunRecord run, Principal principal, ToolCall call, AuditDecision decision, string reason, string? approver, string? resultStatus) =>
+        db.AuditLog.Add(new AuditRecord
+        {
+            Id = Guid.NewGuid(), At = clock.GetUtcNow(), UserId = principal.UserId, Roles = run.Roles,
+            Profile = run.Profile, ProfileVersion = profiles.Find(run.Profile)?.Version ?? 0, RunId = run.Id,
+            Tool = call.Name, ArgumentsJson = call.ArgumentsJson, Decision = decision, Reason = reason,
+            ApproverId = approver, ResultStatus = resultStatus,
+        });
 
     private static int NextStepSeq(RunRecord run) => run.Steps.Count == 0 ? 0 : run.Steps.Max(x => x.Seq) + 1;
 
