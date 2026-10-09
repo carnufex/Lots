@@ -6,7 +6,22 @@ namespace Lots.Shell.Core.Profiles;
 
 /// <summary>An MCP server a profile talks to.</summary>
 /// <summary>An MCP server a profile talks to and the ADR 0004 strategy used to authenticate towards it.</summary>
-public sealed record McpServerConfig(string Name, string Url, string Auth = AuthStrategies.SharedServiceAccount);
+public sealed record McpServerConfig(
+    string Name, string Url, string Auth = AuthStrategies.SharedServiceAccount, ServerCredentials? Credentials = null);
+
+public static class CredentialTypes
+{
+    /// <summary>A static bearer token read from an environment variable.</summary>
+    public const string Bearer = "bearer";
+
+    /// <summary>OAuth client-credentials grant (Authentik style, optionally with a service account username/app password).</summary>
+    public const string OAuthClientCredentials = "oauth-client-credentials";
+}
+
+/// <summary>How the shell authenticates to a server. Secrets are referenced by environment variable name, never stored.</summary>
+public sealed record ServerCredentials(
+    string Type, string? TokenEnv = null, string? TokenUrl = null, string? ClientId = null,
+    string? Username = null, string? PasswordEnv = null, string? Scope = null);
 
 /// <summary>The backend authentication strategies of ADR 0004, strongest first.</summary>
 public static class AuthStrategies
@@ -88,7 +103,11 @@ public static class ProfileParser
                 var auth = string.IsNullOrWhiteSpace(s.Auth) ? AuthStrategies.SharedServiceAccount : s.Auth.Trim().ToLowerInvariant();
                 if (!AuthStrategies.All.Contains(auth))
                     Err($"server '{s.Name}' has unknown auth strategy '{s.Auth}' ({string.Join('|', AuthStrategies.All)})");
-                else servers.Add(new McpServerConfig(s.Name!, s.Url!, auth));
+                else
+                {
+                    var creds = ParseCredentials(s, Err);
+                    if (s.Credentials is null || creds is not null) servers.Add(new McpServerConfig(s.Name!, s.Url!, auth, creds));
+                }
             }
         }
         Duplicates(servers.Select(s => s.Name), "server", Err);
@@ -120,6 +139,29 @@ public static class ProfileParser
         return new Profile(doc.Name!, doc.Version, doc.Description ?? "", doc.Instructions?.Trim() ?? "", servers, tools, roles);
     }
 
+    private static ServerCredentials? ParseCredentials(ServerDoc s, Action<string> err)
+    {
+        var c = s.Credentials;
+        if (c is null) return null;
+        var type = c.Type?.Trim().ToLowerInvariant();
+        switch (type)
+        {
+            case CredentialTypes.Bearer:
+                if (string.IsNullOrWhiteSpace(c.TokenEnv)) { err($"server '{s.Name}' credentials: tokenEnv is required for bearer"); return null; }
+                return new ServerCredentials(type, TokenEnv: c.TokenEnv);
+            case CredentialTypes.OAuthClientCredentials:
+                if (!Uri.TryCreate(c.TokenUrl, UriKind.Absolute, out var u) || u.Scheme is not ("http" or "https") || string.IsNullOrWhiteSpace(c.ClientId))
+                {
+                    err($"server '{s.Name}' credentials: tokenUrl (absolute http(s)) and clientId are required");
+                    return null;
+                }
+                return new ServerCredentials(type, TokenUrl: c.TokenUrl, ClientId: c.ClientId, Username: c.Username, PasswordEnv: c.PasswordEnv, Scope: c.Scope);
+            default:
+                err($"server '{s.Name}' credentials: unknown type '{c.Type}' ({CredentialTypes.Bearer}|{CredentialTypes.OAuthClientCredentials})");
+                return null;
+        }
+    }
+
     private static bool TryRisk(string? s, out ToolRisk risk) =>
         Enum.TryParse(s, ignoreCase: true, out risk) && Enum.IsDefined(risk);
 
@@ -149,7 +191,24 @@ public static class ProfileParser
         public List<RoleDoc>? Roles { get; set; }
     }
 
-    private sealed class ServerDoc { public string? Name { get; set; } public string? Url { get; set; } public string? Auth { get; set; } }
+    private sealed class ServerDoc
+    {
+        public string? Name { get; set; }
+        public string? Url { get; set; }
+        public string? Auth { get; set; }
+        public CredentialsDoc? Credentials { get; set; }
+    }
+
+    private sealed class CredentialsDoc
+    {
+        public string? Type { get; set; }
+        public string? TokenEnv { get; set; }
+        public string? TokenUrl { get; set; }
+        public string? ClientId { get; set; }
+        public string? Username { get; set; }
+        public string? PasswordEnv { get; set; }
+        public string? Scope { get; set; }
+    }
     private sealed class ToolDoc { public string? Name { get; set; } public string? Risk { get; set; } }
 
     private sealed class RoleDoc

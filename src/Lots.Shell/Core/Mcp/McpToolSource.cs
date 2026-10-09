@@ -8,7 +8,8 @@ namespace Lots.Shell.Core.Mcp;
 
 /// <summary>Exposes the tools of the configured MCP servers to the <see cref="ToolInvoker"/>.</summary>
 /// <remarks>Risk classes are not decided here: they come from the profile, and policy decides per call.</remarks>
-public sealed class McpToolSource(IReadOnlyList<McpServerConfig> servers, ILoggerFactory loggers) : IToolSource, IAsyncDisposable
+public sealed class McpToolSource(
+    IReadOnlyList<McpServerConfig> servers, ILoggerFactory loggers, TimeProvider? clock = null) : IToolSource, IAsyncDisposable
 {
     private static readonly TimeSpan CatalogTtl = TimeSpan.FromSeconds(60);
 
@@ -100,9 +101,18 @@ public sealed class McpToolSource(IReadOnlyList<McpServerConfig> servers, ILogge
     private async Task<McpClient> ClientAsync(McpServerConfig server, CancellationToken ct)
     {
         if (_clients.TryGetValue(server.Name, out var existing)) return existing;
-        var transport = new HttpClientTransport(
-            new HttpClientTransportOptions { Endpoint = new Uri(server.Url), Name = server.Name },
-            loggers);
+        var options = new HttpClientTransportOptions { Endpoint = new Uri(server.Url), Name = server.Name };
+        IClientTransport transport;
+        if (server.Credentials is { } credentials)
+        {
+            // The token is attached per request, so it is refreshed transparently when it expires.
+            var provider = new BackendTokenProvider(credentials, new HttpClient(), clock ?? TimeProvider.System);
+            transport = new HttpClientTransport(options, new HttpClient(new BearerHandler(provider)), loggers, ownsHttpClient: true);
+        }
+        else
+        {
+            transport = new HttpClientTransport(options, loggers);
+        }
         var client = await McpClient.CreateAsync(transport, loggerFactory: loggers, cancellationToken: ct);
         _clients[server.Name] = client;
         return client;

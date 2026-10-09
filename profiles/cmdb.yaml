@@ -1,0 +1,60 @@
+# cmdb profile: the (synthetic) telecom network CMDB. Its MCP server enforces its own scope per token;
+# this profile adds the shell's policy on top (who may use which class of tool, approvals, audit).
+name: cmdb
+version: 1
+description: Search, trace and plan changes in the telecom network CMDB (synthetic data).
+instructions: |
+  You answer questions about a national telecom network (sites, cables, equipment, ports, circuits, services)
+  using the CMDB tools. Look things up instead of guessing. Use search or get_object to find an object, trace to
+  follow a service or circuit, impact to see what an outage would affect.
+  Nothing you do changes production: write tools only draft a plan that a person reviews and applies in the
+  web UI. Say clearly when you have drafted something and give the plan's link.
+
+servers:
+  - name: cmdb
+    url: https://cmdb.rosenvall.se/mcp
+    auth: shared-service-account   # ADR 0009; the cmdb-agents service account, scoped by the CMDB itself
+    credentials:
+      type: oauth-client-credentials
+      tokenUrl: https://authentik.rosenvall.se/application/o/token/
+      clientId: cmdb-agents
+      username: cmdb-agent-demo
+      passwordEnv: CMDB_AGENT_TOKEN   # environment variable holding the service account's app password
+      scope: openid profile email
+
+tools:
+  # read
+  - { name: search, risk: read }
+  - { name: get_object, risk: read }
+  - { name: find_sites, risk: read }
+  - { name: impact, risk: read }
+  - { name: trace, risk: read }
+  - { name: neighbourhood, risk: read }
+  - { name: describe_catalog, risk: read }
+  - { name: list_plans, risk: read }
+  - { name: preview_plan, risk: read }
+  - { name: describe_classifications, risk: read }
+  - { name: get_classification, risk: read }
+  - { name: check_plan_classification, risk: read }
+  - { name: suggest_route, risk: read }
+  - { name: list_site_templates, risk: read }
+  # write: these draft changes in a plan, they never touch production
+  - { name: create_plan, risk: write }
+  - { name: add_to_plan, risk: write }
+  - { name: connect_ports, risk: write }
+  - { name: create_site_from_template, risk: write }
+  - { name: add_route_to_plan, risk: write }
+  - { name: import_to_plan, risk: write }
+  - { name: splice_ports_to_cable, risk: write }
+  - { name: terminate_cable, risk: write }
+
+roles:
+  - name: operator
+    allow: [read]
+  - name: planner
+    allow: [read, write]
+    requireApproval: [write]
+  - name: admin
+    allow: [read, write]
+    requireApproval: [write]
+    approve: [write]

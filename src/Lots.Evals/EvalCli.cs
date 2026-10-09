@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace Lots.Evals;
 
-public sealed record EvalCase(string Id, string Question, List<string>? ExpectedTools = null, List<string>? ExpectedFacts = null);
+public sealed record EvalCase(string Id, string Question, List<string>? ExpectedTools = null, List<string>? ExpectedFacts = null, string? Profile = null);
 
 public sealed record RunOutcome(string Status, string? FinalAnswer, string? Error, IReadOnlyList<string> ToolsCalled, long ModelLatencyMs, int Tokens);
 
@@ -67,7 +67,7 @@ public static class EvalCli
         foreach (var c in cases)
         {
             Console.Write($"{c.Id} ... ");
-            var result = Scoring.Score(c, await RunAsync(http, c.Question));
+            var result = Scoring.Score(c, await RunAsync(http, c.Question, c.Profile));
             results.Add(result);
             Console.WriteLine(result.Passed ? "PASS" : "FAIL");
         }
@@ -79,9 +79,9 @@ public static class EvalCli
         return results.All(r => r.Passed) ? 0 : 1;
     }
 
-    private static async Task<RunOutcome> RunAsync(HttpClient http, string question)
+    private static async Task<RunOutcome> RunAsync(HttpClient http, string question, string? profile)
     {
-        var started = await (await http.PostAsJsonAsync("/runs", new { prompt = question }))
+        var started = await (await http.PostAsJsonAsync("/runs", new { prompt = question, profile }))
             .Content.ReadFromJsonAsync<JsonElement>();
         var id = started.GetProperty("id").GetGuid();
 
