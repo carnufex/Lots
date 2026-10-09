@@ -1,8 +1,9 @@
-# cmdb profile: the (synthetic) telecom network CMDB. Its MCP server enforces its own scope per token;
+# Example: a profile for a CMDB with its own MCP server and OAuth-protected API. Copy it, replace the
+# placeholders and the tool list with what your server offers. The MCP server enforces its own scope per token;
 # this profile adds the shell's policy on top (who may use which class of tool, approvals, audit).
 name: cmdb
 version: 1
-description: Search, trace and plan changes in the telecom network CMDB (synthetic data).
+description: Search, trace and plan changes in the network CMDB.
 instructions: |
   You answer questions about a national telecom network (sites, cables, equipment, ports, circuits, services)
   using the CMDB tools. Look things up instead of guessing. Use search or get_object to find an object, trace to
@@ -12,13 +13,13 @@ instructions: |
 
 servers:
   - name: cmdb
-    url: https://cmdb.rosenvall.se/mcp
-    auth: shared-service-account   # ADR 0009; the cmdb-agents service account, scoped by the CMDB itself
+    url: https://cmdb.example.com/mcp
+    auth: shared-service-account   # ADR 0009; a service account scoped by the CMDB itself
     credentials:
       type: oauth-client-credentials
-      tokenUrl: https://authentik.rosenvall.se/application/o/token/
+      tokenUrl: https://idp.example.com/application/o/token/
       clientId: cmdb-agents
-      username: cmdb-agent-demo
+      username: cmdb-agent
       passwordEnv: CMDB_AGENT_TOKEN   # environment variable holding the service account's app password
       scope: openid profile email
 

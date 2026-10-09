@@ -174,6 +174,17 @@ public class ProfileParserTests
     }
 
     [Fact]
+    public void The_example_profiles_are_valid_and_contain_no_real_hostnames()
+    {
+        var dir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "examples", "profiles"));
+
+        var registry = ProfileRegistry.LoadDirectory(dir);
+
+        Assert.NotNull(registry.Find("cmdb"));
+        Assert.All(Directory.GetFiles(dir), f => Assert.DoesNotContain("rosenvall", File.ReadAllText(f), StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void The_shipped_homelab_profile_is_valid()
     {
         var path = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "profiles");

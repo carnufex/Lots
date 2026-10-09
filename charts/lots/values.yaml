@@ -2,7 +2,7 @@
 # no host mounts, no privileged ports, read-only root filesystem, all capabilities dropped.
 
 image:
-  repository: registry.rosenvall.se/carnufex/lots-shell
+  repository: ghcr.io/carnufex/lots-shell
   tag: ""            # defaults to the chart appVersion
   pullPolicy: IfNotPresent
 imagePullSecrets: []
@@ -70,7 +70,7 @@ route:
 mcpHomelab:
   enabled: false
   image:
-    repository: registry.rosenvall.se/carnufex/lots-mcp-homelab
+    repository: ghcr.io/carnufex/lots-mcp-homelab
     tag: ""
   dockerUrl: http://docker-proxy:2375
 

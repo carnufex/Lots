@@ -6,3 +6,4 @@ obj/
 evals/report.md
 node_modules/
 dist/
+profiles.local/
