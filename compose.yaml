@@ -7,12 +7,38 @@ services:
       Model__BaseUrl: ${LOTS_MODEL_URL:-http://host.docker.internal:11434/v1}
       Model__Model: ${LOTS_MODEL:-}
       Model__ApiKeyEnv: ${LOTS_MODEL_KEY_ENV:-}
+      Mcp__Servers__0__Name: homelab
+      Mcp__Servers__0__Url: http://mcp-homelab:8080/mcp
+      Mcp__Servers__0__ReadTools__0: list_containers
+      Mcp__Servers__0__ReadTools__1: get_container_logs
       ConnectionStrings__Lots: Host=postgres;Database=lots;Username=lots;Password=${POSTGRES_PASSWORD:-lots-dev}
     ports:
       - "${LOTS_PORT:-8088}:8080"
     depends_on:
       postgres:
         condition: service_healthy
+      mcp-homelab:
+        condition: service_started
+
+  mcp-homelab:
+    build:
+      context: .
+      dockerfile: src/Lots.Mcp.Homelab/Dockerfile
+    environment:
+      Docker__Url: http://docker-proxy:2375
+    ports:
+      - "127.0.0.1:${LOTS_MCP_PORT:-8089}:8080"
+    depends_on:
+      - docker-proxy
+
+  # Read-only view of the Docker API: only container list/inspect/logs, no POST. The raw socket is never exposed.
+  docker-proxy:
+    image: tecnativa/docker-socket-proxy:0.3.0
+    environment:
+      CONTAINERS: 1
+      POST: 0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
 
   postgres:
     image: postgres:17

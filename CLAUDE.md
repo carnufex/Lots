@@ -68,3 +68,4 @@ Labels: `needs-human`, `decision`, `blocked`, `type:feature|bug|chore`, `area:co
 - Evals: to be added.
 - Live model test (opt-in): `LOTS_TEST_MODEL_URL=http://192.168.1.215:11434/v1 LOTS_TEST_MODEL=<model> dotnet test --filter Live`
 - MCP servers: configure `Mcp:Servers:0:Name|Url|ReadTools[]` (env `Mcp__Servers__0__Url=...`). Tools are deny-by-default: only names in `ReadTools` (or the server's readOnlyHint when `TrustReadOnlyHint=true`) are visible to the model.
+- Homelab MCP server: `docker compose up` also starts `mcp-homelab` (`http://localhost:8089/mcp`, tools `list_containers`, `get_container_logs`) behind a read-only `docker-proxy`.
