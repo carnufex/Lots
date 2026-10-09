@@ -133,6 +133,32 @@ public class OidcAuthTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+    public async Task Role_prefix_turns_an_idp_group_claim_into_roles_and_ignores_other_groups()
+    {
+        var client = _factory.WithWebHostBuilder(b => b.ConfigureAppConfiguration((_, c) => c.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Auth:Oidc:RoleClaim"] = "groups",
+            ["Auth:Oidc:RolePrefix"] = "lots-",
+        }))).CreateClient();
+        string GroupsToken(string sub, params string[] groups) =>
+            new JsonWebTokenHandler().CreateToken(new SecurityTokenDescriptor
+            {
+                Issuer = Issuer,
+                Claims = new Dictionary<string, object> { ["sub"] = sub, ["groups"] = groups },
+                Expires = DateTime.UtcNow.AddMinutes(10),
+                SigningCredentials = new SigningCredentials(Key, SecurityAlgorithms.HmacSha256),
+            });
+
+        // "lots-auditor" is the role auditor; "cmdb-full" belongs to another app and is not a role here.
+        Assert.Equal(HttpStatusCode.OK, (await client.SendAsync(Req(HttpMethod.Get, "/audit", GroupsToken("dave", "lots-auditor", "cmdb-full")))).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.SendAsync(Req(HttpMethod.Get, "/audit", GroupsToken("eve", "cmdb-full", "admin")))).StatusCode);
+
+        var config = await client.GetFromJsonAsync<System.Text.Json.JsonElement>("/config");
+        Assert.Equal("groups", config.GetProperty("oidc").GetProperty("roleClaim").GetString());
+        Assert.Equal("lots-", config.GetProperty("oidc").GetProperty("rolePrefix").GetString());
+    }
+
+    [Fact]
     public async Task Audit_is_for_admins_and_auditors_only()
     {
         var client = _factory.CreateClient();

@@ -18,6 +18,7 @@ auth:
     audience: ""
     userClaim: sub
     roleClaim: roles
+    rolePrefix: ""     # e.g. "lots-" when the IdP's group claim is the role claim: group lots-admin = role admin
   adminRoles: admin
   auditRoles: "admin,auditor"
 

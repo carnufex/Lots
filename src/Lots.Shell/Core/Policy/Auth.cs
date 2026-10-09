@@ -17,6 +17,12 @@ public sealed class AuthClaimNames
 {
     public string User { get; init; } = "sub";
     public string Roles { get; init; } = "roles";
+
+    /// <summary>
+    /// If set, only values starting with it count as roles and the prefix is removed (e.g. group "lots-admin" with
+    /// prefix "lots-" is the role "admin"). Lets an IdP's group claim double as role claim without exposing other groups.
+    /// </summary>
+    public string? RolePrefix { get; init; }
 }
 
 public sealed class ClaimsCurrentPrincipal(AuthClaimNames names) : ICurrentPrincipal
@@ -25,7 +31,12 @@ public sealed class ClaimsCurrentPrincipal(AuthClaimNames names) : ICurrentPrinc
     {
         var user = http.User.FindFirst(names.User)?.Value
                    ?? throw new InvalidOperationException("Authenticated request without a user claim.");
-        var roles = http.User.FindAll(names.Roles).SelectMany(c => c.Value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)).Distinct().ToList();
+        var roles = http.User.FindAll(names.Roles)
+            .SelectMany(c => c.Value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            .Distinct().ToList();
+        if (!string.IsNullOrEmpty(names.RolePrefix))
+            roles = roles.Where(r => r.StartsWith(names.RolePrefix, StringComparison.OrdinalIgnoreCase))
+                .Select(r => r[names.RolePrefix.Length..]).Where(r => r.Length > 0).Distinct().ToList();
         return new Principal(user, roles);
     }
 }
@@ -53,6 +64,8 @@ public static class AuthSetup
             {
                 User = config["Auth:Oidc:UserClaim"] ?? "sub",
                 Roles = config["Auth:Oidc:RoleClaim"] ?? "roles",
+                // Only meaningful for real tokens; the dev scheme issues plain role names.
+                RolePrefix = IsOidc(config) ? config["Auth:Oidc:RolePrefix"] : null,
             };
         });
         builder.Services.AddSingleton<ICurrentPrincipal, ClaimsCurrentPrincipal>();

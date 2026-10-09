@@ -45,6 +45,7 @@ spec:
             - { name: Auth__Oidc__Audience, value: {{ .Values.auth.oidc.audience | quote }} }
             - { name: Auth__Oidc__UserClaim, value: {{ .Values.auth.oidc.userClaim | quote }} }
             - { name: Auth__Oidc__RoleClaim, value: {{ .Values.auth.oidc.roleClaim | quote }} }
+            - { name: Auth__Oidc__RolePrefix, value: {{ .Values.auth.oidc.rolePrefix | quote }} }
             - { name: Auth__AdminRoles, value: {{ .Values.auth.adminRoles | quote }} }
             - { name: Auth__AuditRoles, value: {{ .Values.auth.auditRoles | quote }} }
             - { name: Database__MigrateOnStartup, value: {{ .Values.database.migrateOnStartup | quote }} }

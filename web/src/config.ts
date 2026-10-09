@@ -2,6 +2,8 @@ export interface OidcConfig {
   authority: string
   clientId: string
   scope: string
+  roleClaim: string
+  rolePrefix: string | null
 }
 
 export interface ProfileInfo {

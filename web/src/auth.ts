@@ -74,11 +74,14 @@ function oidcAuth(cfg: NonNullable<ClientConfig['oidc']>): Auth {
 
   const toSession = (u: User): Session => {
     const p = u.profile as Record<string, unknown>
-    const roles = (p.roles ?? p.groups ?? []) as string[] | string
-    return {
-      user: String(p.preferred_username ?? p.email ?? p.sub),
-      roles: Array.isArray(roles) ? roles : splitRoles(String(roles)),
-    }
+    const raw = (p[cfg.roleClaim] ?? []) as string[] | string
+    const all = Array.isArray(raw) ? raw : splitRoles(String(raw))
+    const prefix = cfg.rolePrefix
+    // Same rule as the server: with a prefix only matching values are roles, shown without it.
+    const roles = prefix
+      ? all.filter((r) => r.toLowerCase().startsWith(prefix.toLowerCase())).map((r) => r.slice(prefix.length))
+      : all
+    return { user: String(p.preferred_username ?? p.email ?? p.sub), roles }
   }
 
   return {

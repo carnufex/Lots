@@ -4,7 +4,7 @@ using Lots.Shell.Core.Profiles;
 
 namespace Lots.Shell.Features.Config;
 
-public sealed record OidcClientConfig(string Authority, string ClientId, string Scope);
+public sealed record OidcClientConfig(string Authority, string ClientId, string Scope, string RoleClaim, string? RolePrefix);
 
 public sealed record ProfileInfo(string Name, string Description);
 
@@ -25,7 +25,9 @@ public sealed class ClientConfigEndpoint(IConfiguration config, ProfileRegistry 
             ? new OidcClientConfig(
                 config["Auth:Oidc:Authority"]!,
                 config["Auth:Oidc:ClientId"] ?? "lots",
-                config["Auth:Oidc:Scope"] ?? "openid profile email")
+                config["Auth:Oidc:Scope"] ?? "openid profile email",
+                config["Auth:Oidc:RoleClaim"] ?? "roles",
+                config["Auth:Oidc:RolePrefix"])
             : null;
 
         await Send.OkAsync(new ClientConfig(
