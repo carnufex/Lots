@@ -4,7 +4,8 @@ import { createAuth, readDevIdentity, writeDevIdentity, type Auth, type Session 
 import { loadConfig, type ClientConfig } from './config'
 import RunsPage from './pages/RunsPage'
 import RunPage from './pages/RunPage'
-import Placeholder from './pages/Placeholder'
+import ApprovalsPage from './pages/ApprovalsPage'
+import AuditPage from './pages/AuditPage'
 
 type Route = { name: 'runs' } | { name: 'run'; id: string } | { name: 'approvals' } | { name: 'audit' }
 
@@ -115,8 +116,8 @@ function Shell({ config, auth, session }: { config: ClientConfig; auth: Auth; se
         <main>
           {route.name === 'runs' && <RunsPage api={api} profiles={config.profiles} />}
           {route.name === 'run' && <RunPage api={api} id={route.id} />}
-          {route.name === 'approvals' && <Placeholder title="Approvals" text="Pending approvals will appear here." />}
-          {route.name === 'audit' && <Placeholder title="Audit" text="The audit log will be browsable here." />}
+          {route.name === 'approvals' && <ApprovalsPage api={api} />}
+          {route.name === 'audit' && <AuditPage api={api} />}
         </main>
       </div>
     </div>
