@@ -1,3 +1,4 @@
+using Lots.Shell.Core.Models;
 using FastEndpoints;
 using Lots.Shell.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -5,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddFastEndpoints();
+builder.Services.AddModelClient(builder.Configuration);
 builder.Services.AddDbContext<LotsDbContext>(o =>
     o.UseNpgsql(builder.Configuration.GetConnectionString("Lots")));
 

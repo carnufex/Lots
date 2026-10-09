@@ -66,3 +66,4 @@ Labels: `needs-human`, `decision`, `blocked`, `type:feature|bug|chore`, `area:co
 - Run locally: `docker compose up --build` (shell on `http://localhost:8088`, override with `LOTS_PORT`; `GET /health`, `GET /health/ready`)
 - New migration: `dotnet ef migrations add <Name> --project src/Lots.Shell -o Persistence/Migrations`
 - Evals: to be added.
+- Live model test (opt-in): `LOTS_TEST_MODEL_URL=http://192.168.1.215:11434/v1 LOTS_TEST_MODEL=<model> dotnet test --filter Live`
