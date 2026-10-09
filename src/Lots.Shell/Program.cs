@@ -1,3 +1,4 @@
+using Lots.Shell.Core.Mcp;
 using Lots.Shell.Core.Models;
 using Lots.Shell.Core.Runs;
 using Lots.Shell.Core.Tools;
@@ -11,6 +12,8 @@ builder.Services.AddFastEndpoints();
 builder.Services.AddModelClient(builder.Configuration);
 builder.Services.Configure<AgentOptions>(builder.Configuration.GetSection(AgentOptions.Section));
 builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.Configure<McpOptions>(builder.Configuration.GetSection(McpOptions.Section));
+builder.Services.AddSingleton<IToolSource, McpToolSource>();
 builder.Services.AddScoped<ToolInvoker>();
 builder.Services.AddScoped<AgentRunner>();
 if (builder.Configuration.GetValue("Agent:RunWorkerEnabled", true))
