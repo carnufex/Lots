@@ -1,0 +1,28 @@
+services:
+  shell:
+    build:
+      context: .
+      dockerfile: src/Lots.Shell/Dockerfile
+    environment:
+      ConnectionStrings__Lots: Host=postgres;Database=lots;Username=lots;Password=${POSTGRES_PASSWORD:-lots-dev}
+    ports:
+      - "${LOTS_PORT:-8088}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: lots
+      POSTGRES_USER: lots
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lots-dev}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lots -d lots"]
+      interval: 3s
+      retries: 20
+
+volumes:
+  pgdata:

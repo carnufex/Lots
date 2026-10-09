@@ -62,4 +62,7 @@ Labels: `needs-human`, `decision`, `blocked`, `type:feature|bug|chore`, `area:co
 
 ## Commands
 
-To be filled in as the solution takes shape (build, test, compose up, evals).
+- Build/test: `dotnet test`
+- Run locally: `docker compose up --build` (shell on `http://localhost:8088`, override with `LOTS_PORT`; `GET /health`, `GET /health/ready`)
+- New migration: `dotnet ef migrations add <Name> --project src/Lots.Shell -o Persistence/Migrations`
+- Evals: to be added.
