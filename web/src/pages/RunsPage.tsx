@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import type { Api, RunSummary } from '../api'
+import type { ProfileInfo } from '../config'
+import NewRun from '../components/NewRun'
 
 type Load = { state: 'loading' } | { state: 'error'; message: string } | { state: 'ok'; runs: RunSummary[] }
 
-export default function RunsPage({ api }: { api: Api }) {
+export default function RunsPage({ api, profiles }: { api: Api; profiles: ProfileInfo[] }) {
   const [load, setLoad] = useState<Load>({ state: 'loading' })
 
   useEffect(() => {
@@ -20,6 +22,7 @@ export default function RunsPage({ api }: { api: Api }) {
   return (
     <section>
       <h1>Runs</h1>
+      <NewRun api={api} profiles={profiles} />
       {load.state === 'loading' && <p className="muted">Loading…</p>}
       {load.state === 'error' && (
         <p role="alert" className="error">
@@ -46,7 +49,9 @@ export default function RunsPage({ api }: { api: Api }) {
           <tbody>
             {load.runs.map((r) => (
               <tr key={r.id}>
-                <td className="prompt">{r.prompt}</td>
+                <td className="prompt">
+                  <a href={`#/runs/${r.id}`}>{r.prompt}</a>
+                </td>
                 <td>{r.profile}</td>
                 <td>{r.user}</td>
                 <td>

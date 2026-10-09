@@ -3,11 +3,12 @@ import { createApi, type Api } from './api'
 import { createAuth, readDevIdentity, writeDevIdentity, type Auth, type Session } from './auth'
 import { loadConfig, type ClientConfig } from './config'
 import RunsPage from './pages/RunsPage'
+import RunPage from './pages/RunPage'
 import Placeholder from './pages/Placeholder'
 
-type Route = 'runs' | 'approvals' | 'audit'
+type Route = { name: 'runs' } | { name: 'run'; id: string } | { name: 'approvals' } | { name: 'audit' }
 
-const NAV: { route: Route; label: string }[] = [
+const NAV: { route: Route['name']; label: string }[] = [
   { route: 'runs', label: 'Runs' },
   { route: 'approvals', label: 'Approvals' },
   { route: 'audit', label: 'Audit' },
@@ -16,7 +17,9 @@ const NAV: { route: Route; label: string }[] = [
 function useHashRoute(): Route {
   const read = (): Route => {
     const r = window.location.hash.replace(/^#\/?/, '')
-    return r === 'approvals' || r === 'audit' ? r : 'runs'
+    if (r === 'approvals' || r === 'audit') return { name: r }
+    const m = /^runs\/([0-9a-f-]{36})$/i.exec(r)
+    return m ? { name: 'run', id: m[1] } : { name: 'runs' }
   }
   const [route, setRoute] = useState<Route>(read)
   useEffect(() => {
@@ -85,7 +88,7 @@ function Shell({ config, auth, session }: { config: ClientConfig; auth: Auth; se
         <Brand />
         <nav aria-label="Main">
           {NAV.map((n) => (
-            <a key={n.route} href={`#/${n.route}`} className={route === n.route ? 'active' : ''}>
+            <a key={n.route} href={`#/${n.route}`} className={route.name === n.route || (n.route === 'runs' && route.name === 'run') ? 'active' : ''}>
               {n.label}
             </a>
           ))}
@@ -110,9 +113,10 @@ function Shell({ config, auth, session }: { config: ClientConfig; auth: Auth; se
           </div>
         </header>
         <main>
-          {route === 'runs' && <RunsPage api={api} />}
-          {route === 'approvals' && <Placeholder title="Approvals" text="Pending approvals will appear here." />}
-          {route === 'audit' && <Placeholder title="Audit" text="The audit log will be browsable here." />}
+          {route.name === 'runs' && <RunsPage api={api} profiles={config.profiles} />}
+          {route.name === 'run' && <RunPage api={api} id={route.id} />}
+          {route.name === 'approvals' && <Placeholder title="Approvals" text="Pending approvals will appear here." />}
+          {route.name === 'audit' && <Placeholder title="Audit" text="The audit log will be browsable here." />}
         </main>
       </div>
     </div>
