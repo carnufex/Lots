@@ -1,6 +1,8 @@
 # Our voice stack: Swedish and English, speech in and out, meetings with speakers
 
 Status: desk research, 2026-10-10, licenses checked against the upstream repositories and model cards.
+**Decision (ADR 0012): own GPU first (the owner's RTX 4070 Ti SUPER), Python service, hosted providers later behind the same contracts.**
+The sherpa-onnx/.NET CPU shape below remains the option for in-cluster meeting processing; the GPU shape is in the ADR.
 **Nothing here has been run or measured.** The first issues of milestone M5 do that. Scope is deliberately small:
 
 1. Talk to the agent in **Swedish and English** (speech to text, text to speech).
