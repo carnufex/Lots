@@ -39,4 +39,12 @@ public class EvalScoringTests
         Assert.Contains("1/2 passed", report);
         Assert.Contains("expected tool call not made: t", report);
     }
+
+    [Fact]
+    public void Empty_answer_fails_even_without_expectations()
+    {
+        var r = Scoring.Score(new EvalCase("x", "q"), Outcome(answer: ""));
+
+        Assert.False(r.Passed);
+    }
 }

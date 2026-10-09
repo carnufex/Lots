@@ -12,12 +12,14 @@ public sealed record EvalResult(EvalCase Case, bool Passed, IReadOnlyList<string
 
 public static class Scoring
 {
-    /// <summary>Pass = run completed, every expected tool was called, every expected fact is in the answer.</summary>
+    /// <summary>Pass = run completed with a non-empty answer, every expected tool was called, every expected fact is in the answer.</summary>
     public static EvalResult Score(EvalCase c, RunOutcome o)
     {
         var failures = new List<string>();
         if (o.Status != "Completed")
             failures.Add($"run ended as {o.Status}" + (o.Error is null ? "" : $": {o.Error}"));
+        if (o.Status == "Completed" && string.IsNullOrWhiteSpace(o.FinalAnswer))
+            failures.Add("run completed with an empty answer");
         foreach (var tool in c.ExpectedTools ?? [])
             if (!o.ToolsCalled.Contains(tool))
                 failures.Add($"expected tool call not made: {tool}");

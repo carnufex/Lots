@@ -56,7 +56,8 @@ public sealed class OpenAiCompatibleModelClient(HttpClient http, IOptions<ModelO
         var usage = root["usage"];
         return new ModelResponse(
             new ChatMessage("assistant", msg["content"]?.GetValue<string>(),
-                toolCalls is { Count: > 0 } ? toolCalls : null),
+                toolCalls is { Count: > 0 } ? toolCalls : null,
+                Reasoning: (msg["reasoning"] ?? msg["reasoning_content"])?.GetValue<string>()),
             choice["finish_reason"]?.GetValue<string>(),
             new ModelUsage(
                 usage?["prompt_tokens"]?.GetValue<int>() ?? 0,

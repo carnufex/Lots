@@ -13,7 +13,7 @@ public sealed record ContainerInfo(
 /// </summary>
 public sealed class DockerApi(HttpClient http)
 {
-    public const int MaxLogBytes = 32 * 1024;
+    public const int MaxLogBytes = 12 * 1024;
     public const int MaxLogLines = 500;
 
     public async Task<IReadOnlyList<ContainerInfo>> ListContainersAsync(bool all, CancellationToken ct)

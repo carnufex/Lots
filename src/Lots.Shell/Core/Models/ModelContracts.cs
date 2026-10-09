@@ -6,7 +6,9 @@ public sealed record ChatMessage(
     string Role,
     string? Content = null,
     IReadOnlyList<ToolCall>? ToolCalls = null,
-    string? ToolCallId = null);
+    string? ToolCallId = null,
+    /// <summary>Reasoning text some models return beside the content. Diagnostics only, never sent back.</summary>
+    string? Reasoning = null);
 
 public sealed record ToolCall(string Id, string Name, string ArgumentsJson);
 

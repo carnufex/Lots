@@ -107,7 +107,7 @@ public class AgentRunnerTests
         await Runner(db, model, tools).ExecuteAsync(id, default);
 
         var tool = (await db.RunMessages.ToListAsync()).Single(m => m.Role == "tool");
-        Assert.True(tool.Content!.Length < 17_000);
+        Assert.True(tool.Content!.Length < 9_000);
         Assert.Contains("[truncated", tool.Content);
     }
 
@@ -160,5 +160,57 @@ public class AgentRunnerTests
         Assert.Equal("finished", run.FinalAnswer);
         Assert.Equal(["a", "b"], tools.Called); // "a" was not executed twice
         Assert.Equal(1, model2.Calls);
+    }
+
+    [Fact]
+    public async Task Old_tool_results_are_dropped_from_the_request_when_context_budget_is_exceeded()
+    {
+        var db = NewDb(nameof(Old_tool_results_are_dropped_from_the_request_when_context_budget_is_exceeded));
+        var tools = new FakeTools(("logs", ToolRisk.Read)) { Output = _ => new string('x', 3_000) };
+        IReadOnlyList<ChatMessage>? lastRequest = null;
+        var model = new ScriptedModel(
+            _ => CallTool("logs", "c1"), _ => CallTool("logs", "c2"), _ => CallTool("logs", "c3"),
+            m => { lastRequest = m; return Answer("done"); });
+        var id = await NewRun(db);
+        var runner = new AgentRunner(db, model, new ToolInvoker([tools]),
+            Options.Create(new AgentOptions { MaxContextChars = 7_000 }), TimeProvider.System);
+
+        await runner.ExecuteAsync(id, default);
+
+        var toolMessages = lastRequest!.Where(m => m.Role == "tool").ToList();
+        Assert.Equal(3, toolMessages.Count);
+        Assert.Contains("omitted", toolMessages[0].Content);
+        Assert.Equal(3_000, toolMessages[2].Content!.Length); // newest result survives
+        Assert.Equal(RunStatus.Completed, (await db.Runs.SingleAsync()).Status);
+        var stored = await db.RunMessages.Where(m => m.Role == "tool").ToListAsync();
+        Assert.All(stored, m => Assert.Equal(3_000, m.Content!.Length)); // stored conversation untouched
+    }
+
+    [Fact]
+    public async Task Empty_reply_is_nudged_once_then_answered()
+    {
+        var db = NewDb(nameof(Empty_reply_is_nudged_once_then_answered));
+        var model = new ScriptedModel(_ => Answer(""), m => Answer(m.Any(x => x.Role == "user" && x.Content!.Contains("empty")) ? "real answer" : "no nudge"));
+        var id = await NewRun(db);
+
+        await Runner(db, model, new FakeTools()).ExecuteAsync(id, default);
+
+        var run = await db.Runs.SingleAsync();
+        Assert.Equal(RunStatus.Completed, run.Status);
+        Assert.Equal("real answer", run.FinalAnswer);
+    }
+
+    [Fact]
+    public async Task Two_empty_replies_fail_the_run()
+    {
+        var db = NewDb(nameof(Two_empty_replies_fail_the_run));
+        var model = new ScriptedModel(_ => Answer(""), _ => Answer(" "));
+        var id = await NewRun(db);
+
+        await Runner(db, model, new FakeTools()).ExecuteAsync(id, default);
+
+        var run = await db.Runs.SingleAsync();
+        Assert.Equal(RunStatus.Failed, run.Status);
+        Assert.Contains("empty answer", run.Error);
     }
 }

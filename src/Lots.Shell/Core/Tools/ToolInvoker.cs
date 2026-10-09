@@ -20,7 +20,7 @@ public interface IToolSource
 /// </summary>
 public sealed class ToolInvoker(IEnumerable<IToolSource> sources)
 {
-    public const int MaxOutputChars = 16_000;
+    public const int MaxOutputChars = 8_000;
 
     private readonly IReadOnlyList<IToolSource> _sources = sources.ToList();
 
