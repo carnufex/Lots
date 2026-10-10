@@ -3,6 +3,7 @@ import { isTerminal, type Api, type RunDetail, type Step } from '../api'
 import type { VoiceConfig } from '../config'
 import SpeakButton from '../components/SpeakButton'
 import Citations from '../components/Citations'
+import ToolResult from '../components/ToolResult'
 import { ConflictVote, conflictIds } from '../components/ConflictVote'
 
 const POLL_MS = 1500
@@ -173,7 +174,7 @@ function StepRow({ step }: { step: Step }) {
         {step.result && (
           <>
             <div className="label">{isTool ? 'Result' : 'Reply'}</div>
-            <pre>{step.result}</pre>
+            {isTool ? <ToolResult text={step.result} /> : <pre>{step.result}</pre>}
           </>
         )}
         {!step.arguments && !step.result && <p className="muted">No content.</p>}

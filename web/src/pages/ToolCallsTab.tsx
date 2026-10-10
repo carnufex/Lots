@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useState } from 'react'
 import type { Api, ToolCallFilter, ToolCallList } from '../api'
+import ToolResult from '../components/ToolResult'
 
 type Load = { state: 'loading' } | { state: 'error'; message: string } | { state: 'ok'; data: ToolCallList }
 
@@ -172,7 +173,7 @@ export default function ToolCallsTab({ api }: { api: Api }) {
                           <div className="muted small">Arguments</div>
                           <pre>{c.arguments ?? ''}</pre>
                           <div className="muted small">Result</div>
-                          <pre>{c.result ?? ''}</pre>
+                          <ToolResult text={c.result ?? ''} />
                           <p className="small">
                             {c.reason && <span className="muted">Policy: {c.reason} · </span>}
                             {c.backendAuth && <span className="muted">Backend auth: {c.backendAuth} · </span>}

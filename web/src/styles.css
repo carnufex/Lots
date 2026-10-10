@@ -1135,3 +1135,43 @@ textarea.code {
 .card + .card {
   margin-top: 12px;
 }
+
+/* Tool results (#65) */
+.tool-result > .btn {
+  float: right;
+}
+.table-scroll {
+  overflow-x: auto;
+  max-height: 420px;
+}
+.json-tree {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+.json-children {
+  padding-left: 16px;
+}
+.json-key {
+  color: var(--muted);
+}
+.json-string {
+  color: var(--accent);
+}
+.json-number,
+.json-boolean {
+  color: var(--warn);
+}
+pre.log {
+  max-height: 420px;
+  overflow: auto;
+}
+pre.log .del {
+  color: var(--danger);
+}
+pre.log .warn {
+  color: var(--warn);
+}
+.sparkline {
+  margin: 4px 0;
+  color: var(--accent);
+}
