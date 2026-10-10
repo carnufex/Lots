@@ -72,6 +72,49 @@ export interface AuditFilter {
   to?: string
 }
 
+export interface ToolCall {
+  runId: string
+  seq: number
+  at: string
+  user: string
+  profile: string
+  tool: string
+  arguments: string | null
+  result: string | null
+  latencyMs: number
+  status: 'ok' | 'error' | 'denied'
+  decision: string | null
+  reason: string | null
+  approver: string | null
+  backendAuth: string | null
+}
+
+export interface ToolStats {
+  tool: string
+  calls: number
+  errors: number
+  denied: number
+  errorRate: number
+  p50Ms: number
+  p95Ms: number
+}
+
+export interface ToolCallList {
+  calls: ToolCall[]
+  tools: ToolStats[]
+  total: number
+  truncated: boolean
+}
+
+export interface ToolCallFilter {
+  user?: string
+  profile?: string
+  tool?: string
+  status?: string
+  from?: string
+  to?: string
+}
+
 export interface Transcription {
   text: string
   language: string | null
@@ -233,6 +276,14 @@ export function createApi(auth: Auth) {
       if (f.to) q.set('to', new Date(f.to).toISOString())
       q.set('limit', '200')
       return request<AuditEntry[]>(`/audit?${q}`)
+    },
+    listToolCalls: (f: ToolCallFilter) => {
+      const q = new URLSearchParams()
+      for (const k of ['user', 'profile', 'tool', 'status'] as const) if (f[k]) q.set(k, f[k]!)
+      if (f.from) q.set('from', new Date(f.from).toISOString())
+      if (f.to) q.set('to', new Date(f.to).toISOString())
+      q.set('limit', '200')
+      return request<ToolCallList>(`/tool-calls?${q}`)
     },
     startRun: (prompt: string, profile: string, options: { voice?: boolean; conversationId?: string } = {}) =>
       request<{ id: string; status: RunStatus }>('/runs', { method: 'POST', body: JSON.stringify({ prompt, profile, ...options }) }),

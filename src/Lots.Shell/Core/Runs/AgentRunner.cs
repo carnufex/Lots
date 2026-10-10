@@ -324,7 +324,7 @@ public sealed class AgentRunner(
         {
             Id = Guid.NewGuid(), At = clock.GetUtcNow(), UserId = principal.UserId, Roles = run.Roles,
             Profile = run.Profile, ProfileVersion = profiles.Find(run.Profile)?.Version ?? 0, RunId = run.Id,
-            Tool = call.Name, ArgumentsJson = call.ArgumentsJson, Decision = decision, Reason = reason,
+            Tool = call.Name, ToolCallId = call.Id, ArgumentsJson = call.ArgumentsJson, Decision = decision, Reason = reason,
             ApproverId = approver, ResultStatus = resultStatus, BackendAuth = backendAuth,
         });
 

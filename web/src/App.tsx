@@ -154,7 +154,7 @@ function Shell({ config, auth, session }: { config: ClientConfig; auth: Auth; se
           {route.name === 'approvals' && <ApprovalsPage api={api} />}
           {route.name === 'audit' && <AuditPage api={api} />}
           {route.name === 'history' && <HistoryPage api={api} id={route.id} />}
-          {route.name === 'integrations' && <IntegrationsPage tab={route.tab} />}
+          {route.name === 'integrations' && <IntegrationsPage api={api} tab={route.tab} />}
           {route.name === 'voice' && <VoicePage api={api} voice={config.voice} />}
           {route.name === 'planned' && <PlaceholderPage item={PLANNED.find((p) => p.slug === route.slug)!} />}
         </main>

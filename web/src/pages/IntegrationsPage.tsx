@@ -1,4 +1,6 @@
+import type { Api } from '../api'
 import { Icon } from '../components/Icon'
+import ToolCallsTab from './ToolCallsTab'
 
 export const INTEGRATION_TABS = [
   { slug: 'tool-calls', label: 'Tool calls', blurb: 'Every tool call across runs: who, which tool, arguments, result, latency and the policy decision.' },
@@ -10,7 +12,7 @@ export const INTEGRATION_TABS = [
 export type IntegrationTab = (typeof INTEGRATION_TABS)[number]['slug']
 
 /** One place for everything the agent can call. The tabs fill in as the M7 issues land. */
-export default function IntegrationsPage({ tab }: { tab: IntegrationTab }) {
+export default function IntegrationsPage({ api, tab }: { api: Api; tab: IntegrationTab }) {
   const current = INTEGRATION_TABS.find((t) => t.slug === tab) ?? INTEGRATION_TABS[0]
   return (
     <section>
@@ -22,12 +24,16 @@ export default function IntegrationsPage({ tab }: { tab: IntegrationTab }) {
           </a>
         ))}
       </div>
-      <div className="placeholder">
-        <Icon name={current.slug === 'mcp' ? 'mcp' : 'tools'} size={56} />
-        <h2>{current.label}</h2>
-        <p className="muted">{current.blurb}</p>
-        <p className="muted small">Not built yet. Tracked in milestone M7: Tools and integrations.</p>
-      </div>
+      {current.slug === 'tool-calls' ? (
+        <ToolCallsTab api={api} />
+      ) : (
+        <div className="placeholder">
+          <Icon name={current.slug === 'mcp' ? 'mcp' : 'tools'} size={56} />
+          <h2>{current.label}</h2>
+          <p className="muted">{current.blurb}</p>
+          <p className="muted small">Not built yet. Tracked in milestone M7: Tools and integrations.</p>
+        </div>
+      )}
     </section>
   )
 }

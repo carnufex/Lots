@@ -7,7 +7,7 @@ The roadmap below follows from that: what the shell must do well, then what is b
 
 | Milestone | Theme | State |
 |---|---|---|
-| M1 | Loop, homelab read tools, trace | done (CI pipeline blocked by Actions billing, #8) |
+| M1 | Loop, homelab read tools, trace | done (CI pipeline #8 moved to M13, blocked by Actions billing) |
 | M2 | Identity, profiles, policy, approvals | done |
 | M3 | UI and second profile (cmdb) | done |
 | M4 | Run anywhere, public-ready (Helm, leases, delegated identity) | done |

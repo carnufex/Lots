@@ -1031,3 +1031,23 @@ input.wide {
   border-bottom: 2px solid var(--accent);
   font-weight: 600;
 }
+
+/* Integrations: tool calls tab */
+.section-title {
+  margin: 24px 0 8px;
+  font-size: 0.95rem;
+}
+.small {
+  font-size: 0.8rem;
+}
+.btn.ghost {
+  background: transparent;
+  border-color: transparent;
+  padding: 2px 6px;
+}
+.btn.ghost:hover {
+  border-color: var(--border, #2a2f3a);
+}
+.btn.small {
+  font-size: 0.85rem;
+}

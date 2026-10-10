@@ -85,6 +85,7 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.UserId, x.At });
             e.HasIndex(x => x.RunId);
+            e.Property(x => x.ToolCallId).HasMaxLength(256);
             e.Property(x => x.Decision).HasConversion<string>().HasMaxLength(32).IsRequired();
             e.Property(x => x.UserId).HasMaxLength(256).IsRequired();
             e.Property(x => x.Tool).HasMaxLength(256).IsRequired();
@@ -200,6 +201,8 @@ public sealed class AuditRecord
     public int ProfileVersion { get; set; }
     public Guid RunId { get; set; }
     public required string Tool { get; set; }
+    /// <summary>The model's id for the call; links the decision to its trace step. Null on rows written before it existed.</summary>
+    public string? ToolCallId { get; set; }
     public string? ArgumentsJson { get; set; }
     public AuditDecision Decision { get; set; }
     public string Reason { get; set; } = "";
