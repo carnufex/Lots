@@ -10,6 +10,8 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
     public DbSet<ApprovalRecord> Approvals => Set<ApprovalRecord>();
     public DbSet<AuditRecord> AuditLog => Set<AuditRecord>();
     public DbSet<VoiceUsageRecord> VoiceUsage => Set<VoiceUsageRecord>();
+    public DbSet<KnowledgeConflictRecord> KnowledgeConflicts => Set<KnowledgeConflictRecord>();
+    public DbSet<ConflictVoteRecord> ConflictVotes => Set<ConflictVoteRecord>();
     public DbSet<UserSettingsRecord> UserSettings => Set<UserSettingsRecord>();
     public DbSet<UserVocabularyRecord> UserVocabulary => Set<UserVocabularyRecord>();
 
@@ -50,6 +52,26 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
             e.Property(x => x.ToolCallId).HasMaxLength(256).IsRequired();
             e.Property(x => x.RequestedBy).HasMaxLength(256).IsRequired();
             e.Property(x => x.DecidedBy).HasMaxLength(256);
+        });
+
+        modelBuilder.Entity<KnowledgeConflictRecord>(e =>
+        {
+            e.ToTable("knowledge_conflicts");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.Fingerprint).IsUnique();
+            e.Property(x => x.Fingerprint).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(16).IsRequired();
+            e.Property(x => x.ResolvedBy).HasMaxLength(256);
+        });
+
+        modelBuilder.Entity<ConflictVoteRecord>(e =>
+        {
+            e.ToTable("conflict_votes");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.ConflictId, x.UserId }).IsUnique(); // one vote per user per conflict
+            e.HasIndex(x => new { x.UserId, x.At });
+            e.Property(x => x.UserId).HasMaxLength(256).IsRequired();
+            e.Property(x => x.Option).HasMaxLength(64).IsRequired();
         });
 
         modelBuilder.Entity<UserVocabularyRecord>(e =>
@@ -242,6 +264,43 @@ public sealed class VoiceUsageRecord
     public Guid? ConversationId { get; set; }
     /// <summary>Total time of the call. For speech output <see cref="LatencyMs"/> is only time to first audio.</summary>
     public long? DurationMs { get; set; }
+}
+
+/// <summary>
+/// Retrieved passages that contradict each other (#48). Options are chunk ids with the content hash of their document at detection
+/// time: when a document changes, votes for it no longer count. A signal for owners, never an authority (no effect on policy).
+/// </summary>
+public sealed class KnowledgeConflictRecord
+{
+    public Guid Id { get; set; }
+    /// <summary>Hash of the sorted option chunk ids: the same disagreement is recorded once.</summary>
+    public required string Fingerprint { get; set; }
+    public string Question { get; set; } = "";
+    public string Summary { get; set; } = "";
+    /// <summary>JSON array of {chunkId, sourceId, documentId, title, contentHash}.</summary>
+    public string OptionsJson { get; set; } = "[]";
+    public DateTimeOffset DetectedAt { get; set; }
+    public Guid? RunId { get; set; }
+    /// <summary>open | resolved</summary>
+    public string Status { get; set; } = "open";
+    public string? ResolvedOption { get; set; }
+    public string? ResolvedBy { get; set; }
+    public DateTimeOffset? ResolvedAt { get; set; }
+}
+
+/// <summary>One user's vote on a conflict (append-only; a changed vote replaces the row's option and time).</summary>
+public sealed class ConflictVoteRecord
+{
+    public Guid Id { get; set; }
+    public Guid ConflictId { get; set; }
+    public required string UserId { get; set; }
+    public string Roles { get; set; } = "";
+    /// <summary>A chunk id of one option, or "neither".</summary>
+    public required string Option { get; set; }
+    /// <summary>Content hash of the chosen option's document when the vote was cast.</summary>
+    public string? ContentHash { get; set; }
+    public DateTimeOffset At { get; set; }
+    public Guid? RunId { get; set; }
 }
 
 /// <summary>A user's own dictation vocabulary (names, products, jargon), one row per user. Words only; no audio, no secrets.</summary>

@@ -194,6 +194,19 @@ export interface KnowledgeHit {
   textRank: number | null
 }
 
+export interface Conflict {
+  id: string
+  question: string
+  summary: string
+  status: 'open' | 'resolved'
+  detectedAt: string
+  options: { chunkId: string; title: string; sourceName: string; heading: string; text: string; updatedAt: string; changed: boolean }[]
+  myVote: string | null
+  tally: { options: { option: string; weight: number; votes: number }[]; votes: number; staleVotes: number; suggestion: string | null; swing: boolean }
+  resolvedOption: string | null
+  resolvedBy: string | null
+}
+
 export interface Transcription {
   text: string
   language: string | null
@@ -396,6 +409,10 @@ export function createApi(auth: Auth) {
       request<void>(`/knowledge/sources/${encodeURIComponent(id)}/documents/${doc}`, { method: 'DELETE' }),
     searchKnowledge: (q: string, source?: string) =>
       request<KnowledgeHit[]>(`/knowledge/search?${new URLSearchParams({ q, ...(source ? { source } : {}) })}`),
+    conflict: (id: string) => request<Conflict>(`/knowledge/conflicts/${id}`),
+    conflicts: () => request<Conflict[]>('/knowledge/conflicts'),
+    voteConflict: (id: string, option: string) => request<Conflict>(`/knowledge/conflicts/${id}/vote`, { method: 'POST', body: JSON.stringify({ option }) }),
+    resolveConflict: (id: string, option: string) => request<void>(`/knowledge/conflicts/${id}/resolve`, { method: 'POST', body: JSON.stringify({ option }) }),
     chunk: (id: string) => request<KnowledgeHit>(`/knowledge/chunks/${encodeURIComponent(id)}`),
     startRun: (prompt: string, profile: string, options: { voice?: boolean; conversationId?: string } = {}) =>
       request<{ id: string; status: RunStatus }>('/runs', { method: 'POST', body: JSON.stringify({ prompt, profile, ...options }) }),

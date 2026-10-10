@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { ConflictList } from '../components/ConflictVote'
 import { ApiError, type Api, type KnowledgeDoc, type KnowledgeHit, type KnowledgeOverview, type KnowledgeSource } from '../api'
 
 const statusClass: Record<string, string> = { ready: 'Allowed', failed: 'Denied', queued: 'ApprovalRequested', indexing: 'ApprovalRequested' }
@@ -82,6 +83,7 @@ export default function KnowledgePage({ api }: { api: Api }) {
           )}
 
           <NewSource api={api} onCreated={reload} />
+          <ConflictList api={api} />
         </>
       )}
     </section>

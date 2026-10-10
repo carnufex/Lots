@@ -64,7 +64,8 @@ public sealed record Profile(
     IReadOnlyList<McpServerConfig> Servers,
     IReadOnlyList<ProfileTool> Tools,
     IReadOnlyList<ProfileRole> Roles,
-    string? Model = null);
+    string? Model = null,
+    bool DetectConflicts = false);
 
 public sealed class ProfileException(IReadOnlyList<string> errors)
     : Exception("Invalid profile: " + string.Join("; ", errors))
@@ -149,7 +150,7 @@ public static class ProfileParser
         if (errors.Count > 0) throw new ProfileException(errors);
 
         return new Profile(doc.Name!, doc.Version, doc.Description ?? "", doc.Instructions?.Trim() ?? "", servers, tools, roles,
-            string.IsNullOrWhiteSpace(doc.Model) ? null : doc.Model.Trim());
+            string.IsNullOrWhiteSpace(doc.Model) ? null : doc.Model.Trim(), doc.DetectConflicts);
     }
 
     private static ServerCredentials? ParseCredentials(ServerDoc s, Action<string> err)
@@ -209,6 +210,8 @@ public static class ProfileParser
         public string? Instructions { get; set; }
         /// <summary>Model alias (Models:Aliases) the profile's runs use; empty = default.</summary>
         public string? Model { get; set; }
+        /// <summary>Check retrieved passages for contradictions and let users vote (#48). Off unless enabled.</summary>
+        public bool DetectConflicts { get; set; }
         public List<ServerDoc>? Servers { get; set; }
         public List<ToolDoc>? Tools { get; set; }
         public List<RoleDoc>? Roles { get; set; }

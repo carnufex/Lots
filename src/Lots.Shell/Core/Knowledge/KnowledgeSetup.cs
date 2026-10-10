@@ -33,6 +33,7 @@ public static class KnowledgeSetup
                 sp.GetRequiredService<ILogger<PostgresKnowledgeStore>>());
         });
         services.AddScoped<KnowledgeIndexer>();
+        services.AddSingleton<ConflictDetector>();
         services.AddSingleton<IToolSource, KnowledgeToolSource>();
         services.AddHostedService<KnowledgeWorker>();
         return services;

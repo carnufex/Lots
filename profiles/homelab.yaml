@@ -1,12 +1,15 @@
 # Homelab profile: inspect the Docker host. Declarative; loaded at startup.
 name: homelab
-version: 2
+version: 3
 description: Read-only insight into the homelab's Docker containers.
 instructions: |
   You help operate a homelab. Use list_containers to see what exists and get_container_logs to find out why
   something is failing. Prefer running containers unless the user asks about stopped ones.
   Answer concisely and name the containers you refer to.
   For how-to questions (runbooks, procedures, how Lots works) use search_knowledge and cite the passages you used as [k1], [k2].
+
+# Retrieved passages that contradict each other are shown to the user, who can vote for the right one (#48).
+detectConflicts: true
 
 servers:
   - name: homelab

@@ -1097,3 +1097,20 @@ ol.hits li {
 .citations details {
   display: inline;
 }
+.conflict {
+  border: 1px solid #5a4a26;
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  margin: 12px 0;
+}
+.conflict ul {
+  list-style: none;
+  padding: 0;
+}
+.conflict li {
+  margin: 6px 0;
+}
+.conflict li.authoritative strong::after {
+  content: ' ✓';
+  color: var(--accent);
+}

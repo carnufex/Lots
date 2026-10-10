@@ -3,6 +3,7 @@ import { isTerminal, type Api, type RunDetail, type Step } from '../api'
 import type { VoiceConfig } from '../config'
 import SpeakButton from '../components/SpeakButton'
 import Citations from '../components/Citations'
+import { ConflictVote, conflictIds } from '../components/ConflictVote'
 
 const POLL_MS = 1500
 
@@ -118,6 +119,9 @@ function Detail({ run, api, voice, reconnecting }: { run: RunDetail; api: Api; v
             {run.finalAnswer}
           </div>
           {run.finalAnswer && <Citations api={api} answer={run.finalAnswer} steps={run.steps} />}
+          {conflictIds(run.steps).map((id) => (
+            <ConflictVote key={id} api={api} id={id} />
+          ))}
           {voice.enabled && run.finalAnswer && <SpeakButton api={api} runId={run.id} />}
         </>
       )}
