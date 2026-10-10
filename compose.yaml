@@ -17,6 +17,8 @@ services:
       Speech__Vocabulary: ${LOTS_VOICE_VOCABULARY:-}
       Speech__Voices__sv: ${LOTS_VOICE_SV:-sv-nst}   # cb-default = the expressive voice (needs VOICE_CHATTERBOX=1 in the voice service)
       Speech__Voices__en: ${LOTS_VOICE_EN:-en-lessac}
+      Speech__AudioPath: /data/audio   # conversation audio, encrypted, kept Speech__AudioRetentionDays (30, ADR 0014)
+      DataProtection__KeysPath: /data/keys
       LOTS_VOICE_KEY: ${LOTS_VOICE_KEY:-}
       Model__BaseUrl: ${LOTS_MODEL_URL:-http://host.docker.internal:11434/v1}
       Model__Model: ${LOTS_MODEL:-}
@@ -33,6 +35,7 @@ services:
     volumes:
       - ${LOTS_PROFILES_DIR:-./profiles}:/profiles:ro
       - ${LOTS_KNOWLEDGE_DIR:-./docs}:/knowledge/lots-docs:ro
+      - lots-data:/data
     ports:
       - "${LOTS_PORT:-8088}:8080"
     depends_on:
@@ -89,4 +92,5 @@ services:
       retries: 20
 
 volumes:
+  lots-data:   # conversation audio and Data Protection keys
   pgdata:

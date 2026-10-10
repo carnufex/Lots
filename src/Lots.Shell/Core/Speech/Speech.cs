@@ -94,6 +94,12 @@ public sealed class SpeechOptions
     /// <summary>Longest vocabulary prompt (characters) sent to the provider; user words come first.</summary>
     public int MaxVocabularyChars { get; set; } = 500;
 
+    /// <summary>Days conversation audio is kept (ADR 0014); 0 = not stored.</summary>
+    public int AudioRetentionDays { get; set; } = 30;
+
+    /// <summary>Where conversation audio is stored, encrypted: a persistent volume (compose and the chart set /data/audio). Unset or not writable = not stored.</summary>
+    public string? AudioPath { get; set; }
+
     public bool Enabled => !string.IsNullOrWhiteSpace(BaseUrl);
     public static readonly IReadOnlyList<string> Languages = ["sv", "en"];
 }

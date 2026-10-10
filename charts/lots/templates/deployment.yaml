@@ -59,6 +59,10 @@ spec:
             - { name: GitOps__Path, value: {{ printf "/git/current/%s" .Values.gitops.path | trimSuffix "/" | quote }} }
             - { name: GitOps__Prune, value: {{ .Values.gitops.prune | quote }} }
             {{- end }}
+            {{- if .Values.audio.existingClaim }}
+            - { name: Speech__AudioPath, value: /data/audio }
+            - { name: Speech__AudioRetentionDays, value: {{ .Values.audio.retentionDays | quote }} }
+            {{- end }}
             {{- range .Values.extraEnv }}
             - { name: {{ .name }}, value: {{ .value | quote }} }
             {{- end }}
@@ -119,6 +123,9 @@ spec:
             {{- if .Values.gitops.enabled }}
             - { name: git, mountPath: /git, readOnly: true }
             {{- end }}
+            {{- if .Values.audio.existingClaim }}
+            - { name: audio, mountPath: /data/audio }
+            {{- end }}
         {{- if .Values.gitops.enabled }}
         - name: git-sync
           image: {{ .Values.gitops.image | quote }}
@@ -147,6 +154,11 @@ spec:
         {{- if .Values.gitops.enabled }}
         - name: git
           emptyDir: {}
+        {{- end }}
+        {{- if .Values.audio.existingClaim }}
+        - name: audio
+          persistentVolumeClaim:
+            claimName: {{ .Values.audio.existingClaim }}
         {{- end }}
         {{- if .Values.profiles.files }}
         - name: profiles

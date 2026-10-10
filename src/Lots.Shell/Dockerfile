@@ -20,7 +20,8 @@ COPY --from=build /app .
 COPY profiles/ /app/profiles/
 COPY --from=web /web/dist/ /app/wwwroot/
 # OpenShift-compatible: runs as an arbitrary UID with group 0; no privileged port.
-RUN chgrp -R 0 /app && chmod -R g=u /app
+# /data: conversation audio and keys (a volume); group 0 writable so any assigned UID can write it.
+RUN mkdir -p /data && chgrp -R 0 /app /data && chmod -R g=u /app /data
 ENV ASPNETCORE_URLS=http://+:8080 DOTNET_EnableDiagnostics=0
 USER 10001:0
 EXPOSE 8080

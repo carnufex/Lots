@@ -80,10 +80,24 @@ public sealed class TranscribeEndpoint(
         if (req.ConversationId is { } conversation) span?.SetTag("gen_ai.conversation.id", conversation.ToString());
         try
         {
-            await using var stream = req.Audio.OpenReadStream();
+            // Conversation turns keep the recording (ADR 0014); plain dictation does not (point 7).
+            var store = HttpContext.RequestServices.GetRequiredService<IAudioStore>();
+            byte[]? recording = null;
+            Stream stream = req.Audio.OpenReadStream();
+            if (req.ConversationId is not null && store.Enabled)
+            {
+                using var buffer = new MemoryStream();
+                await stream.CopyToAsync(buffer, ct);
+                await stream.DisposeAsync();
+                recording = buffer.ToArray();
+                stream = new MemoryStream(recording);
+            }
+            await using var _ = stream;
             var words = await Vocabulary.ForUserAsync(db, me.UserId, o, ct);
             var transcript = await stt.TranscribeAsync(
                 new AudioInput(stream, req.Audio.ContentType ?? "application/octet-stream", req.Audio.FileName ?? "audio"), language, words, ct);
+            if (recording is not null && req.ConversationId is { } conv)
+                await store.SaveAsync(conv, null, me.UserId, "user", (req.Audio.ContentType ?? "audio/webm").Split(';')[0], recording, clock.GetUtcNow(), CancellationToken.None);
             sw.Stop();
             span?.SetTag("lots.speech.audio_seconds", transcript.DurationSeconds);
             span?.SetTag("lots.speech.detected_language", transcript.Language);
@@ -178,8 +192,11 @@ public sealed class SpeakRunEndpoint(
             };
             db.VoiceUsage.Add(usage);
             await db.SaveChangesAsync(CancellationToken.None);
-            var timed = new FirstByteStream(audio.Content, sw);
+            var store = HttpContext.RequestServices.GetRequiredService<IAudioStore>();
+            var timed = new FirstByteStream(audio.Content, sw, run.ConversationId is not null && store.Enabled ? new MemoryStream() : null);
             await Send.StreamAsync(timed, contentType: audio.ContentType, cancellation: ct);
+            if (run.ConversationId is { } conv && timed.Copied is { } spoken)
+                await store.SaveAsync(conv, run.Id, run.UserId, "agent", audio.ContentType, spoken, clock.GetUtcNow(), CancellationToken.None);
             usage.LatencyMs = timed.FirstByteMs ?? firstAudioMs; // time to the first audio bytes (the response headers come earlier)
             usage.DurationMs = sw.ElapsedMilliseconds; // the whole synthesis, now that the body has been streamed
             span?.AddEvent(new ActivityEvent("first_audio", DateTimeOffset.UtcNow - TimeSpan.FromMilliseconds(usage.DurationMs.Value - usage.LatencyMs)));
@@ -205,14 +222,19 @@ public sealed class SpeakRunEndpoint(
 }
 
 /// <summary>Passes a stream through and notes when the first bytes arrived (the user hears audio from that moment).</summary>
-internal sealed class FirstByteStream(Stream inner, Stopwatch clock) : Stream
+internal sealed class FirstByteStream(Stream inner, Stopwatch clock, MemoryStream? copy = null) : Stream
 {
+    private const int MaxCopy = 20 * 1024 * 1024;
     public long? FirstByteMs { get; private set; }
+
+    /// <summary>What was streamed, when a copy was asked for (conversation audio, ADR 0014); null if it grew too large.</summary>
+    public byte[]? Copied => copy is { Length: > 0 and <= MaxCopy } ? copy.ToArray() : null;
 
     public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken ct = default)
     {
         var n = await inner.ReadAsync(buffer, ct);
         if (n > 0) FirstByteMs ??= clock.ElapsedMilliseconds;
+        if (n > 0 && copy is not null && copy.Length <= MaxCopy) copy.Write(buffer.Span[..n]);
         return n;
     }
 
@@ -223,6 +245,7 @@ internal sealed class FirstByteStream(Stream inner, Stopwatch clock) : Stream
     {
         var n = inner.Read(buffer, offset, count);
         if (n > 0) FirstByteMs ??= clock.ElapsedMilliseconds;
+        if (n > 0 && copy is not null && copy.Length <= MaxCopy) copy.Write(buffer, offset, n);
         return n;
     }
 

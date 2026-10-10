@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import AudioClip from '../components/AudioClip'
 import { ApiError, type Api, type ConversationDetail, type ConversationList, type ConversationSummary, type StageTotals, type TimelineEvent } from '../api'
 
 const KINDS = [
@@ -39,10 +40,37 @@ export default function HistoryPage({ api, id }: { api: Api; id?: string }) {
   return id ? <Detail api={api} id={id} /> : <List api={api} />
 }
 
+/** Per day: how many turns and where their time went (stacked bars). */
+function DailyChart({ api }: { api: Api }) {
+  const [days, setDays] = useState<Awaited<ReturnType<Api['conversationStats']>>>([])
+  useEffect(() => {
+    api.conversationStats(30).then(setDays).catch(() => setDays([]))
+  }, [api])
+  if (days.length < 2) return null
+  const max = Math.max(...days.map((d) => d.sttMs + d.llmMs + d.toolMs + d.ttsMs), 1)
+  return (
+    <div className="card">
+      <h2>Last 30 days: time per stage and day</h2>
+      <div className="bars stacked" role="img" aria-label="Time per stage and day">
+        {days.map((d) => (
+          <div key={d.day} className="bar" title={`${d.day}: ${d.conversations} conversations, ${d.turns} turns, avg turn ${fmt(d.avgTurnMs)}`}>
+            {(['tts', 'tool', 'llm', 'stt'] as const).map((k) => (
+              <div key={k} className={`fill ${k}`} style={{ height: `${(d[`${k}Ms`] / max) * 100}%` }} />
+            ))}
+            <span className="small muted">{d.day.slice(5)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function List({ api }: { api: Api }) {
   const [q, setQ] = useState('')
   const [status, setStatus] = useState('')
-  const [applied, setApplied] = useState({ q: '', status: '' })
+  const [profile, setProfile] = useState('')
+  const [from, setFrom] = useState('')
+  const [applied, setApplied] = useState({ q: '', status: '', profile: '', from: '' })
   const [data, setData] = useState<ConversationList | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -60,17 +88,19 @@ function List({ api }: { api: Api }) {
   return (
     <section>
       <h1>Conversation history</h1>
+      <p className="muted small">Voice conversations are recorded (both sides) and the audio is kept for 30 days; you can delete it any time.</p>
       {data && data.count > 0 && (
         <div className="card">
           <h2>Where the time goes ({data.count} conversations)</h2>
           <StageBar stages={data.stages} />
         </div>
       )}
+      <DailyChart api={api} />
       <form
         className="filters"
         onSubmit={(e) => {
           e.preventDefault()
-          setApplied({ q, status })
+          setApplied({ q, status, profile, from })
         }}
       >
         <label>
@@ -85,6 +115,14 @@ function List({ api }: { api: Api }) {
             <option value="Failed">Failed</option>
             <option value="Running">Running</option>
           </select>
+        </label>
+        <label>
+          Profile
+          <input value={profile} onChange={(e) => setProfile(e.target.value)} />
+        </label>
+        <label>
+          From
+          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
         </label>
         <button className="btn" type="submit">
           Apply
@@ -141,6 +179,12 @@ function ConversationRow({ c }: { c: ConversationSummary }) {
 function Detail({ api, id }: { api: Api; id: string }) {
   const [d, setD] = useState<ConversationDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [audio, setAudio] = useState<Awaited<ReturnType<Api['conversationAudio']>>>([])
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    api.conversationAudio(id).then(setAudio).catch(() => setAudio([]))
+  }, [api, id])
 
   useEffect(() => {
     let cancelled = false
@@ -163,6 +207,27 @@ function Detail({ api, id }: { api: Api; id: string }) {
         <a href="#/history">← All conversations</a>
       </p>
       <h1>{c.title}</h1>
+      {c.summary ? <p className="summary">{c.summary}</p> : null}
+      <p>
+        <button type="button" className="btn small" disabled={busy} onClick={() => {
+          setBusy(true)
+          void api.summarizeConversation(id).then((s) => setD({ ...d, conversation: { ...c, title: s.title, summary: s.summary } })).finally(() => setBusy(false))
+        }}>
+          {c.summary ? 'Summarise again' : 'Summarise'}
+        </button>{' '}
+        {audio.length > 0 && (
+          <button type="button" className="btn small" onClick={() => {
+            if (window.confirm('Delete the recorded audio of this conversation?')) void api.deleteConversationAudio(id).then(() => setAudio([]))
+          }}>
+            Delete audio
+          </button>
+        )}{' '}
+        <button type="button" className="btn small" onClick={() => {
+          if (window.confirm('Delete this whole conversation (turns, trace and audio)? The audit log is kept.')) void api.deleteConversation(id).then(() => (window.location.hash = '#/history'))
+        }}>
+          Delete conversation
+        </button>
+      </p>
       <dl className="meta">
         <div><dt>Date</dt><dd>{when(c.startedAt)}</dd></div>
         <div><dt>Duration</dt><dd>{fmt(c.durationMs)}</dd></div>
@@ -185,15 +250,25 @@ function Detail({ api, id }: { api: Api; id: string }) {
             <strong>Turn {i + 1}</strong>
             <span className="muted small">{fmt(t.durationMs)} · <a href={`#/runs/${t.runId}`}>run details</a></span>
           </div>
-          <p className="said you"><span className="who">You</span> {t.prompt}</p>
+          <p className="said you">
+            <span className="who">You</span> {t.prompt}{' '}
+            {audioFor(audio, d.turns, i, 'user').map((a) => <AudioClip key={a.id} api={api} id={a.id} label="your voice" />)}
+          </p>
           <Timeline events={t.events} />
           <p className={`said agent ${t.status === 'Failed' ? 'failed' : ''}`}>
-            <span className="who">Agent</span> {t.answer ?? t.error ?? '…'}
+            <span className="who">Agent</span> {t.answer ?? t.error ?? '…'}{' '}
+            {audio.filter((a) => a.kind === 'agent' && a.runId === t.runId).map((a) => <AudioClip key={a.id} api={api} id={a.id} label="spoken answer" />)}
           </p>
         </div>
       ))}
     </section>
   )
+}
+
+/** Recordings belong to the turn that started next after them (dictation happens before its run exists). */
+function audioFor(audio: Awaited<ReturnType<Api['conversationAudio']>>, turns: ConversationDetail['turns'], i: number, kind: 'user') {
+  const start = (n: number) => (n < turns.length ? new Date(turns[n].startedAt).getTime() : Infinity)
+  return audio.filter((a) => a.kind === kind && new Date(a.at).getTime() <= start(i) + 1000 && new Date(a.at).getTime() > (i === 0 ? -Infinity : start(i - 1) + 1000))
 }
 
 function Timeline({ events }: { events: TimelineEvent[] }) {

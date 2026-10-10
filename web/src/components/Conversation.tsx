@@ -245,9 +245,12 @@ export default function Conversation({
               </button>
             </div>
           ) : (
-            <button type="button" className="btn startcall" onClick={() => void start()}>
-              Start conversation
-            </button>
+            <>
+              <button type="button" className="btn startcall" onClick={() => void start()}>
+                Start conversation
+              </button>
+              <span className="muted small">Both sides are recorded and kept 30 days (History lets you play or delete them).</span>
+            </>
           )}
           <div className="row talkopts">
             <select

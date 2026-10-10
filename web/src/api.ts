@@ -351,13 +351,25 @@ export function createApi(auth: Auth) {
       if (conversationId) form.append('ConversationId', conversationId)
       return request<Transcription>('/voice/transcribe', { method: 'POST', body: form })
     },
-    listConversations: (f: { q?: string; status?: string } = {}) => {
+    listConversations: (f: { q?: string; status?: string; profile?: string; from?: string } = {}) => {
       const q = new URLSearchParams()
       if (f.q) q.set('q', f.q)
       if (f.status) q.set('status', f.status)
+      if (f.profile) q.set('profile', f.profile)
+      if (f.from) q.set('from', new Date(f.from).toISOString())
       return request<ConversationList>(`/conversations?${q}`)
     },
     getConversation: (id: string) => request<ConversationDetail>(`/conversations/${id}`),
+    conversationAudio: (id: string) => request<{ id: string; kind: 'user' | 'agent'; runId: string | null; at: string; bytes: number }[]>(`/conversations/${id}/audio`),
+    deleteConversationAudio: (id: string) => request<void>(`/conversations/${id}/audio`, { method: 'DELETE' }),
+    deleteConversation: (id: string) => request<void>(`/conversations/${id}`, { method: 'DELETE' }),
+    summarizeConversation: (id: string) => request<{ title: string; summary: string }>(`/conversations/${id}/summarize`, { method: 'POST', body: '{}' }),
+    conversationStats: (days: number) =>
+      request<{ day: string; conversations: number; turns: number; avgTurnMs: number; sttMs: number; llmMs: number; toolMs: number; ttsMs: number; tokens: number }[]>(
+        `/conversations/stats?days=${days}`,
+      ),
+    /** Auth headers for requests that need the raw response (audio blobs). */
+    authHeaders: () => auth.headers(),
     getSettings: () => request<UserSettings>('/me/settings'),
     putSettings: (s: Pick<UserSettings, 'talkativeness' | 'warmth' | 'formality' | 'expressiveness' | 'pace'>) =>
       request<UserSettings>('/me/settings', {

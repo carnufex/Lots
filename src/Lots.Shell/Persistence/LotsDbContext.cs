@@ -16,6 +16,8 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
     public DbSet<UserCredentialRecord> UserCredentials => Set<UserCredentialRecord>();
     public DbSet<UserProfileRecord> UserProfiles => Set<UserProfileRecord>();
     public DbSet<QuotaOverrideRecord> QuotaOverrides => Set<QuotaOverrideRecord>();
+    public DbSet<ConversationAudioRecord> ConversationAudio => Set<ConversationAudioRecord>();
+    public DbSet<ConversationRecord> Conversations => Set<ConversationRecord>();
     public DbSet<ConfigVersionRecord> ConfigVersions => Set<ConfigVersionRecord>();
     public DbSet<ConflictVoteRecord> ConflictVotes => Set<ConflictVoteRecord>();
     public DbSet<UserSettingsRecord> UserSettings => Set<UserSettingsRecord>();
@@ -62,6 +64,25 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
             e.Property(x => x.ApprovedBy).HasMaxLength(1024);
             e.Property(x => x.Risk).HasMaxLength(16);
             e.HasIndex(x => new { x.Status, x.ExpiresAt });
+        });
+
+        modelBuilder.Entity<ConversationAudioRecord>(e =>
+        {
+            e.ToTable("conversation_audio");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.ConversationId);
+            e.HasIndex(x => x.CreatedAt);
+            e.Property(x => x.UserId).HasMaxLength(256).IsRequired();
+            e.Property(x => x.Kind).HasMaxLength(8).IsRequired();
+            e.Property(x => x.ContentType).HasMaxLength(64).IsRequired();
+        });
+
+        modelBuilder.Entity<ConversationRecord>(e =>
+        {
+            e.ToTable("conversations");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.UserId).HasMaxLength(256).IsRequired();
+            e.Property(x => x.Title).HasMaxLength(200);
         });
 
         modelBuilder.Entity<QuotaOverrideRecord>(e =>
@@ -288,6 +309,29 @@ public sealed class ApprovalRecord
     /// <summary>Undecided after this, the request expires and counts as refused.</summary>
     public DateTimeOffset? ExpiresAt { get; set; }
     public string? Risk { get; set; }
+}
+
+/// <summary>One stored audio clip of a conversation (ADR 0014): kind user (what was said) or agent (the spoken answer).</summary>
+public sealed class ConversationAudioRecord
+{
+    public Guid Id { get; set; }
+    public Guid ConversationId { get; set; }
+    public Guid? RunId { get; set; }
+    public required string UserId { get; set; }
+    public required string Kind { get; set; }
+    public required string ContentType { get; set; }
+    public int Bytes { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+/// <summary>A conversation's generated title and summary (#80). The turns themselves are its runs.</summary>
+public sealed class ConversationRecord
+{
+    public Guid Id { get; set; }
+    public required string UserId { get; set; }
+    public string? Title { get; set; }
+    public string? Summary { get; set; }
+    public DateTimeOffset? SummarizedAt { get; set; }
 }
 
 /// <summary>An admin's per-user quota override (#78); fields left empty keep the role/profile limits.</summary>

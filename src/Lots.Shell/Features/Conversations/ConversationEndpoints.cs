@@ -37,9 +37,17 @@ public static class ConversationViews
         var ids = loaded.Select(r => r.ConversationId).Where(c => c.HasValue).Select(c => c!.Value).Distinct().ToList();
         var speech = await db.VoiceUsage.AsNoTracking()
             .Where(u => u.ConversationId != null && ids.Contains(u.ConversationId.Value) && u.Outcome == "ok").ToListAsync(ct);
+        var summaries = await db.Conversations.AsNoTracking().Where(c => ids.Contains(c.Id)).ToDictionaryAsync(c => c.Id, ct);
 
         return loaded.Where(r => r.ConversationId != null).GroupBy(r => r.ConversationId!.Value)
-            .Select(g => Build(g.Key, g.OrderBy(r => r.CreatedAt).ToList(), speech.Where(u => u.ConversationId == g.Key).ToList()))
+            .Select(g =>
+            {
+                var detail = Build(g.Key, g.OrderBy(r => r.CreatedAt).ToList(), speech.Where(u => u.ConversationId == g.Key).ToList());
+                // A generated title and summary (#80) replace the first prompt as the title once they exist.
+                return summaries.TryGetValue(g.Key, out var s) && !string.IsNullOrEmpty(s.Title)
+                    ? detail with { Conversation = detail.Conversation with { Title = s.Title, Summary = s.Summary } }
+                    : detail;
+            })
             .OrderByDescending(c => c.Conversation.StartedAt).ToList();
     }
 
@@ -108,6 +116,7 @@ public sealed class ListConversationsRequest
     [QueryParam] public string? User { get; set; }
     [QueryParam] public DateTimeOffset? From { get; set; }
     [QueryParam] public DateTimeOffset? To { get; set; }
+    [QueryParam] public string? Profile { get; set; }
     [QueryParam] public int? Limit { get; set; }
 }
 
@@ -125,6 +134,7 @@ public sealed class ListConversationsEndpoint(LotsDbContext db, ICurrentPrincipa
         else if (!string.IsNullOrWhiteSpace(req.User)) runs = runs.Where(r => r.UserId == req.User);
         if (req.From is { } from) runs = runs.Where(r => r.CreatedAt >= from);
         if (req.To is { } to) runs = runs.Where(r => r.CreatedAt <= to);
+        if (!string.IsNullOrWhiteSpace(req.Profile)) runs = runs.Where(r => r.Profile == req.Profile);
 
         var all = (await ConversationViews.LoadAsync(db, runs, ct)).Select(c => c).ToList();
         IEnumerable<ConversationDetail> view = all;

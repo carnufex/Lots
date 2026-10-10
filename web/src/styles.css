@@ -1202,3 +1202,43 @@ pre.log .warn {
 .bar span {
   font-size: 9px;
 }
+
+/* Conversation audio (#80) */
+.clip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  vertical-align: middle;
+}
+.clip .wave {
+  width: 160px;
+  height: 22px;
+  cursor: pointer;
+}
+.clip .wave rect {
+  fill: var(--muted);
+}
+.clip .wave rect.played {
+  fill: var(--accent);
+}
+.clip select {
+  font: inherit;
+  font-size: 11px;
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.bars.stacked .bar {
+  justify-content: flex-end;
+}
+.bars.stacked .fill {
+  border-radius: 0;
+}
+.bars.stacked .fill.stt { background: #60a5fa; }
+.bars.stacked .fill.llm { background: var(--accent); }
+.bars.stacked .fill.tool { background: #fbbf24; }
+.bars.stacked .fill.tts { background: #c084fc; }
+p.summary {
+  max-width: 70ch;
+}
