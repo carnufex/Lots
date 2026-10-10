@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/brand/lots-banner.svg" alt="LOTS" width="480">
+</p>
+
 # Lots
 
 A self-hostable agent shell with identity, policy and audit built in.

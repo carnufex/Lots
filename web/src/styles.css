@@ -120,7 +120,13 @@ p {
 }
 
 .brand img {
-  border-radius: 5px;
+  display: block;
+  width: 132px;
+  height: auto;
+}
+
+.brand.large img {
+  width: 240px;
 }
 
 .placeholder {
@@ -345,6 +351,10 @@ tr:hover td {
 
   .navtitle {
     display: none;
+  }
+
+  .brand img {
+    width: 84px;
   }
 
   .topbar {

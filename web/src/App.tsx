@@ -86,7 +86,7 @@ export default function App() {
   if (state.phase === 'signed-out')
     return (
       <Centered>
-        <Brand />
+        <Brand large />
         <p className="muted">Sign in to continue.</p>
         <button className="btn primary" onClick={() => void state.auth.login()}>
           Sign in
@@ -178,11 +178,10 @@ function DevIdentity() {
   )
 }
 
-function Brand() {
+function Brand({ large = false }: { large?: boolean }) {
   return (
-    <div className="brand">
-      <img src="/icon-192.png" width="24" height="24" alt="" />
-      Lots
+    <div className={large ? 'brand large' : 'brand'}>
+      <img src="/lots-logo.svg" alt="Lots" />
     </div>
   )
 }
