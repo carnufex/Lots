@@ -48,6 +48,14 @@ class Settings:
     max_text_chars: int = 2000
     max_prompt_chars: int = 600
     max_concurrency: int = 2
+    # Chatterbox Multilingual (MIT) as the expressive voice. Piper stays as the fast fallback.
+    chatterbox: bool = False
+    chatterbox_device: str = "cuda"
+    # Where registered reference voices live (one wav per voice id). Personal data: keep it on a private volume.
+    refs_dir: Path = Path("refs")
+    max_ref_bytes: int = 10 * 1024 * 1024
+    ref_min_seconds: float = 3.0
+    ref_max_seconds: float = 40.0
 
     @staticmethod
     def from_env(env: dict[str, str] | None = None) -> "Settings":
@@ -73,6 +81,9 @@ class Settings:
             max_text_chars=int(e.get("VOICE_MAX_TEXT_CHARS", base.max_text_chars)),
             max_prompt_chars=int(e.get("VOICE_MAX_PROMPT_CHARS", base.max_prompt_chars)),
             max_concurrency=int(e.get("VOICE_MAX_CONCURRENCY", base.max_concurrency)),
+            chatterbox=e.get("VOICE_CHATTERBOX", "0") == "1",
+            chatterbox_device=e.get("VOICE_CHATTERBOX_DEVICE", base.chatterbox_device),
+            refs_dir=Path(e.get("VOICE_REFS_DIR", "refs")),
         )
 
     def validate(self) -> None:

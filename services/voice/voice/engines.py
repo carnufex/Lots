@@ -44,11 +44,19 @@ class TtsEngine(Protocol):
         """voice id -> language."""
         ...
 
-    def synthesize(self, text: str, voice: str, speed: float) -> Iterator[object]:
+    def synthesize(self, text: str, voice: str, speed: float, options: "SynthOptions | None" = None) -> Iterator[object]:
         """Yields numpy float32 sample chunks, one per sentence, as they are produced."""
         ...
 
     def warm_up(self) -> None: ...
+
+
+@dataclass(frozen=True)
+class SynthOptions:
+    """Per-request hints. Engines ignore what they do not support."""
+    language: str | None = None
+    expressiveness: float | None = None  # 0..1 (Chatterbox exaggeration)
+    pace: float | None = None            # 0..1 (Chatterbox cfg_weight: lower = faster, looser)
 
 
 def _add_cuda_dll_dirs() -> None:
@@ -157,10 +165,144 @@ class PiperTts:
         for voice in self._settings.voices:
             self._engine(voice).generate("Warm up.", sid=0)
 
-    def synthesize(self, text: str, voice: str, speed: float) -> Iterator[object]:
+    def synthesize(self, text: str, voice: str, speed: float, options: SynthOptions | None = None) -> Iterator[object]:
         import numpy as np
 
         engine = self._engine(voice)
         for sentence in split_sentences(text):
             audio = engine.generate(sentence, sid=0, speed=speed)
             yield np.asarray(audio.samples, dtype=np.float32)
+
+
+
+LANGUAGES_SUPPORTED = ("sv", "en")
+
+
+class ChatterboxTts:
+    """
+    Chatterbox Multilingual on the GPU. Voices are reference clips: `cb-default` uses the model's built-in voice (or the clip
+    in refs/default.wav), every other id is a registered clip refs/<id>.wav. Computed voice conditionals are cached per id.
+    Generation is serialised (one GPU), sentence by sentence so the first sentence can be played early.
+    """
+    DEFAULT = "cb-default"
+    sample_rate = 24000
+
+    def __init__(self, settings: Settings) -> None:
+        self._settings = settings
+        self._model = None
+        self._default_conds = None
+        self._conds: dict[str, object] = {}
+        self._gpu = threading.Lock()
+        self._load = threading.Lock()
+        settings.refs_dir.mkdir(parents=True, exist_ok=True)
+
+    def _path(self, voice: str) -> Path:
+        return self._settings.refs_dir / f"{'default' if voice == self.DEFAULT else voice}.wav"
+
+    def voices(self) -> dict[str, str]:
+        found = {p.stem: "*" for p in self._settings.refs_dir.glob("*.wav") if p.stem != "default"}
+        return {self.DEFAULT: "*", **found}
+
+    def _load_model(self):
+        with self._load:
+            if self._model is None:
+                from chatterbox.mtl_tts import ChatterboxMultilingualTTS
+
+                self._model = ChatterboxMultilingualTTS.from_pretrained(device=self._settings.chatterbox_device)
+                self._default_conds = self._model.conds
+            return self._model
+
+    def warm_up(self) -> None:
+        model = self._load_model()
+        with self._gpu:
+            model.generate("Hej.", language_id="sv")
+
+    def register(self, voice: str, data: bytes) -> float:
+        """Stores a reference clip (any format PyAV can decode) as 24 kHz mono wav. Returns its length in seconds."""
+        import wave
+
+        import numpy as np
+        from faster_whisper.audio import decode_audio
+
+        samples = decode_audio(io.BytesIO(data), sampling_rate=self.sample_rate)
+        seconds = len(samples) / self.sample_rate
+        if not (self._settings.ref_min_seconds <= seconds <= self._settings.ref_max_seconds):
+            raise ValueError(
+                f"The clip must be {self._settings.ref_min_seconds:.0f}-{self._settings.ref_max_seconds:.0f} seconds, got {seconds:.1f}.")
+        peak = float(np.abs(samples).max())
+        if peak < 0.02:
+            raise ValueError("The clip is almost silent.")
+        samples = samples / peak * 0.95
+        with wave.open(str(self._path(voice)), "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(self.sample_rate)
+            w.writeframes((samples * 32767).astype(np.int16).tobytes())
+        self._conds.pop(voice, None)
+        return seconds
+
+    def delete(self, voice: str) -> bool:
+        self._conds.pop(voice, None)
+        path = self._path(voice)
+        if not path.exists():
+            return False
+        path.unlink()
+        return True
+
+    def _prepare(self, model, voice: str, exaggeration: float) -> None:
+        """Makes `voice` the model's current voice (the GPU lock must be held)."""
+        if voice not in self._conds:
+            ref = self._path(voice)
+            if ref.exists():
+                model.prepare_conditionals(str(ref), exaggeration=exaggeration)
+                self._conds[voice] = model.conds
+            else:
+                self._conds[voice] = self._default_conds
+        model.conds = self._conds[voice]
+
+    def synthesize(self, text: str, voice: str, speed: float, options: SynthOptions | None = None) -> Iterator[object]:
+        import numpy as np
+
+        o = options or SynthOptions()
+        language = o.language if o.language in LANGUAGES_SUPPORTED else "sv"
+        exaggeration = 0.6 if o.expressiveness is None else min(max(o.expressiveness, 0.25), 1.2)
+        cfg = 0.4 if o.pace is None else min(max(o.pace, 0.0), 1.0)
+        model = self._load_model()
+        for sentence in split_sentences(text):
+            with self._gpu:
+                self._prepare(model, voice, exaggeration)
+                wav = model.generate(sentence, language_id=language, exaggeration=exaggeration, cfg_weight=cfg)
+            yield np.asarray(wav.squeeze().cpu(), dtype=np.float32)
+
+
+class CompositeTts:
+    """Chatterbox for its voices, Piper for the rest."""
+
+    def __init__(self, expressive: ChatterboxTts, fast: PiperTts) -> None:
+        self._expressive = expressive
+        self._fast = fast
+        self.sample_rate = fast.sample_rate
+
+    def _is_expressive(self, voice: str) -> bool:
+        return voice in self._expressive.voices()
+
+    def voices(self) -> dict[str, str]:
+        return {**self._fast.voices(), **self._expressive.voices()}
+
+    def sample_rate_of(self, voice: str) -> int:
+        return self._expressive.sample_rate if self._is_expressive(voice) else self._fast.sample_rate
+
+    def warm_up(self) -> None:
+        self._fast.warm_up()
+        self._expressive.warm_up()
+
+    def synthesize(self, text: str, voice: str, speed: float, options: SynthOptions | None = None) -> Iterator[object]:
+        engine = self._expressive if self._is_expressive(voice) else self._fast
+        return engine.synthesize(text, voice, speed, options)
+
+    # Voice registration only concerns the expressive engine.
+    def register(self, voice: str, data: bytes) -> float:
+        return self._expressive.register(voice, data)
+
+    def delete(self, voice: str) -> bool:
+        return self._expressive.delete(voice)

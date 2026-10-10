@@ -7,12 +7,14 @@ import uvicorn
 
 from .app import create_app
 from .config import Settings
-from .engines import PiperTts, WhisperStt
+from .engines import ChatterboxTts, CompositeTts, PiperTts, WhisperStt
 
 
 def build():
     settings = Settings.from_env()
     stt, tts = WhisperStt(settings), PiperTts(settings)
+    if settings.chatterbox:
+        tts = CompositeTts(ChatterboxTts(settings), tts)
     if settings.preload:
         stt.warm_up()
         tts.warm_up()

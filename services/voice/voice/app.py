@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import hmac
+import re
 import time
 from dataclasses import replace
 from collections.abc import AsyncIterator
@@ -13,7 +14,7 @@ from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel
 
 from .config import LANGUAGES, Settings
-from .engines import SttEngine, TtsEngine
+from .engines import SttEngine, SynthOptions, TtsEngine
 from .vocabulary import apply_vocabulary, parse_vocabulary
 from .wav import streaming_header, to_pcm16
 
@@ -24,6 +25,10 @@ class SpeechRequest(BaseModel):
     voice: str
     response_format: str = "wav"
     speed: float = 1.0
+    # Extensions for the expressive engine; other engines ignore them.
+    language: str | None = None
+    expressiveness: float | None = None
+    pace: float | None = None
 
 
 def create_app(settings: Settings, stt: SttEngine, tts: TtsEngine) -> FastAPI:
@@ -107,10 +112,12 @@ def create_app(settings: Settings, stt: SttEngine, tts: TtsEngine) -> FastAPI:
         if len(text) > settings.max_text_chars:
             raise HTTPException(413, f"Text is longer than {settings.max_text_chars} characters.")
         speed = min(max(req.speed, 0.5), 2.0)
+        options = SynthOptions(language=req.language, expressiveness=req.expressiveness, pace=req.pace)
+        rate_of = getattr(tts, "sample_rate_of", None)
 
         async def body() -> AsyncIterator[bytes]:
             async with gate:
-                chunks = tts.synthesize(text, req.voice, speed)
+                chunks = tts.synthesize(text, req.voice, speed, options)
                 sentinel = object()
                 first = True
                 while True:
@@ -118,11 +125,39 @@ def create_app(settings: Settings, stt: SttEngine, tts: TtsEngine) -> FastAPI:
                     if chunk is sentinel:
                         break
                     if first and req.response_format == "wav":
-                        yield streaming_header(tts.sample_rate)
+                        yield streaming_header(rate_of(req.voice) if rate_of else tts.sample_rate)
                     first = False
                     yield to_pcm16(chunk)
 
         media = "audio/wav" if req.response_format == "wav" else "audio/L16"
         return StreamingResponse(body(), media_type=media)
+
+    _VOICE_ID = re.compile(r"^[a-z0-9][a-z0-9-]{2,63}$")
+
+    @app.put("/v1/voices/{voice_id}", dependencies=[Depends(authorize)])
+    async def register_voice(voice_id: str, audio: UploadFile = File(...)):
+        """Registers (or replaces) a reference voice from a short clip of the speaker. Personal data: callers must have consent."""
+        register = getattr(tts, "register", None)
+        if register is None:
+            raise HTTPException(501, "This service has no expressive voices.")
+        if not _VOICE_ID.match(voice_id) or voice_id.startswith("cb-") or voice_id == "default":
+            raise HTTPException(400, "Voice id must be 3-64 lowercase letters, digits or dashes and not start with 'cb-'.")
+        data = await audio.read()
+        if not data or len(data) > settings.max_ref_bytes:
+            raise HTTPException(413, f"The clip must be between 1 byte and {settings.max_ref_bytes // (1024 * 1024)} MB.")
+        try:
+            seconds = await run_in_threadpool(register, voice_id, data)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+        return {"id": voice_id, "seconds": round(seconds, 1)}
+
+    @app.delete("/v1/voices/{voice_id}", dependencies=[Depends(authorize)])
+    async def delete_voice(voice_id: str):
+        delete = getattr(tts, "delete", None)
+        if delete is None or not _VOICE_ID.match(voice_id) or voice_id.startswith("cb-"):
+            raise HTTPException(404, "No such voice.")
+        if not await run_in_threadpool(delete, voice_id):
+            raise HTTPException(404, "No such voice.")
+        return {"id": voice_id, "deleted": True}
 
     return app

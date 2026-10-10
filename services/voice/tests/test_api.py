@@ -35,11 +35,21 @@ class FakeTts:
     def voices(self):
         return {"sv-nst": "sv", "en-lessac": "en"}
 
+    def register(self, voice, data):
+        if data == b"short":
+            raise ValueError("The clip must be 3-40 seconds, got 1.0.")
+        self.registered = (voice, len(data))
+        return 12.34
+
+    def delete(self, voice):
+        return voice == "u-abc"
+
     def warm_up(self):
         pass
 
-    def synthesize(self, text, voice, speed):
+    def synthesize(self, text, voice, speed, options=None):
         self.calls.append((text, voice, speed))
+        self.options = options
         yield np.full(100, 0.5, dtype=np.float32)
         yield np.full(50, -0.5, dtype=np.float32)
 
@@ -177,3 +187,30 @@ def test_language_choice_uses_identification_and_falls_back_to_the_default_when_
     assert choose_language({"sv": 0.22, "en": 0.15, "de": 0.4}, langs, "sv") == "sv"      # together 0.37: unsure -> default
     assert choose_language({"sv": 0.10, "en": 0.12, "de": 0.7}, langs, "en") == "en"      # a deployment default can differ
     assert choose_language({}, langs, "xx") == "sv"                                       # an unknown default is ignored
+
+
+def test_speech_passes_language_and_expressiveness_to_the_engine(client, parts):
+    c, h = client
+    r = c.post("/v1/audio/speech", headers=h, json={
+        "input": "hej", "voice": "sv-nst", "language": "sv", "expressiveness": 0.8, "pace": 0.3})
+    assert r.status_code == 200
+    o = parts[2].options
+    assert (o.language, o.expressiveness, o.pace) == ("sv", 0.8, 0.3)
+
+
+def test_register_and_delete_a_reference_voice(client, parts):
+    c, h = client
+    r = c.put("/v1/voices/u-abc", headers=h, files={"audio": ("clip.wav", b"RIFFdata", "audio/wav")})
+    assert r.status_code == 200 and r.json() == {"id": "u-abc", "seconds": 12.3}
+    assert parts[2].registered == ("u-abc", 8)
+    assert c.delete("/v1/voices/u-abc", headers=h).status_code == 200
+    assert c.delete("/v1/voices/u-none", headers=h).status_code == 404
+
+
+def test_register_rejects_bad_ids_short_clips_and_missing_key(client):
+    c, h = client
+    files = {"audio": ("c.wav", b"x", "audio/wav")}
+    assert c.put("/v1/voices/cb-default", headers=h, files=files).status_code == 400
+    assert c.put("/v1/voices/Bad_Id", headers=h, files=files).status_code == 400
+    assert c.put("/v1/voices/u-abc", headers=h, files={"audio": ("c.wav", b"short", "audio/wav")}).status_code == 400
+    assert c.put("/v1/voices/u-abc", files=files).status_code == 401
