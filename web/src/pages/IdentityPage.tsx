@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ApiError, type Api } from '../api'
+import DataReport from '../components/DataReport'
 import { adminApi, type IdentityInfo, type MappingTest, type UserInfo } from '../adminApi'
 
 /** Identity (#72) and users (#73): login settings, claim mapping, how each backend is reached, a mapping test, who uses Lots. */
@@ -129,6 +130,7 @@ export default function IdentityPage({ api }: { api: Api }) {
         </>
       )}
 
+      <DataReport api={api} />
       {users.length > 0 && (
         <>
           <h2 className="section-title">Users</h2>

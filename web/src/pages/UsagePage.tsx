@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Api } from '../api'
+import MyData from '../components/MyData'
 
 interface UsageRow {
   key: string
@@ -95,6 +96,7 @@ export default function UsagePage({ api }: { api: Api }) {
     <section>
       <h1>Usage</h1>
       <QuotaCard api={api} />
+      <MyData api={api} />
       <div className="filters">
         <label>
           Group
