@@ -166,3 +166,67 @@ public class AdminApiTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.Equal("gitops", registry.ManagedBy("ops"));
     }
 }
+
+public class GitOpsSyncTests : IClassFixture<WebApplicationFactory<Program>>
+{
+    private readonly DirectoryInfo _dir = Directory.CreateTempSubdirectory("lots-gitops-");
+    private readonly WebApplicationFactory<Program> _factory;
+
+    public GitOpsSyncTests(WebApplicationFactory<Program> factory)
+    {
+        var dbName = Guid.NewGuid().ToString();
+        _factory = factory.WithWebHostBuilder(b =>
+        {
+            b.ConfigureAppConfiguration((_, c) => c.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Database:MigrateOnStartup"] = "false",
+                ["Auth:Mode"] = "Dev",
+                ["ConnectionStrings:Lots"] = "Host=none",
+                ["Auth:Dev:AllowHeaders"] = "true",
+                ["GitOps:Path"] = _dir.FullName,
+                ["GitOps:IntervalSeconds"] = "3600", // the test drives the syncs
+            }));
+            b.ConfigureServices(s =>
+            {
+                s.RemoveAll<DbContextOptions<LotsDbContext>>();
+                s.RemoveAll(typeof(Microsoft.EntityFrameworkCore.Infrastructure.IDbContextOptionsConfiguration<LotsDbContext>));
+                s.AddDbContext<LotsDbContext>(o => o.UseInMemoryDatabase(dbName));
+                s.AddSingleton(TestProfiles.Registry());
+            });
+        });
+    }
+
+    private static string Profile(string name, int version) =>
+        $"kind: Profile\nname: {name}\nversion: {version}\ntools: []\nroles:\n  - name: operator\n    allow: [read]\n";
+
+    [Fact]
+    public async Task The_git_directory_is_applied_kept_in_sync_and_pruned_and_drift_is_visible()
+    {
+        File.WriteAllText(Path.Combine(_dir.FullName, "a.yaml"), Profile("from-git", 1));
+        File.WriteAllText(Path.Combine(_dir.FullName, "b.yml"), Profile("also-git", 1));
+        Directory.CreateDirectory(Path.Combine(_dir.FullName, ".github"));
+        File.WriteAllText(Path.Combine(_dir.FullName, ".github", "ci.yaml"), "not: a resource");
+        var worker = _factory.Services.GetRequiredService<GitOpsSyncWorker>();
+        var registry = _factory.Services.GetRequiredService<ProfileRegistry>();
+        var status = _factory.Services.GetRequiredService<GitOpsStatus>();
+
+        await worker.SyncOnceAsync(default);
+        Assert.Equal("applied", status.Current.LastResult);
+        Assert.Equal("gitops", registry.ManagedBy("from-git"));
+
+        await worker.SyncOnceAsync(default);
+        Assert.Equal("in sync", status.Current.LastResult);
+
+        File.Delete(Path.Combine(_dir.FullName, "b.yml"));
+        File.WriteAllText(Path.Combine(_dir.FullName, "a.yaml"), Profile("from-git", 2));
+        var req = new HttpRequestMessage(HttpMethod.Get, "/admin/v1/gitops");
+        req.Headers.Add("X-Dev-User", "root");
+        req.Headers.Add("X-Dev-Roles", "admin");
+        var drift = (await (await _factory.CreateClient().SendAsync(req)).Content.ReadFromJsonAsync<GitOpsDto>())!.Drift;
+        Assert.Equal([("from-git", "update"), ("also-git", "delete")], drift.Select(d => (d.Name, d.Action)));
+
+        await worker.SyncOnceAsync(default);
+        Assert.Null(registry.Find("also-git"));
+        Assert.Equal(2, registry.Find("from-git")!.Version);
+    }
+}

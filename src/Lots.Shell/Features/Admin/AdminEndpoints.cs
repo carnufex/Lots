@@ -190,3 +190,38 @@ public sealed class ExportEndpoint(LotsDbContext db, ProfileRegistry profiles, I
 
     private static string Quote(string s) => "\"" + s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n") + "\"";
 }
+
+public sealed record GitOpsDto(GitOpsState State, IReadOnlyList<ApplyResult> Drift);
+
+/// <summary>GitOps status (#68): last sync and drift, i.e. what applying the Git directory now would change.</summary>
+public sealed class GitOpsStatusEndpoint(GitOpsStatus status, ConfigService service, Microsoft.Extensions.Options.IOptions<GitOpsOptions> options, IConfiguration config, ICurrentPrincipal who)
+    : AdminEndpoint<EmptyRequest, GitOpsDto>(config, who)
+{
+    public override void Configure() => Get("/admin/v1/gitops");
+
+    public override async Task HandleAsync(EmptyRequest _, CancellationToken ct)
+    {
+        if (!await AllowedAsync(ct)) return;
+        var drift = new List<ApplyResult>();
+        if (options.Value.Path is { Length: > 0 } path)
+        {
+            var (docs, _, errors) = GitOpsSyncWorker.Read(path);
+            if (errors.Count == 0)
+                drift = (await service.ApplyAsync(docs, Me.UserId, ManagedBy.GitOps, dryRun: true, prune: options.Value.Prune, ct)).Results
+                    .Where(r => r.Action != "unchanged").ToList();
+        }
+        await Send.OkAsync(new GitOpsDto(status.Current, drift), ct);
+    }
+}
+
+public sealed class GitOpsSyncNowEndpoint(GitOpsSyncWorker worker, GitOpsStatus status, IConfiguration config, ICurrentPrincipal who) : AdminEndpoint<EmptyRequest, GitOpsState>(config, who)
+{
+    public override void Configure() => Post("/admin/v1/gitops/sync");
+
+    public override async Task HandleAsync(EmptyRequest _, CancellationToken ct)
+    {
+        if (!await AllowedAsync(ct)) return;
+        await worker.SyncOnceAsync(ct);
+        await Send.OkAsync(status.Current, ct);
+    }
+}

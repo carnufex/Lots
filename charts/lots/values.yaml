@@ -42,6 +42,18 @@ model:
 knowledge:
   existingClaim: ""
 
+# GitOps (#68): a git-sync sidecar keeps a checkout of your configuration repository; the shell applies every YAML file under
+# `path` as gitops-managed (read-only in the UI) and prunes what was removed. Alternatively run `lotsctl apply` from your CD.
+gitops:
+  enabled: false
+  repo: ""                 # e.g. https://git.example.com/ops/lots-config.git
+  ref: main
+  path: ""                 # sub-directory with the resources ("" = repository root)
+  period: 60s
+  prune: true
+  credentialsSecret: ""    # optional Secret with GITSYNC_USERNAME / GITSYNC_PASSWORD (HTTPS)
+  image: registry.k8s.io/git-sync/git-sync:v4.4.2
+
 # Plain extra environment variables (non-secret configuration such as Models__Aliases__voice__..., Knowledge__Sources__...).
 extraEnv: []
 #  - name: Models__Aliases__voice__Targets__0__Endpoint

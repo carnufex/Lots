@@ -42,6 +42,10 @@ builder.Services.AddScoped<RunControl>();
 builder.Services.AddKnowledge(builder.Configuration);
 builder.Services.AddScoped<Lots.Shell.Core.Config.ConfigService>();
 builder.Services.AddHostedService<Lots.Shell.Core.Config.ConfigSyncWorker>(); // profiles applied through the admin API, on every replica
+builder.Services.Configure<Lots.Shell.Core.Config.GitOpsOptions>(builder.Configuration.GetSection(Lots.Shell.Core.Config.GitOpsOptions.Section));
+builder.Services.AddSingleton<Lots.Shell.Core.Config.GitOpsStatus>();
+builder.Services.AddSingleton<Lots.Shell.Core.Config.GitOpsSyncWorker>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<Lots.Shell.Core.Config.GitOpsSyncWorker>()); // GitOps:Path set = Git is the source of truth
 if (builder.Configuration.GetValue("Agent:RunWorkerEnabled", true))
     builder.Services.AddHostedService<RunWorker>();
 builder.Services.AddDbContext<LotsDbContext>(o =>

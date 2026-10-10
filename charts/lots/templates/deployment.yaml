@@ -55,6 +55,10 @@ spec:
             - { name: Models__Aliases__embed__Targets__0__Endpoint, value: default }
             - { name: Models__Aliases__embed__Targets__0__Model, value: {{ .Values.model.embedModel | quote }} }
             {{- end }}
+            {{- if .Values.gitops.enabled }}
+            - { name: GitOps__Path, value: {{ printf "/git/current/%s" .Values.gitops.path | trimSuffix "/" | quote }} }
+            - { name: GitOps__Prune, value: {{ .Values.gitops.prune | quote }} }
+            {{- end }}
             {{- range .Values.extraEnv }}
             - { name: {{ .name }}, value: {{ .value | quote }} }
             {{- end }}
@@ -112,9 +116,38 @@ spec:
             {{- if .Values.knowledge.existingClaim }}
             - { name: knowledge, mountPath: /knowledge, readOnly: true }
             {{- end }}
+            {{- if .Values.gitops.enabled }}
+            - { name: git, mountPath: /git, readOnly: true }
+            {{- end }}
+        {{- if .Values.gitops.enabled }}
+        - name: git-sync
+          image: {{ .Values.gitops.image | quote }}
+          securityContext: {{- include "lots.containerSecurityContext" . | nindent 12 }}
+          env:
+            - { name: GITSYNC_REPO, value: {{ required "gitops.repo is required when gitops.enabled" .Values.gitops.repo | quote }} }
+            - { name: GITSYNC_REF, value: {{ .Values.gitops.ref | quote }} }
+            - { name: GITSYNC_ROOT, value: /git }
+            - { name: GITSYNC_LINK, value: current }
+            - { name: GITSYNC_PERIOD, value: {{ .Values.gitops.period | quote }} }
+            - { name: HOME, value: /tmp }
+          {{- if .Values.gitops.credentialsSecret }}
+          envFrom:
+            - secretRef: { name: {{ .Values.gitops.credentialsSecret }} }
+          {{- end }}
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { memory: 128Mi }
+          volumeMounts:
+            - { name: git, mountPath: /git }
+            - { name: tmp, mountPath: /tmp }
+        {{- end }}
       volumes:
         - name: tmp
           emptyDir: {}
+        {{- if .Values.gitops.enabled }}
+        - name: git
+          emptyDir: {}
+        {{- end }}
         {{- if .Values.profiles.files }}
         - name: profiles
           configMap:
