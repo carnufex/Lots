@@ -34,6 +34,8 @@ public sealed class EmailOptions
     public string? From { get; set; }
     public List<string> To { get; set; } = [];
     public List<string> Events { get; set; } = [];
+    /// <summary>Also e-mail each person who may approve a request (address from their login), or their delegate while they are away (#136).</summary>
+    public bool ToApprovers { get; set; } = true;
 }
 
 public sealed class NotificationOptions
@@ -62,7 +64,7 @@ public static class Outbox
 
 /// <summary>Delivers the outbox to the configured webhooks and e-mail, retrying with backoff (5 attempts, up to about an hour).</summary>
 public sealed class NotificationWorker(IServiceScopeFactory scopes, IHttpClientFactory http, IOptions<NotificationOptions> options, TimeProvider clock,
-    ILogger<NotificationWorker> logger) : BackgroundService
+    ILogger<NotificationWorker> logger, Profiles.ProfileRegistry? profiles = null) : BackgroundService
 {
     public const int MaxAttempts = 5;
 
@@ -89,7 +91,7 @@ public sealed class NotificationWorker(IServiceScopeFactory scopes, IHttpClientF
         {
             try
             {
-                await SendAsync(n, ct);
+                await SendAsync(n, db, ct);
                 n.SentAt = clock.GetUtcNow();
                 n.LastError = null;
             }
@@ -104,7 +106,7 @@ public sealed class NotificationWorker(IServiceScopeFactory scopes, IHttpClientF
         await db.SaveChangesAsync(ct);
     }
 
-    private async Task SendAsync(NotificationRecord n, CancellationToken ct)
+    private async Task SendAsync(NotificationRecord n, LotsDbContext db, CancellationToken ct)
     {
         var o = options.Value;
         using var payload = JsonDocument.Parse(n.PayloadJson);
@@ -116,15 +118,32 @@ public sealed class NotificationWorker(IServiceScopeFactory scopes, IHttpClientF
             if (!res.IsSuccessStatusCode) throw new HttpRequestException($"webhook answered {(int)res.StatusCode}");
         }
         var mail = o.Email;
-        if (!string.IsNullOrEmpty(mail.SmtpHost) && mail.To.Count > 0 && mail.From is not null && (mail.Events.Count == 0 || mail.Events.Contains(n.Event)))
+        if (!string.IsNullOrEmpty(mail.SmtpHost) && mail.From is not null && (mail.Events.Count == 0 || mail.Events.Contains(n.Event)))
         {
+            var recipients = mail.To.Select(t => (Email: t, Note: (string?)null)).ToList();
+            if (mail.ToApprovers && n.Event == NotificationEvents.ApprovalRequested)
+                recipients.AddRange((await ApproversOfAsync(payload.RootElement, db, ct)).Select(r => (r.Email, r.OnBehalfOf is null ? null : $"You receive this because {r.OnBehalfOf} is away and named you as delegate.")));
+            if (recipients.Count == 0) return;
             using var smtp = new SmtpClient(mail.SmtpHost, mail.SmtpPort) { EnableSsl = mail.UseTls };
             if (mail.UserEnv is not null)
                 smtp.Credentials = new NetworkCredential(Environment.GetEnvironmentVariable(mail.UserEnv), Environment.GetEnvironmentVariable(mail.PasswordEnv ?? ""));
-            using var message = new MailMessage { From = new MailAddress(mail.From), Subject = $"Lots: {text.Split('\n')[0]}", Body = text };
-            foreach (var to in mail.To) message.To.Add(to);
-            await smtp.SendMailAsync(message, ct);
+            foreach (var (to, note) in recipients.DistinctBy(r => r.Email.ToLowerInvariant()))
+            {
+                using var message = new MailMessage { From = new MailAddress(mail.From), Subject = $"Lots: {text.Split('\n')[0]}", Body = note is null ? text : text + "\n\n" + note };
+                message.To.Add(to);
+                await smtp.SendMailAsync(message, ct);
+            }
         }
+    }
+
+    /// <summary>The people to e-mail about an approval request (approvers, or the delegate of an approver who is away).</summary>
+    public async Task<List<ApproverRecipient>> ApproversOfAsync(JsonElement payload, LotsDbContext db, CancellationToken ct)
+    {
+        string S(string name) => payload.TryGetProperty(name, out var v) ? v.ToString() : "";
+        if (profiles?.Find(S("profile")) is not { } profile) return [];
+        var people = await db.UserProfiles.AsNoTracking().ToListAsync(ct);
+        var settings = await db.UserSettings.AsNoTracking().Where(s => s.AwayUntil != null).ToDictionaryAsync(s => s.UserId, ct);
+        return ApproverRouting.Recipients(profile, S("tool"), S("requestedBy"), people, settings, clock.GetUtcNow());
     }
 
     /// <summary>One readable line (plus a link) per event.</summary>

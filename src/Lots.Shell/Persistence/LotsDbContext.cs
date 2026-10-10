@@ -14,6 +14,7 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
     public DbSet<ConfigResourceRecord> ConfigResources => Set<ConfigResourceRecord>();
     public DbSet<NotificationRecord> Notifications => Set<NotificationRecord>();
     public DbSet<UserCredentialRecord> UserCredentials => Set<UserCredentialRecord>();
+    public DbSet<UserProfileRecord> UserProfiles => Set<UserProfileRecord>();
     public DbSet<ConfigVersionRecord> ConfigVersions => Set<ConfigVersionRecord>();
     public DbSet<ConflictVoteRecord> ConflictVotes => Set<ConflictVoteRecord>();
     public DbSet<UserSettingsRecord> UserSettings => Set<UserSettingsRecord>();
@@ -59,6 +60,14 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
             e.Property(x => x.ApprovedBy).HasMaxLength(1024);
             e.Property(x => x.Risk).HasMaxLength(16);
             e.HasIndex(x => new { x.Status, x.ExpiresAt });
+        });
+
+        modelBuilder.Entity<UserProfileRecord>(e =>
+        {
+            e.ToTable("user_profiles");
+            e.HasKey(x => x.UserId);
+            e.Property(x => x.UserId).HasMaxLength(256);
+            e.Property(x => x.Email).HasMaxLength(320);
         });
 
         modelBuilder.Entity<UserCredentialRecord>(e =>
@@ -269,6 +278,18 @@ public sealed class ApprovalRecord
     public string? Risk { get; set; }
 }
 
+/// <summary>
+/// What the shell knows about a person from their login (#136): the e-mail claim (for approval notifications) and the roles they
+/// last had. Refreshed on use; deleted with the user's data (#79).
+/// </summary>
+public sealed class UserProfileRecord
+{
+    public required string UserId { get; set; }
+    public string? Email { get; set; }
+    public string Roles { get; set; } = "";
+    public DateTimeOffset LastSeenAt { get; set; }
+}
+
 /// <summary>A user's own connected account at a backend (#62): encrypted tokens, never shown or shared.</summary>
 public sealed class UserCredentialRecord
 {
@@ -437,5 +458,8 @@ public sealed class UserSettingsRecord
     public double? VoiceSeconds { get; set; }
     /// <summary>When the user confirmed that the recording is their own voice.</summary>
     public DateTimeOffset? VoiceConsentAt { get; set; }
+    /// <summary>Out of office until then (#136): approval notifications for this user go to <see cref="DelegateTo"/>.</summary>
+    public DateTimeOffset? AwayUntil { get; set; }
+    public string? DelegateTo { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }

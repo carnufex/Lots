@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ApiError, type Api, type Approval } from '../api'
+import AwayPanel from '../components/Away'
 
 const POLL_MS = 5000
 
@@ -30,6 +31,7 @@ export default function ApprovalsPage({ api }: { api: Api }) {
   return (
     <section>
       <h1>Approvals</h1>
+      <AwayPanel api={api} />
       {error && (
         <p role="alert" className="error">
           Could not load approvals: {error}

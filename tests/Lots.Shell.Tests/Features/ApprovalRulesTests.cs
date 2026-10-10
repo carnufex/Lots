@@ -180,3 +180,37 @@ public class ApprovalRulesTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.DoesNotContain(_hook.Bodies, b => b.Contains("{}")); // tool arguments never leave the shell in a notification
     }
 }
+
+public class ApproverRoutingTests
+{
+    private static readonly Profile Ops = ProfileParser.Parse("""
+        name: ops
+        version: 1
+        tools:
+          - { name: restart, risk: write }
+        roles:
+          - { name: operator, allow: [read] }
+          - { name: lead, allow: [read, write], requireApproval: [write], approve: [write] }
+        """);
+
+    private static UserProfileRecord P(string user, string roles, string? email = "x") => new() { UserId = user, Roles = roles, Email = email == "x" ? user + "@example.com" : email };
+
+    [Fact]
+    public void Approvers_are_notified_and_an_away_approver_is_covered_only_by_a_delegate_who_may_approve()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var people = new[] { P("alice", "operator"), P("bob", "lead"), P("carol", "lead"), P("dave", "operator"), P("erin", "lead"), P("frank", "lead", email: null) };
+        var settings = new Dictionary<string, UserSettingsRecord>
+        {
+            ["bob"] = new() { UserId = "bob", AwayUntil = now.AddDays(1), DelegateTo = "dave" },   // dave cannot approve: nobody covers
+            ["carol"] = new() { UserId = "carol", AwayUntil = now.AddDays(1), DelegateTo = "erin" },
+            ["erin"] = new() { UserId = "erin", AwayUntil = now.AddDays(-1), DelegateTo = "alice" }, // back already
+        };
+
+        var recipients = ApproverRouting.Recipients(Ops, "restart", "alice", people, settings, now);
+
+        Assert.Equal([("erin", "carol")], recipients.Where(r => r.OnBehalfOf is not null).Select(r => (r.UserId, r.OnBehalfOf!)));
+        Assert.Equal(["erin"], recipients.Select(r => r.UserId)); // bob away without a valid delegate, frank has no address, alice/dave cannot approve
+        Assert.DoesNotContain(ApproverRouting.Recipients(Ops, "restart", "erin", people, settings, now), r => r.UserId == "erin"); // never the requester
+    }
+}

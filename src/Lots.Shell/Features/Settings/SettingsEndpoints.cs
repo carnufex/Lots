@@ -197,3 +197,40 @@ public sealed class DeleteVoiceEndpoint(IVoiceRegistry registry, IOptions<Speech
         await Send.OkAsync(UserSettings.ToDto(row, speech.Value.Enabled), ct);
     }
 }
+
+public sealed record AwayDto(DateTimeOffset? Until, string? DelegateTo);
+
+/// <summary>
+/// Out of office (#136): until when, and who receives approval notifications meant for you meanwhile. The delegate can only decide
+/// what their own roles allow; this never passes on permissions.
+/// </summary>
+public sealed class GetAwayEndpoint(LotsDbContext db, ICurrentPrincipal who, TimeProvider clock) : EndpointWithoutRequest<AwayDto>
+{
+    public override void Configure() => Get("/me/away");
+
+    public override async Task HandleAsync(CancellationToken ct)
+    {
+        var s = await UserSettings.OfAsync(db, who.Get(HttpContext).UserId, ct);
+        await Send.OkAsync(s?.AwayUntil > clock.GetUtcNow() ? new AwayDto(s.AwayUntil, s.DelegateTo) : new AwayDto(null, null), ct);
+    }
+}
+
+public sealed class SetAwayEndpoint(LotsDbContext db, ICurrentPrincipal who, TimeProvider clock) : Endpoint<AwayDto, AwayDto>
+{
+    public override void Configure() => Put("/me/away");
+
+    public override async Task HandleAsync(AwayDto req, CancellationToken ct)
+    {
+        var me = who.Get(HttpContext).UserId;
+        if (req.Until is { } until && (until <= clock.GetUtcNow() || until > clock.GetUtcNow().AddDays(90)))
+            AddError(x => x.Until!, "Pick a time within the next 90 days.");
+        if (req.DelegateTo == me) AddError(x => x.DelegateTo!, "You cannot delegate to yourself.");
+        ThrowIfAnyErrors();
+        var row = await UserSettings.GetOrAddAsync(db, me, ct);
+        row.AwayUntil = req.Until;
+        row.DelegateTo = req.Until is null ? null : string.IsNullOrWhiteSpace(req.DelegateTo) ? null : req.DelegateTo.Trim();
+        row.UpdatedAt = clock.GetUtcNow();
+        await db.SaveChangesAsync(ct);
+        await Send.OkAsync(new AwayDto(row.AwayUntil, row.DelegateTo), ct);
+    }
+}

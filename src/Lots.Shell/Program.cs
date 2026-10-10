@@ -103,6 +103,7 @@ app.UseStaticFiles(new StaticFileOptions // the browser app, built into wwwroot
 });
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseMiddleware<Lots.Shell.Core.Notifications.UserDirectoryMiddleware>(); // e-mail and roles from the login, for approval routing (#136)
 app.UseFastEndpoints();
 app.Run();
 

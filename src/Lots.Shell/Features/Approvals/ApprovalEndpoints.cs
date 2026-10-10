@@ -164,3 +164,18 @@ public sealed class DenyEndpoint(LotsDbContext db, ProfileRegistry profiles, ICu
         Post("/approvals/{Id}/deny");
     }
 }
+
+public sealed record CoverageDto(string User, DateTimeOffset Until, string? DelegateTo);
+
+/// <summary>Approvers who are away right now and who covers for them, for the approvals inbox.</summary>
+public sealed class CoverageEndpoint(LotsDbContext db, TimeProvider clock) : EndpointWithoutRequest<List<CoverageDto>>
+{
+    public override void Configure() => Get("/approvals/coverage");
+
+    public override async Task HandleAsync(CancellationToken ct)
+    {
+        var now = clock.GetUtcNow();
+        var away = await db.UserSettings.AsNoTracking().Where(s => s.AwayUntil != null && s.AwayUntil > now).ToListAsync(ct);
+        await Send.OkAsync(away.Select(s => new CoverageDto(s.UserId, s.AwayUntil!.Value, s.DelegateTo)).ToList(), ct);
+    }
+}
