@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Api } from '../api'
 import MyData from '../components/MyData'
+import ApiTokens from '../components/ApiTokens'
 
 interface UsageRow {
   key: string
@@ -97,6 +98,7 @@ export default function UsagePage({ api }: { api: Api }) {
       <h1>Usage</h1>
       <QuotaCard api={api} />
       <MyData api={api} />
+      <ApiTokens api={api} />
       <div className="filters">
         <label>
           Group

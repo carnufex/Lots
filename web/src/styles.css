@@ -590,6 +590,12 @@ input.wide {
   color: var(--muted);
 }
 
+.filters label.inline {
+  flex-direction: row;
+  align-items: center;
+  padding-bottom: 6px;
+}
+
 .filters input[type='datetime-local'] {
   width: 190px;
 }

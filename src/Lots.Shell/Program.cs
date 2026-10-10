@@ -137,6 +137,7 @@ if (app.Configuration.GetValue("Database:MigrateOnStartup", true))
 if (!AuthSetup.IsOidc(app.Configuration))
     app.Logger.LogWarning("Auth:Mode is Dev: every request is authenticated as the configured dev user. Local development only.");
 
+app.UseMiddleware<Lots.Shell.Core.Security.SecurityHeadersMiddleware>(); // CSP, framing, HSTS (#88)
 app.UseDefaultFiles();
 app.UseStaticFiles(new StaticFileOptions // the browser app, built into wwwroot
 {
@@ -145,6 +146,7 @@ app.UseStaticFiles(new StaticFileOptions // the browser app, built into wwwroot
         ctx.Context.Request.Path.StartsWithSegments("/assets") ? "public, max-age=31536000, immutable" : "no-cache",
 });
 app.UseAuthentication();
+app.UseMiddleware<Lots.Shell.Core.Security.ApiTokenScopeMiddleware>(); // API tokens only reach what their scopes allow (#88)
 app.UseAuthorization();
 app.UseMiddleware<Lots.Shell.Core.Notifications.UserDirectoryMiddleware>(); // e-mail and roles from the login, for approval routing (#136)
 app.UseFastEndpoints();

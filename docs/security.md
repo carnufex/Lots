@@ -105,3 +105,23 @@ bws run --project-id <project> -- docker compose up -d
 ```
 
 The machine-account access token for `bws` is itself a secret: keep it in the host's credential store, not in `.env`.
+
+## Authentication and browser hardening (#88)
+
+Threat model: `docs/threat-model.md` (STRIDE for the shell, the MCP boundary and voice).
+
+- **OIDC**: authorization code flow with PKCE in the browser (oidc-client-ts); tokens are kept in `sessionStorage`, sent as
+  `Authorization: Bearer`, never in cookies, so there is no CSRF surface. The shell requires signed tokens with an expiry and
+  allows 60 s clock skew (`Auth:Oidc:ClockSkewSeconds`). Access-token lifetime is the IdP's setting: keep it short (5-15 min).
+- **No CORS**: the API answers same-origin browsers only; scripts and CI use API tokens.
+- **API tokens**: Usage page → API tokens, or `POST /me/tokens {"name","scopes":["read","runs","approvals","admin"],"expiresInDays"}`.
+  Send as `Authorization: Bearer lots_pat_…` (lotsctl: `--token`). Scopes: `read` = any GET, `runs` = start/cancel/retry runs and
+  voice, `approvals` = decide approvals, `admin` = every other change. A token acts as its creator with at most the roles they had
+  when it was made (and no more than their roles at their latest login), never manages tokens, and expires after at most
+  `Auth:ApiTokens:MaxDays` (90). Only a SHA-256 hash is stored. Admins list and revoke all tokens at `/admin/api-tokens`.
+  `Auth:ApiTokens:Enabled=false` turns them off.
+- **Headers** on every response: a content security policy (own scripts only, plus `blob:` for the microphone worklet; the IdP is
+  the only other origin for connect/frame/form; no framing), `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+  `Referrer-Policy: no-referrer`, `Cross-Origin-Opener-Policy: same-origin`, a `Permissions-Policy` that allows only the microphone,
+  `Cache-Control: no-store` for API responses, and HSTS outside Development (`Security:Hsts`). `Security:CspConnectSrc` adds origins
+  to `connect-src` if a deployment needs one.

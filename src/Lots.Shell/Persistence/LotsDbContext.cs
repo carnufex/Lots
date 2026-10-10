@@ -23,6 +23,7 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
     public DbSet<ConflictVoteRecord> ConflictVotes => Set<ConflictVoteRecord>();
     public DbSet<UserSettingsRecord> UserSettings => Set<UserSettingsRecord>();
     public DbSet<UserVocabularyRecord> UserVocabulary => Set<UserVocabularyRecord>();
+    public DbSet<ApiTokenRecord> ApiTokens => Set<ApiTokenRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -166,6 +167,20 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
             e.ToTable("user_vocabulary");
             e.HasKey(x => x.UserId);
             e.Property(x => x.UserId).HasMaxLength(256);
+        });
+
+        modelBuilder.Entity<ApiTokenRecord>(e =>
+        {
+            e.ToTable("api_tokens");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.Hash).IsUnique();
+            e.HasIndex(x => x.UserId);
+            e.Property(x => x.UserId).HasMaxLength(256);
+            e.Property(x => x.Name).HasMaxLength(100);
+            e.Property(x => x.Hash).HasMaxLength(64);
+            e.Property(x => x.Hint).HasMaxLength(32);
+            e.Property(x => x.Scopes).HasMaxLength(128);
+            e.Property(x => x.Roles).HasMaxLength(1024);
         });
 
         modelBuilder.Entity<UserSettingsRecord>(e =>
@@ -551,6 +566,24 @@ public sealed class UserVocabularyRecord
 /// A user's personal settings (ADR 0015): how the agent behaves in text and voice (0..100 sliders; 50 = no instruction)
 /// and, optionally, the user's own voice. The clip itself lives only in the voice service; here is its id and consent.
 /// </summary>
+/// <summary>A personal API token (#88). Only the SHA-256 hash of the token is stored.</summary>
+public sealed class ApiTokenRecord
+{
+    public Guid Id { get; set; }
+    public required string UserId { get; set; }
+    public required string Name { get; set; }
+    public required string Hash { get; set; }
+    /// <summary>The first characters, so a user can tell their tokens apart.</summary>
+    public required string Hint { get; set; }
+    public required string Scopes { get; set; }
+    /// <summary>The creator's roles when the token was made: the most it can ever do.</summary>
+    public required string Roles { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset ExpiresAt { get; set; }
+    public DateTimeOffset? LastUsedAt { get; set; }
+    public DateTimeOffset? RevokedAt { get; set; }
+}
+
 public sealed class UserSettingsRecord
 {
     public required string UserId { get; set; }

@@ -76,10 +76,13 @@ public static class AuthSetup
         builder.Services.AddSingleton<ICurrentPrincipal, ClaimsCurrentPrincipal>();
         builder.Services.AddAuthorization();
 
+        builder.Services.Configure<Security.ApiTokenOptions>(builder.Configuration.GetSection(Security.ApiTokenOptions.Section));
         builder.Services.AddAuthentication(Selector)
             .AddPolicyScheme(Selector, Selector, o =>
                 o.ForwardDefaultSelector = ctx =>
-                    IsOidc(ctx.RequestServices.GetRequiredService<IConfiguration>())
+                    // API tokens (#88) work in both modes; they are recognised by their prefix, never parsed as JWTs.
+                    Security.ApiTokens.IsToken(ctx.Request.Headers.Authorization) ? Security.ApiTokens.Scheme
+                    : IsOidc(ctx.RequestServices.GetRequiredService<IConfiguration>())
                         ? JwtBearerDefaults.AuthenticationScheme
                         : DevScheme)
             .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, o =>
@@ -92,7 +95,12 @@ public static class AuthSetup
                 o.Audience = audience;
                 o.TokenValidationParameters.ValidateAudience = !string.IsNullOrEmpty(audience);
                 o.RequireHttpsMetadata = config.GetValue("Auth:Oidc:RequireHttpsMetadata", true);
+                // Token lifetime (#88): tokens must carry an expiry, and a stolen expired token is useless after at most a minute.
+                o.TokenValidationParameters.RequireExpirationTime = true;
+                o.TokenValidationParameters.RequireSignedTokens = true;
+                o.TokenValidationParameters.ClockSkew = TimeSpan.FromSeconds(config.GetValue("Auth:Oidc:ClockSkewSeconds", 60));
             })
+            .AddScheme<AuthenticationSchemeOptions, Security.ApiTokenHandler>(Security.ApiTokens.Scheme, null)
             .AddScheme<AuthenticationSchemeOptions, DevAuthHandler>(DevScheme, null);
     }
 

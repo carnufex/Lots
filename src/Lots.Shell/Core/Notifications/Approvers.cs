@@ -18,6 +18,8 @@ public sealed class UserDirectoryMiddleware(RequestDelegate next, IServiceScopeF
     {
         await next(http);
         if (http.User.Identity?.IsAuthenticated != true || !AuthSetup.IsOidc(config)) return;
+        // The directory records interactive logins; an API token's roles are a snapshot and must not overwrite them (#88).
+        if (http.User.FindFirst(Security.ApiTokens.AuthMethodClaim) is not null) return;
         Principal me;
         try { me = who.Get(http); }
         catch (InvalidOperationException) { return; }
