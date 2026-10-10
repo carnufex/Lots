@@ -11,6 +11,9 @@ public sealed class GitOpsOptions
 
     public int IntervalSeconds { get; set; } = 60;
 
+    /// <summary>False: sync only on POST /admin/v1/gitops/sync (tests, manual change windows).</summary>
+    public bool AutoSync { get; set; } = true;
+
     /// <summary>Delete Git-managed resources that are no longer in the directory.</summary>
     public bool Prune { get; set; } = true;
 }
@@ -29,7 +32,7 @@ public sealed class GitOpsSyncWorker(IServiceScopeFactory scopes, IOptions<GitOp
     protected override async Task ExecuteAsync(CancellationToken stop)
     {
         var o = options.Value;
-        if (string.IsNullOrWhiteSpace(o.Path)) return;
+        if (string.IsNullOrWhiteSpace(o.Path) || !o.AutoSync) return;
         while (!stop.IsCancellationRequested)
         {
             await SyncOnceAsync(stop);

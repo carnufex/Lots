@@ -184,7 +184,7 @@ public class GitOpsSyncTests : IClassFixture<WebApplicationFactory<Program>>
                 ["ConnectionStrings:Lots"] = "Host=none",
                 ["Auth:Dev:AllowHeaders"] = "true",
                 ["GitOps:Path"] = _dir.FullName,
-                ["GitOps:IntervalSeconds"] = "3600", // the test drives the syncs
+                ["GitOps:AutoSync"] = "false", // the test drives the syncs
             }));
             b.ConfigureServices(s =>
             {
