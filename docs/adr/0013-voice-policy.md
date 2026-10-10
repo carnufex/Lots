@@ -15,7 +15,7 @@ cannot be verified the way a login can, and audio can come from anywhere (a reco
    run), not as a free text-to-speech endpoint. Tool output, arguments, errors and approval requests are never sent to a speech provider.
    Fixed phrases such as a spoken acknowledgement are a closed list in configuration, not user input.
 4. **No voice cloning, no voice design, no dubbing.** Out of scope; nothing in the shell can create or select a cloned voice.
-5. **Audio is not kept.** Dictation audio is processed and discarded. Only metadata is recorded per use (`voice_usage`: user,
+5. **Audio is not kept** (dictation; conversation audio is stored for 30 days, see ADR 0014). Dictation audio is processed and discarded. Only metadata is recorded per use (`voice_usage`: user,
    direction, language, audio seconds or characters, latency, provider host, outcome), never content. Meeting recordings are kept
    only as long as processing needs them, with a configured retention, and are deleted on request.
 6. **Transcripts are untrusted data** when an agent reads them (a recording can contain instructions): they follow the same rules as tool output.
