@@ -140,6 +140,28 @@ mcpToolpack:
   secretEnv: []
   #  - { name: GIT_TOKEN, secretName: lots-git, key: token }   # then env Git__TokenRef: GIT_TOKEN
 
+# Egress rules applied by the shell itself (#86): which hosts MCP servers, token endpoints, webhooks and knowledge URL sources may
+# be on. Link-local/metadata addresses are always blocked unless allowLinkLocal is set.
+egress:
+  allowedHosts: []             # empty = any host; e.g. ["*.corp.example", "hooks.slack.com"]
+  allowPrivateNetworks: true   # backends usually live on private networks
+  webhookHosts: []             # narrower list for notification/audit webhooks; empty = the default above
+
+# Network-layer egress control (#86). Needs a CNI that enforces NetworkPolicy.
+networkPolicy:
+  enabled: false
+  ingressFrom: []              # e.g. [{ namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: ingress-nginx } } }]
+  egressCidrs:
+    - cidr: 0.0.0.0/0
+      except: [169.254.0.0/16]  # never the cloud metadata service
+  extraEgress: []
+  toolpackEgress:              # what the tool packs may reach besides DNS (the shell is never one of them)
+    - to: [{ ipBlock: { cidr: 0.0.0.0/0, except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16, 100.64.0.0/10] } }]
+      ports: [{ port: 443, protocol: TCP }, { port: 80, protocol: TCP }]
+  cilium:
+    enabled: false             # adds a CiliumNetworkPolicy limiting the tool pack to DNS names
+    toolpackFqdns: []          # e.g. ["docs.example.com", "*.wiki.example.org"]
+
 resources:
   requests: { cpu: 100m, memory: 256Mi }
   limits: { memory: 512Mi }

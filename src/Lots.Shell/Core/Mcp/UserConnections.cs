@@ -149,7 +149,7 @@ public sealed class UserConnections(IServiceScopeFactory scopes, IDataProtection
 }
 
 /// <summary>Attaches the calling user's own connected-account token to every request to a user-connected server.</summary>
-public sealed class UserConnectedBearerHandler(McpServerConfig server, UserConnections connections) : DelegatingHandler(new HttpClientHandler())
+public sealed class UserConnectedBearerHandler(McpServerConfig server, UserConnections connections, HttpMessageHandler? inner = null) : DelegatingHandler(inner ?? new HttpClientHandler())
 {
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
     {

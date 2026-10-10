@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using System.Net;
 using System.Text.Json;
 using Lots.Mcp.Toolpack;
+using Lots.Net;
 
 namespace Lots.Mcp.Toolpack.Tests;
 
@@ -29,7 +30,7 @@ public class EgressTests
     [Fact]
     public void Only_allowlisted_hosts_schemes_and_ports_pass()
     {
-        var p = new EgressPolicy(["docs.example.com", "*.wiki.example.org"]);
+        var p = new EgressPolicy(["docs.example.com", "*.wiki.example.org"], allowedPorts: EgressPolicy.WebPorts);
         p.CheckUri(new Uri("https://docs.example.com/a"));
         p.CheckUri(new Uri("https://team.wiki.example.org/page"));
         Assert.Throws<EgressDeniedException>(() => p.CheckUri(new Uri("https://evil.com/")));

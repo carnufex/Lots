@@ -94,7 +94,7 @@ public sealed class TokenExchangeClient(HttpClient http, TimeProvider clock, Fun
 }
 
 /// <summary>Attaches the exchanged, per-user token of the current delegation context to every request.</summary>
-public sealed class DelegatedBearerHandler(McpServerConfig server, TokenExchangeClient exchange) : DelegatingHandler(new HttpClientHandler())
+public sealed class DelegatedBearerHandler(McpServerConfig server, TokenExchangeClient exchange, HttpMessageHandler? inner = null) : DelegatingHandler(inner ?? new HttpClientHandler())
 {
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
     {

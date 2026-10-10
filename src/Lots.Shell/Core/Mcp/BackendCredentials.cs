@@ -77,7 +77,7 @@ public sealed class BackendTokenProvider(
 }
 
 /// <summary>Adds the current backend token to every request to an MCP server.</summary>
-public sealed class BearerHandler(IBackendTokenProvider tokens) : DelegatingHandler(new HttpClientHandler())
+public sealed class BearerHandler(IBackendTokenProvider tokens, HttpMessageHandler? inner = null) : DelegatingHandler(inner ?? new HttpClientHandler())
 {
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
     {

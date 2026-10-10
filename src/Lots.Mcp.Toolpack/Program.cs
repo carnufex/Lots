@@ -15,7 +15,7 @@ string Secret(string reference) =>
 
 if (config.GetSection("Fetch:AllowedHosts").Get<string[]>() is { Length: > 0 } fetchHosts)
 {
-    builder.Services.AddSingleton(new EgressPolicy(fetchHosts, config.GetValue("Fetch:AllowPrivateNetworks", false)));
+    builder.Services.AddSingleton(new EgressPolicy(fetchHosts, config.GetValue("Fetch:AllowPrivateNetworks", false), allowedPorts: EgressPolicy.WebPorts));
     mcp.WithTools<FetchTools>();
     packs.Add("fetch");
 }
@@ -62,7 +62,7 @@ if (config["OpenApi:Spec"] is { Length: > 0 } spec)
 {
     var text = spec.StartsWith("http", StringComparison.OrdinalIgnoreCase) ? await new HttpClient().GetStringAsync(spec) : File.ReadAllText(spec);
     var baseUrl = new Uri(config["OpenApi:BaseUrl"] ?? throw new InvalidOperationException("OpenApi:BaseUrl is required with OpenApi:Spec"));
-    var egress = new EgressPolicy([baseUrl.IdnHost], config.GetValue("OpenApi:AllowPrivateNetworks", false));
+    var egress = new EgressPolicy([baseUrl.IdnHost], config.GetValue("OpenApi:AllowPrivateNetworks", false), allowedPorts: null);
     var authRef = config["OpenApi:AuthHeaderRef"]; // e.g. env:CRM_AUTH ("Bearer ...") or file:/run/secrets/crm
     var include = config.GetSection("OpenApi:Operations").Get<string[]>() ?? [];
     var tools = OpenApiImport.Load(text, config["OpenApi:Prefix"] ?? "")

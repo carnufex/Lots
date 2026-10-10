@@ -48,6 +48,13 @@ spec:
             - { name: Auth__Oidc__RolePrefix, value: {{ .Values.auth.oidc.rolePrefix | quote }} }
             - { name: Auth__AdminRoles, value: {{ .Values.auth.adminRoles | quote }} }
             - { name: Auth__AuditRoles, value: {{ .Values.auth.auditRoles | quote }} }
+            - { name: Egress__Default__AllowPrivateNetworks, value: {{ .Values.egress.allowPrivateNetworks | quote }} }
+            {{- range $i, $h := .Values.egress.allowedHosts }}
+            - { name: Egress__Default__AllowedHosts__{{ $i }}, value: {{ $h | quote }} }
+            {{- end }}
+            {{- range $i, $h := .Values.egress.webhookHosts }}
+            - { name: Egress__Webhook__AllowedHosts__{{ $i }}, value: {{ $h | quote }} }
+            {{- end }}
             - { name: Database__MigrateOnStartup, value: {{ .Values.database.migrateOnStartup | quote }} }
             - { name: Model__BaseUrl, value: {{ .Values.model.baseUrl | quote }} }
             - { name: Model__Model, value: {{ .Values.model.name | quote }} }

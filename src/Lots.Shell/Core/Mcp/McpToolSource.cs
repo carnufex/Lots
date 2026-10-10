@@ -15,7 +15,7 @@ namespace Lots.Shell.Core.Mcp;
 /// </remarks>
 public sealed class McpToolSource(
     Func<IReadOnlyList<McpServerConfig>> serverList, ILoggerFactory loggers, TimeProvider? clock = null, TokenExchangeClient? exchange = null,
-    UserConnections? connections = null, CredentialStatusRegistry? credentialStatus = null)
+    UserConnections? connections = null, CredentialStatusRegistry? credentialStatus = null, Lots.Shell.Core.Net.ShellEgress? egress = null)
     : IToolSource, IAsyncDisposable
 {
     /// <summary>A fixed server list (tests, single-profile setups).</summary>
@@ -167,26 +167,31 @@ public sealed class McpToolSource(
     private async Task<McpClient> ConnectAsync(McpServerConfig server, CancellationToken ct)
     {
         var options = new HttpClientTransportOptions { Endpoint = new Uri(server.Url), Name = server.Name };
+        // Every connection to the server (and to its token endpoint) goes through the egress policy (#86).
+        var policy = egress ?? Lots.Shell.Core.Net.ShellEgress.Permissive;
+        policy.Check(Lots.Shell.Core.Net.EgressPurpose.Mcp, server.Url);
+        HttpMessageHandler Inner() => policy.Handler(Lots.Shell.Core.Net.EgressPurpose.Mcp);
         IClientTransport transport;
         if (server.Auth == AuthStrategies.UserConnected)
         {
             var c = connections ?? throw new InvalidOperationException($"Server '{server.Name}' is user-connected but connections are not configured.");
-            transport = new HttpClientTransport(options, new HttpClient(new UserConnectedBearerHandler(server, c)), loggers, ownsHttpClient: true);
+            transport = new HttpClientTransport(options, new HttpClient(new UserConnectedBearerHandler(server, c, Inner())), loggers, ownsHttpClient: true);
         }
         else if (IsDelegated(server))
         {
             var ex = exchange ?? throw new InvalidOperationException($"Server '{server.Name}' is delegated but no token exchange is configured.");
-            transport = new HttpClientTransport(options, new HttpClient(new DelegatedBearerHandler(server, ex)), loggers, ownsHttpClient: true);
+            transport = new HttpClientTransport(options, new HttpClient(new DelegatedBearerHandler(server, ex, Inner())), loggers, ownsHttpClient: true);
         }
         else if (server.Credentials is { } credentials)
         {
             // The token is attached per request, so it is refreshed transparently when it expires.
-            var provider = new BackendTokenProvider(credentials, new HttpClient(), clock ?? TimeProvider.System, server: server.Name, status: credentialStatus);
-            transport = new HttpClientTransport(options, new HttpClient(new BearerHandler(provider)), loggers, ownsHttpClient: true);
+            var provider = new BackendTokenProvider(credentials, new HttpClient(policy.Handler(Lots.Shell.Core.Net.EgressPurpose.Identity)),
+                clock ?? TimeProvider.System, server: server.Name, status: credentialStatus);
+            transport = new HttpClientTransport(options, new HttpClient(new BearerHandler(provider, Inner())), loggers, ownsHttpClient: true);
         }
         else
         {
-            transport = new HttpClientTransport(options, loggers);
+            transport = new HttpClientTransport(options, new HttpClient(Inner()), loggers, ownsHttpClient: true);
         }
         return await McpClient.CreateAsync(transport, loggerFactory: loggers, cancellationToken: ct);
     }

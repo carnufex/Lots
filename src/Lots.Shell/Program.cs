@@ -25,14 +25,19 @@ builder.Services.Configure<AgentOptions>(builder.Configuration.GetSection(AgentO
 builder.Services.AddSingleton(TimeProvider.System);
 // Profiles are config as code: loaded from YAML at startup; an invalid manifest stops the shell.
 builder.Services.AddSingleton(sp => ProfileRegistry.LoadDirectory(sp.GetRequiredService<IConfiguration>()["Profiles:Path"] ?? "profiles"));
-builder.Services.AddSingleton(sp => new TokenExchangeClient(new HttpClient(), sp.GetRequiredService<TimeProvider>()));
+// Egress (#86): every connection the shell opens because configuration says so is checked against Egress:* rules.
+builder.Services.Configure<Lots.Shell.Core.Net.EgressOptions>(builder.Configuration.GetSection(Lots.Shell.Core.Net.EgressOptions.Section));
+builder.Services.AddSingleton<Lots.Shell.Core.Net.ShellEgress>();
+builder.Services.AddSingleton(sp => new TokenExchangeClient(
+    new HttpClient(sp.GetRequiredService<Lots.Shell.Core.Net.ShellEgress>().Handler(Lots.Shell.Core.Net.EgressPurpose.Identity)), sp.GetRequiredService<TimeProvider>()));
 builder.Services.AddSingleton<CredentialStatusRegistry>();
-builder.Services.AddHttpClient(nameof(UserConnections), h => h.Timeout = TimeSpan.FromSeconds(20));
+builder.Services.AddHttpClient(nameof(UserConnections), h => h.Timeout = TimeSpan.FromSeconds(20))
+    .ConfigurePrimaryHttpMessageHandler(sp => sp.GetRequiredService<Lots.Shell.Core.Net.ShellEgress>().Handler(Lots.Shell.Core.Net.EgressPurpose.Identity));
 builder.Services.AddSingleton<UserConnections>();
 builder.Services.AddSingleton<IToolSource>(sp =>
     new McpToolSource(() => sp.GetRequiredService<ProfileRegistry>().Servers, sp.GetRequiredService<ILoggerFactory>(),
         sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<TokenExchangeClient>(),
-        sp.GetRequiredService<UserConnections>(), sp.GetRequiredService<CredentialStatusRegistry>()));
+        sp.GetRequiredService<UserConnections>(), sp.GetRequiredService<CredentialStatusRegistry>(), sp.GetRequiredService<Lots.Shell.Core.Net.ShellEgress>()));
 
 // Encrypts the login tokens kept on delegated runs. Set DataProtection:KeysPath to a persistent volume so tokens
 // survive restarts; otherwise keys are ephemeral and an unreadable token simply makes delegated calls fail.
@@ -53,7 +58,8 @@ builder.Services.AddSingleton<Lots.Shell.Features.Privacy.RetentionWorker>();
 builder.Services.AddSingleton<Lots.Shell.Core.Audit.AuditSealer>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<Lots.Shell.Core.Audit.AuditSealer>()); // hash chain (#81)
 builder.Services.Configure<Lots.Shell.Core.Audit.AuditForwardOptions>(builder.Configuration.GetSection(Lots.Shell.Core.Audit.AuditForwardOptions.Section));
-builder.Services.AddHttpClient(nameof(Lots.Shell.Core.Audit.AuditForwarder), h => h.Timeout = TimeSpan.FromSeconds(15));
+builder.Services.AddHttpClient(nameof(Lots.Shell.Core.Audit.AuditForwarder), h => h.Timeout = TimeSpan.FromSeconds(15))
+    .ConfigurePrimaryHttpMessageHandler(sp => sp.GetRequiredService<Lots.Shell.Core.Net.ShellEgress>().Handler(Lots.Shell.Core.Net.EgressPurpose.Webhook));
 builder.Services.AddHostedService<Lots.Shell.Core.Audit.AuditForwarder>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<Lots.Shell.Features.Privacy.RetentionWorker>());
 builder.Services.AddHostedService<Lots.Shell.Features.Conversations.ConversationSummaryWorker>();
@@ -61,7 +67,8 @@ builder.Services.Configure<Lots.Shell.Core.Quotas.QuotaOptions>(builder.Configur
 builder.Services.AddScoped<Lots.Shell.Core.Quotas.QuotaService>();
 builder.Services.AddScoped<Lots.Shell.Core.Config.ConfigService>();
 builder.Services.Configure<Lots.Shell.Core.Notifications.NotificationOptions>(builder.Configuration.GetSection(Lots.Shell.Core.Notifications.NotificationOptions.Section));
-builder.Services.AddHttpClient(nameof(Lots.Shell.Core.Notifications.NotificationWorker), h => h.Timeout = TimeSpan.FromSeconds(15));
+builder.Services.AddHttpClient(nameof(Lots.Shell.Core.Notifications.NotificationWorker), h => h.Timeout = TimeSpan.FromSeconds(15))
+    .ConfigurePrimaryHttpMessageHandler(sp => sp.GetRequiredService<Lots.Shell.Core.Net.ShellEgress>().Handler(Lots.Shell.Core.Net.EgressPurpose.Webhook));
 builder.Services.AddSingleton<Lots.Shell.Core.Notifications.NotificationWorker>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<Lots.Shell.Core.Notifications.NotificationWorker>());
 builder.Services.AddSingleton<Lots.Shell.Core.Notifications.ApprovalExpiryWorker>();

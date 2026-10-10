@@ -7,6 +7,15 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Egress rules shared with the other service (one implementation of the SSRF checks, #86). -->
+    <Compile Include="..\Shared\Egress.cs" Link="Shared\Egress.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Lots.Net" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="ModelContextProtocol.AspNetCore" Version="2.2.0" />
     <PackageReference Include="Npgsql" Version="10.0.3" />
     <PackageReference Include="YamlDotNet" Version="18.1.0" />

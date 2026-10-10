@@ -11,6 +11,7 @@ COPY Lots.slnx ./
 COPY src/Lots.Shell/Lots.Shell.csproj src/Lots.Shell/
 COPY tests/Lots.Shell.Tests/Lots.Shell.Tests.csproj tests/Lots.Shell.Tests/
 RUN dotnet restore src/Lots.Shell/Lots.Shell.csproj
+COPY src/Shared/ src/Shared/
 COPY src/Lots.Shell/ src/Lots.Shell/
 RUN dotnet publish src/Lots.Shell/Lots.Shell.csproj -c Release -o /app --no-restore
 

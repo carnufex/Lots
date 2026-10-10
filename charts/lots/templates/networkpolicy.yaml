@@ -1,0 +1,89 @@
+{{- /*
+Egress control at the network layer (#86), in addition to the shell's own Egress:* rules. Kubernetes NetworkPolicy works with
+any CNI that enforces it (Cilium, Calico, OVN-Kubernetes on OpenShift). Cilium can also restrict egress by DNS name.
+*/ -}}
+{{- if .Values.networkPolicy.enabled }}
+{{- $np := .Values.networkPolicy }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "lots.name" . }}
+  labels: {{- include "lots.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels: {{- include "lots.selector" . | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - ports: [{ port: 8080, protocol: TCP }]
+      {{- with $np.ingressFrom }}
+      from: {{- toYaml . | nindent 8 }}
+      {{- end }}
+  egress:
+    # DNS
+    - ports: [{ port: 53, protocol: UDP }, { port: 53, protocol: TCP }]
+    # Everything the shell talks to (database, IdP, model, MCP servers, webhooks); link-local/metadata is excluded.
+    - to:
+        {{- range $np.egressCidrs }}
+        - ipBlock:
+            cidr: {{ .cidr }}
+            {{- with .except }}
+            except: {{- toYaml . | nindent 14 }}
+            {{- end }}
+        {{- end }}
+    {{- with $np.extraEgress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- if .Values.mcpToolpack.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "lots.name" . }}-mcp-toolpack
+  labels: {{- include "lots.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: lots-mcp-toolpack
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    # Only the shell may call the tool pack.
+    - from:
+        - podSelector:
+            matchLabels: {{- include "lots.selector" . | nindent 14 }}
+      ports: [{ port: 8080, protocol: TCP }]
+  egress:
+    - ports: [{ port: 53, protocol: UDP }, { port: 53, protocol: TCP }]
+    {{- with $np.toolpackEgress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}
+{{- if $np.cilium.enabled }}
+---
+# Cilium: the fetch tool may only reach the listed DNS names (resolved through Cilium's DNS proxy, so rebinding to other
+# addresses does not open anything).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "lots.name" . }}-mcp-toolpack-fqdn
+  labels: {{- include "lots.labels" . | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: lots-mcp-toolpack
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules:
+            dns: [{ matchPattern: "*" }]
+    - toFQDNs:
+        {{- range $np.cilium.toolpackFqdns }}
+        - matchPattern: {{ . | quote }}
+        {{- end }}
+      toPorts:
+        - ports: [{ port: "443", protocol: TCP }, { port: "80", protocol: TCP }]
+{{- end }}
+{{- end }}

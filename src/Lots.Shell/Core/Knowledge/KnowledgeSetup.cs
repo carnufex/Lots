@@ -21,7 +21,8 @@ public static class KnowledgeSetup
         {
             h.Timeout = TimeSpan.FromSeconds(30);
             h.DefaultRequestHeaders.UserAgent.ParseAdd("Lots-Knowledge/1.0");
-        });
+        }).ConfigurePrimaryHttpMessageHandler(sp => sp.GetRequiredService<Lots.Shell.Core.Net.ShellEgress>()
+            .Handler(Lots.Shell.Core.Net.EgressPurpose.Knowledge, followRedirects: true)); // each redirect hop is checked again (#86)
         services.AddSingleton<IKnowledgeStore>(sp =>
         {
             var cs = sp.GetRequiredService<IConfiguration>().GetConnectionString("Lots");
