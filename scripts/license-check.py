@@ -174,7 +174,7 @@ def main() -> int:
             lines += ["", "## Accepted exceptions", "",
                       "Not on the permissive list, but fine to redistribute in the voice image as shipped:", "", *notes]
         lines += ["", "Models downloaded at runtime (speech, voices) are listed in [model-licenses.md](model-licenses.md)."]
-        out.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        out.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
 
     print(f"{len(rows)} dependencies checked")
     for e, n, v, l in bad:

@@ -28,6 +28,11 @@ Principles (details in [`CLAUDE.md`](CLAUDE.md) and [`docs/adr/`](docs/adr/)):
 the model never decides what it may do; tools are denied by default; tool output is untrusted data; every
 decision is audited; runs are jobs that can pause for approval and survive restarts.
 
+## Documentation
+
+Concepts, a ten-minute quickstart, guides, operations and the API reference are in [`docs/`](docs/index.md), built as a site with
+`bash scripts/docs.sh serve` (MkDocs Material in Docker, then open http://localhost:8000).
+
 ## Quick start
 
 Requires Docker with Compose v2 and a reachable OpenAI-compatible model.

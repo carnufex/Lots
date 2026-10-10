@@ -1,0 +1,60 @@
+site_name: Lots
+site_description: A self-hostable agent shell with identity, policy and audit built in.
+repo_url: https://github.com/carnufex/Lots
+edit_uri: edit/main/docs/
+docs_dir: docs
+site_dir: out/site
+theme:
+  name: material
+  logo: brand/lots-icon.svg
+  favicon: brand/lots-icon.svg
+  palette:
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      accent: teal
+      toggle: { icon: material/brightness-4, name: Light mode }
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      accent: teal
+      toggle: { icon: material/brightness-7, name: Dark mode }
+  features: [navigation.sections, navigation.top, search.highlight, content.code.copy]
+markdown_extensions:
+  - admonition
+  - tables
+  - toc: { permalink: true }
+  - pymdownx.superfences
+  - pymdownx.snippets: { base_path: ["."], check_paths: true }
+validation:
+  omitted_files: info   # ADRs are reached through the generated index
+  absolute_links: info
+  unrecognized_links: warn
+  anchors: warn
+nav:
+  - Home: index.md
+  - Concepts: concepts.md
+  - Quickstart: quickstart.md
+  - Guides:
+      - Authoring a profile: authoring-profiles.md
+      - Config as code (GitOps): gitops.md
+      - Schedules and webhooks: schedules.md
+      - Channels: channels.md
+      - Evals: evals.md
+  - Operations:
+      - Operating Lots: operations.md
+      - Helm chart: helm.md
+      - Releasing and upgrading: releasing.md
+      - Security: security.md
+      - Threat model: threat-model.md
+      - Supply chain: supply-chain.md
+  - Reference:
+      - API: api.md
+      - Third-party licenses: third-party-licenses.md
+      - Model licenses: model-licenses.md
+  - Decisions: adr/index.md
+  - Background:
+      - Roadmap: roadmap.md
+      - Voice stack research: research/voice-stack.md
+      - Voice spike results: research/voice-spike-results.md
+      - Voice studio: research/voicestudio.md

@@ -2,7 +2,7 @@
 
 A schedule (#101) starts runs without a person: on a cron expression, when a webhook is called (an alert fired), or when an admin
 presses **Run now** (Profiles page). Schedules are config as code, applied like profiles (`kind: Schedule`, via `lotsctl apply`,
-the admin API or GitOps); see [`examples/schedules/daily-report.yaml`](../examples/schedules/daily-report.yaml).
+the admin API or GitOps); see [`examples/schedules/daily-report.yaml`](https://github.com/carnufex/Lots/blob/main/examples/schedules/daily-report.yaml).
 
 ## Identity and policy
 

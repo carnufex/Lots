@@ -21,6 +21,9 @@ bash scripts/check-template.sh
 echo "== public readiness"
 bash scripts/check-public.sh
 
+echo "== docs site"
+bash scripts/docs.sh check
+
 echo "== base images pinned"
 bash scripts/pin-base-images.sh --check
 
