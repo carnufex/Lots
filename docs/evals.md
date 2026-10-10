@@ -56,6 +56,19 @@ dotnet run --project src/Lots.Evals -- --file evals/homelab.json --dev-user clau
 `scripts/ci.sh --evals` runs `LOTS_EVAL_FILES` (default `evals/homelab.json`) against `LOTS_URL` (default `http://localhost:8088`). The stack
 must be up with `LOTS_DEV_HEADERS=true`. The gate fails below `LOTS_EVAL_MIN_PASS` (default 0.8) or on any regression.
 
+## Comparing models
+
+```bash
+dotnet run --project src/Lots.Evals -- --file evals/homelab.json --dev-user claude-test-evals --dev-roles operator   --models default,small --efforts none,low [--repeat 3] [--judge-url .. --judge-model ..]
+```
+
+Every model alias and reasoning effort combination runs the whole dataset. Runs choose their model through `POST /runs`
+(`model`, `reasoningEffort`, ADR 0020). Only roles in the shell's `Models:ChooseRoles` may do that (default `admin`, `evaluator`).
+With dev header identities the CLI adds `evaluator`, a role that grants no tools, so refusal cases still run without access.
+`evals/report-models.md` shows the combinations side by side: pass rate, completion (reliability), each check, p50/p95, tokens and cost.
+It names the most accurate one and the fastest one within 10 points of it, and lists the cases where the models disagree.
+Each combination keeps its own history. A comparison is decision data, not a gate.
+
 ## The judge and its calibration
 
 The judge is any OpenAI-compatible chat model. It gets the question, the case's criteria and the answer. The answer is fenced, and the judge

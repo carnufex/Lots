@@ -4843,6 +4843,14 @@
               "type": "string",
               "format": "guid"
             }
+          },
+          "model": {
+            "type": "string",
+            "nullable": true
+          },
+          "reasoningEffort": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -4944,6 +4952,14 @@
               "type": "string",
               "format": "guid"
             }
+          },
+          "modelAlias": {
+            "type": "string",
+            "nullable": true
+          },
+          "reasoningEffort": {
+            "type": "string",
+            "nullable": true
           }
         }
       },

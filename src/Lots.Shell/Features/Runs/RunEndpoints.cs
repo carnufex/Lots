@@ -8,8 +8,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Lots.Shell.Features.Runs;
 
+/// <param name="Model">A configured model alias to answer with instead of the profile's (comparisons, #119). Roles in <c>Models:ChooseRoles</c> only (default admin, evaluator).</param>
+/// <param name="ReasoningEffort">none, minimal, low, medium or high; same roles as <paramref name="Model"/>.</param>
 public sealed record StartRunRequest(string Prompt, string? Profile = null, bool Voice = false, Guid? ConversationId = null,
-    List<Guid>? Attachments = null);
+    List<Guid>? Attachments = null, string? Model = null, string? ReasoningEffort = null);
 
 public sealed record StartRunResponse(Guid Id, string Status);
 
@@ -48,6 +50,14 @@ public sealed class StartRunEndpoint(LotsDbContext db, TimeProvider clock, Profi
             return;
         }
 
+        if (ModelChoice.Check(req.Model, req.ReasoningEffort, who.Get(HttpContext), config,
+                HttpContext.RequestServices.GetService<Lots.Shell.Core.Models.ModelCatalog>()) is { } choiceError)
+        {
+            AddError(choiceError.Message);
+            await Send.ErrorsAsync(choiceError.Status, ct);
+            return;
+        }
+
         try { await quotas.CheckStartAsync(who.Get(HttpContext), profile.Name, ct); }
         catch (Lots.Shell.Core.Quotas.QuotaExceededException ex)
         {
@@ -68,10 +78,41 @@ public sealed class StartRunEndpoint(LotsDbContext db, TimeProvider clock, Profi
         var run = RunFactory.Create(HttpContext, who.Get(HttpContext), clock.GetUtcNow(), profile, config, vault,
             req.Prompt, req.Voice, req.ConversationId);
         run.AttachmentsJson = attachments;
+        run.ModelAlias = string.IsNullOrWhiteSpace(req.Model) ? null : req.Model.Trim();
+        run.ReasoningEffort = string.IsNullOrWhiteSpace(req.ReasoningEffort) ? null : req.ReasoningEffort.Trim().ToLowerInvariant();
         db.Runs.Add(run);
         await db.SaveChangesAsync(ct);
         Lots.Shell.Core.Telemetry.LotsMetrics.RunsStarted.Add(1, new("profile", run.Profile), new("voice", run.Voice));
         await Send.ResponseAsync(new StartRunResponse(run.Id, run.Status.ToString()), 202, ct);
+    }
+}
+
+/// <summary>
+/// Who may pick the model for a run (#119): roles in <c>Models:ChooseRoles</c> (default admin, evaluator). Only configured aliases can be picked,
+/// never a raw endpoint or model name, and data-class clearance still routes the call, so a choice cannot send data where it may not go.
+/// </summary>
+public static class ModelChoice
+{
+    public static readonly string[] Efforts = ["none", "minimal", "low", "medium", "high"];
+
+    /// <summary>admin, and evaluator: an identity for model comparisons that profiles give no tools.</summary>
+    public static readonly string[] DefaultRoles = ["admin", "evaluator"];
+
+    public sealed record Problem(int Status, string Message);
+
+    public static Problem? Check(string? model, string? effort, Principal me, IConfiguration config, Lots.Shell.Core.Models.ModelCatalog? catalog)
+    {
+        var wantsModel = !string.IsNullOrWhiteSpace(model);
+        var wantsEffort = !string.IsNullOrWhiteSpace(effort);
+        if (!wantsModel && !wantsEffort) return null;
+        var roles = config.GetSection("Models:ChooseRoles").Get<string[]>() is { Length: > 0 } r ? r : DefaultRoles;
+        if (!me.Roles.Any(x => roles.Contains(x, StringComparer.OrdinalIgnoreCase)))
+            return new(403, $"Choosing the model or reasoning effort needs one of the roles {string.Join(", ", roles)}.");
+        if (wantsModel && (catalog is null || !catalog.Aliases.ContainsKey(model!.Trim())))
+            return new(400, $"Unknown model alias '{model}'" + (catalog is null ? "." : $"; configured: {string.Join(", ", catalog.Aliases.Keys.Order())}."));
+        if (wantsEffort && !Efforts.Contains(effort!.Trim().ToLowerInvariant()))
+            return new(400, $"Unknown reasoning effort '{effort}'; use one of {string.Join(", ", Efforts)}.");
+        return null;
     }
 }
 
@@ -157,7 +198,7 @@ public sealed record RunDto(
     Guid Id, string Prompt, string Status, string? FinalAnswer, string? Error,
     DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, IReadOnlyList<StepDto> Steps,
     string? Waiting = null, Guid? RetryOf = null, string? TraceId = null, double Cost = 0, string? Currency = null,
-    string Sensitivity = "public", Guid? ParentRunId = null, IReadOnlyList<Guid>? SubRuns = null);
+    string Sensitivity = "public", Guid? ParentRunId = null, IReadOnlyList<Guid>? SubRuns = null, string? ModelAlias = null, string? ReasoningEffort = null);
 
 /// <summary>A run can be read by its owner and by admins (<c>Auth:AdminRoles</c>, default admin). Others get 404.</summary>
 public sealed class GetRunEndpoint(LotsDbContext db, ICurrentPrincipal who, IConfiguration config, Lots.Shell.Features.Usage.PriceTable prices) : Endpoint<GetRunRequest, RunDto>
@@ -192,7 +233,8 @@ public sealed class GetRunEndpoint(LotsDbContext db, ICurrentPrincipal who, ICon
             WaitingFor(run), run.RetryOf, run.TraceId,
             Math.Round(run.Steps.Where(s => s.Kind == StepKind.ModelCall).Sum(s => prices.Cost(s.Name, s.PromptTokens ?? 0, s.CompletionTokens ?? 0)), 4),
             prices.Currency, run.Sensitivity.ToString().ToLowerInvariant(), run.ParentRunId,
-            await db.Runs.AsNoTracking().Where(r => r.ParentRunId == run.Id).OrderBy(r => r.CreatedAt).Select(r => r.Id).ToListAsync(ct)), ct);
+            await db.Runs.AsNoTracking().Where(r => r.ParentRunId == run.Id).OrderBy(r => r.CreatedAt).Select(r => r.Id).ToListAsync(ct),
+            run.ModelAlias, run.ReasoningEffort), ct);
     }
 
     internal static string? WaitingFor(RunRecord run)
@@ -290,6 +332,8 @@ public sealed class RetryRunEndpoint(LotsDbContext db, TimeProvider clock, Profi
         }
 
         var run = RunFactory.Create(HttpContext, me, clock.GetUtcNow(), profile, config, vault, old.Prompt, old.Voice, old.ConversationId, retryOf: old.Id);
+        run.ModelAlias = old.ModelAlias;
+        run.ReasoningEffort = old.ReasoningEffort;
         db.Runs.Add(run);
         await db.SaveChangesAsync(ct);
         await Send.ResponseAsync(new StartRunResponse(run.Id, run.Status.ToString()), 202, ct);

@@ -344,6 +344,10 @@ public sealed class RunRecord
     public string? DeliverJson { get; set; }
     /// <summary>The answer the model is writing right now (#95), for readers on other replicas; null between model calls.</summary>
     public string? Partial { get; set; }
+    /// <summary>A model alias chosen for this run instead of the profile's (#119, model comparison); only roles in Models:ChooseRoles.</summary>
+    public string? ModelAlias { get; set; }
+    /// <summary>A reasoning effort chosen for this run (#119); null leaves it to the model or the voice settings.</summary>
+    public string? ReasoningEffort { get; set; }
     /// <summary>The highest data class the run has read (#89). Model calls go only to endpoints cleared for it.</summary>
     public Lots.Shell.Core.Policy.DataClass Sensitivity { get; set; }
     /// <summary>OpenTelemetry trace of the run's first execution (#76): resumed executions link to it.</summary>

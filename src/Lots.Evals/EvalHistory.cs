@@ -50,8 +50,10 @@ public sealed record EvalCaseRecord(string Id, int Attempts, int Passes, bool Pa
     IReadOnlyList<string> Tools, long MedianMs, int Tokens, double Cost);
 
 /// <summary>One stored eval run: what ran, against which models, and how every case did. Files under <c>evals/history/&lt;dataset&gt;/</c>.</summary>
+/// <param name="ModelAlias">The model alias the runs asked for (#119); null = the profile's own.</param>
+/// <param name="Effort">The reasoning effort the runs asked for; null = the model's default.</param>
 public sealed record EvalRunRecord(string Dataset, int Version, DateTimeOffset StartedAt, string Target, IReadOnlyList<string> Models,
-    int Repeat, EvalSummary Summary, IReadOnlyList<EvalCaseRecord> Cases, string? Label = null);
+    int Repeat, EvalSummary Summary, IReadOnlyList<EvalCaseRecord> Cases, string? Label = null, string? ModelAlias = null, string? Effort = null);
 
 public sealed record EvalDiff(EvalRunRecord Previous, bool VersionChanged, double PassRateDelta, long P50DeltaMs,
     IReadOnlyList<string> Regressions, IReadOnlyList<string> Fixed, IReadOnlyList<string> Added, IReadOnlyList<string> Removed);

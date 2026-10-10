@@ -138,3 +138,21 @@ public class EvalMetricsTests
         Assert.Equal(0.5, c.Kappa); // po 0.75, pe 0.5
     }
 }
+
+public class ModelComparisonTests
+{
+    [Fact]
+    public void Combos_cover_every_model_and_effort()
+    {
+        Assert.Equal(4, ModelComparison.Combos(["a", "b"], ["none", "low"]).Count);
+        Assert.Equal([(null, null)], ModelComparison.Combos([], []));
+    }
+
+    [Fact]
+    public void The_evaluator_role_is_added_only_when_a_model_is_chosen()
+    {
+        Assert.Equal("viewer", ModelComparison.RolesFor("viewer", null, null));
+        Assert.Equal("viewer,evaluator", ModelComparison.RolesFor("viewer", "alt", null));
+        Assert.Equal("operator,evaluator", ModelComparison.RolesFor("operator, evaluator", null, "low"));
+    }
+}

@@ -164,6 +164,8 @@ public static class EvalCli
     /// when the pass rate is below <c>--min-pass</c> or more cases regressed than <c>--max-regressions</c>.
     /// <c>--mode history --dataset homelab</c> prints the trend instead. With <c>--judge-url</c>/<c>--judge-model</c> cases with
     /// <c>judge</c> criteria are also graded by that model; <c>--mode calibrate</c> measures the judge against human labels.
+    /// <c>--models default,small --efforts none,low</c> runs the dataset for every combination and writes <c>evals/report-models.md</c>
+    /// (with dev header identities the <c>evaluator</c> role is added for that, which grants no tools).
     /// </summary>
     public static async Task<int> Main(string[] args)
     {
@@ -197,50 +199,86 @@ public static class EvalCli
 
         var set = Datasets.Parse(await File.ReadAllTextAsync(file), file);
         var repeat = Math.Max(1, int.TryParse(Arg(args, "--repeat"), out var rp) ? rp : 1);
-        var started = DateTimeOffset.UtcNow;
         var judge = Judge.FromArgs(name => Arg(args, name));
         var devHeaders = Arg(args, "--dev-user") is not null;
+        var devRoles = Arg(args, "--dev-roles") ?? "operator";
 
-        var results = new List<EvalResult>();
-        foreach (var c in set.Cases)
-            for (var attempt = 1; attempt <= repeat; attempt++)
-            {
-                Console.Write(repeat > 1 ? $"{c.Id} #{attempt} ... " : $"{c.Id} ... ");
-                var result = Scoring.Score(c, await RunAsync(http, c.Question, c.Profile, devHeaders ? c.Roles : null));
-                if (judge is not null && c.Judge is { Length: > 0 } criteria)
-                    result = Scoring.WithJudge(result, await judge.GradeAsync(c.Question, criteria, result.Outcome.FinalAnswer));
-                results.Add(result);
-                Console.WriteLine(result.Passed ? "PASS" : "FAIL");
-            }
+        // Model comparison (#119): every model alias x reasoning effort runs the whole dataset; each is stored and diffed on its own.
+        var combos = ModelComparison.Combos(List(Arg(args, "--models")), List(Arg(args, "--efforts")));
+        var records = new List<EvalRunRecord>();
+        var exit = 0;
+        foreach (var (model, effort) in combos)
+        {
+            if (combos.Count > 1) Console.WriteLine($"== {ModelComparison.Name(model, effort)}");
+            var started = DateTimeOffset.UtcNow;
+            var results = new List<EvalResult>();
+            foreach (var c in set.Cases)
+                for (var attempt = 1; attempt <= repeat; attempt++)
+                {
+                    Console.Write(repeat > 1 ? $"{c.Id} #{attempt} ... " : $"{c.Id} ... ");
+                    var roles = devHeaders ? ModelComparison.RolesFor(c.Roles ?? devRoles, model, effort) : null;
+                    var result = Scoring.Score(c, await RunAsync(http, c.Question, c.Profile, roles, model, effort));
+                    if (judge is not null && c.Judge is { Length: > 0 } criteria)
+                        result = Scoring.WithJudge(result, await judge.GradeAsync(c.Question, criteria, result.Outcome.FinalAnswer));
+                    results.Add(result);
+                    Console.WriteLine(result.Passed ? "PASS" : "FAIL");
+                }
 
-        var record = EvalHistory.Build(set, results, started, url, repeat, Number(args, "--case-pass", 0.5), Arg(args, "--label"));
-        var previous = EvalHistory.Load(historyRoot, set.Name).LastOrDefault();
-        var diff = previous is null ? null : EvalHistory.Compare(previous, record);
-        if (!args.Contains("--no-history"))
-            Console.WriteLine($"stored {EvalHistory.Save(historyRoot, record)}");
+            var label = Arg(args, "--label") ?? (combos.Count > 1 ? ModelComparison.Name(model, effort) : null);
+            var record = EvalHistory.Build(set, results, started, url, repeat, Number(args, "--case-pass", 0.5), label) with { ModelAlias = model, Effort = effort };
+            var previous = EvalHistory.Load(historyRoot, set.Name).LastOrDefault(r => r.ModelAlias == model && r.Effort == effort);
+            var diff = previous is null ? null : EvalHistory.Compare(previous, record);
+            if (!args.Contains("--no-history"))
+                Console.WriteLine($"stored {EvalHistory.Save(historyRoot, record)}");
+            records.Add(record);
 
-        var report = Scoring.Report(results) + EvalHistory.Section(record, diff);
-        await File.WriteAllTextAsync(reportPath, report);
-        Console.WriteLine();
-        Console.WriteLine(report);
+            var report = Scoring.Report(results) + EvalHistory.Section(record, diff);
+            var path = combos.Count > 1 ? Path.ChangeExtension(reportPath, null) + "-" + ModelComparison.Slug(model, effort) + ".md" : reportPath;
+            await File.WriteAllTextAsync(path, report);
+            Console.WriteLine();
+            Console.WriteLine(report);
 
-        var gate = EvalHistory.Gate(record, diff, Number(args, "--min-pass", 1.0), int.TryParse(Arg(args, "--max-regressions"), out var mr) ? mr : 0);
-        foreach (var why in gate) Console.Error.WriteLine($"GATE: {why}");
-        return gate.Count == 0 ? 0 : 1;
+            if (combos.Count > 1) continue; // a comparison informs a decision; it is not a gate
+            var gate = EvalHistory.Gate(record, diff, Number(args, "--min-pass", 1.0), int.TryParse(Arg(args, "--max-regressions"), out var mr) ? mr : 0);
+            foreach (var why in gate) Console.Error.WriteLine($"GATE: {why}");
+            exit = gate.Count == 0 ? 0 : 1;
+        }
+
+        if (combos.Count > 1)
+        {
+            var comparison = ModelComparison.Report(set, records);
+            await File.WriteAllTextAsync(Arg(args, "--compare-report") ?? "evals/report-models.md", comparison);
+            Console.WriteLine(comparison);
+        }
+        return exit;
     }
+
+    private static List<string> List(string? csv) =>
+        (csv ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
 
     private static double Number(string[] args, string name, double fallback) =>
         double.TryParse(Arg(args, name), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : fallback;
 
-    private static async Task<RunOutcome> RunAsync(HttpClient http, string question, string? profile, string? roles)
+    private static async Task<RunOutcome> RunAsync(HttpClient http, string question, string? profile, string? roles, string? model, string? effort)
     {
-        using var start = new HttpRequestMessage(HttpMethod.Post, "/runs") { Content = JsonContent.Create(new { prompt = question, profile }) };
-        if (roles is not null)
+        HttpResponseMessage res;
+        for (var tries = 1; ; tries++)
         {
-            start.Headers.Remove("X-Dev-Roles");
-            start.Headers.Add("X-Dev-Roles", roles);
+            using var start = new HttpRequestMessage(HttpMethod.Post, "/runs")
+            {
+                Content = JsonContent.Create(new { prompt = question, profile, model, reasoningEffort = effort }),
+            };
+            if (roles is not null) start.Headers.Add("X-Dev-Roles", roles); // request headers win over the client's defaults
+            res = await http.SendAsync(start);
+            // The eval identity has a run quota like everyone else: wait for it instead of scoring the model on it.
+            if (res.StatusCode != System.Net.HttpStatusCode.TooManyRequests || tries >= 12) break;
+            res.Dispose();
+            await Task.Delay(TimeSpan.FromSeconds(10));
         }
-        var started = await (await http.SendAsync(start)).Content.ReadFromJsonAsync<JsonElement>();
+        using var _ = res;
+        if (!res.IsSuccessStatusCode)
+            return new RunOutcome("Rejected", null, $"POST /runs answered {(int)res.StatusCode}: {await res.Content.ReadAsStringAsync()}", [], 0, 0);
+        var started = await res.Content.ReadFromJsonAsync<JsonElement>();
         var id = started.GetProperty("id").GetGuid();
 
         var deadline = DateTime.UtcNow.AddMinutes(5);

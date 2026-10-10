@@ -318,24 +318,25 @@ public sealed class AgentRunner(
     }
 
     /// <summary>
-    /// Which model alias a run uses: voice runs the <c>voice</c> alias when one is configured (a small fast model), otherwise the
-    /// profile's <c>model</c>, otherwise <c>default</c>.
+    /// Which model alias a run uses: the one chosen for the run (#119), else for voice runs the <c>voice</c> alias when one is
+    /// configured (a small fast model), otherwise the profile's <c>model</c>, otherwise <c>default</c>.
     /// </summary>
     internal string? AliasFor(RunRecord run)
     {
+        if (run.ModelAlias is { Length: > 0 } chosen) return chosen;
         if (run.Voice && catalog?.Aliases.ContainsKey(ModelCatalog.Voice) == true) return ModelCatalog.Voice;
         return profiles.Find(run.Profile)?.Model;
     }
 
     private ModelCallOptions CallOptions(RunRecord run, int modelCallsSoFar) =>
         !run.Voice
-            ? new ModelCallOptions(Alias: AliasFor(run), Data: run.Sensitivity)
+            ? new ModelCallOptions(Alias: AliasFor(run), Data: run.Sensitivity, ReasoningEffort: run.ReasoningEffort)
             : new ModelCallOptions(Fast: true, Alias: AliasFor(run), Data: run.Sensitivity,
-                ReasoningEffort: modelCallsSoFar == 0
+                ReasoningEffort: run.ReasoningEffort ?? (modelCallsSoFar == 0
                     ? _options.VoiceFirstCallEffort
                     : run.Messages.OrderBy(m => m.Seq).Last().Content == VoiceToolNudge
                         ? _options.VoiceNudgeEffort
-                        : _options.VoiceLaterCallEffort);
+                        : _options.VoiceLaterCallEffort));
 
     private static Principal PrincipalOf(RunRecord run) =>
         new(run.UserId, run.Roles.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
