@@ -4,6 +4,7 @@ import type { VoiceConfig } from '../config'
 import { initialLanguage } from '../voice/language'
 import { PASSAGES } from '../voice/passages'
 import VocabularyEditor from '../components/VocabularyEditor'
+import MemoryCard from '../components/MemoryCard'
 
 const MIN_SECONDS = 8
 const MAX_SECONDS = 30
@@ -145,6 +146,7 @@ export default function VoicePage({ api, voice }: { api: Api; voice: VoiceConfig
           {error}
         </p>
       )}
+      <MemoryCard api={api} />
       <OwnVoicesAdmin api={api} />
     </div>
   )

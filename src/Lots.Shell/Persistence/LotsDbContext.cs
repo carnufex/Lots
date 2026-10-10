@@ -28,6 +28,7 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
     public DbSet<ScheduleFireRecord> ScheduleFires => Set<ScheduleFireRecord>();
     public DbSet<AttachmentRecord> Attachments => Set<AttachmentRecord>();
     public DbSet<ChannelEventRecord> ChannelEvents => Set<ChannelEventRecord>();
+    public DbSet<MemoryRecord> Memories => Set<MemoryRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -172,6 +173,17 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
             e.ToTable("user_vocabulary");
             e.HasKey(x => x.UserId);
             e.Property(x => x.UserId).HasMaxLength(256);
+        });
+
+        modelBuilder.Entity<MemoryRecord>(e =>
+        {
+            e.ToTable("memories");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.UserId);
+            e.Property(x => x.UserId).HasMaxLength(256);
+            e.Property(x => x.Text).HasMaxLength(1000);
+            e.Property(x => x.Source).HasMaxLength(16);
+            e.Property(x => x.Profile).HasMaxLength(128);
         });
 
         modelBuilder.Entity<ChannelEventRecord>(e =>
@@ -635,6 +647,20 @@ public sealed class UserVocabularyRecord
 /// and, optionally, the user's own voice. The clip itself lives only in the voice service; here is its id and consent.
 /// </summary>
 public enum VoiceConsentEvent { Given, Withdrawn, Revoked, Erased }
+
+/// <summary>Something a user wants Lots to remember about them (#99). Used only once <see cref="ConfirmedAt"/> is set.</summary>
+public sealed class MemoryRecord
+{
+    public Guid Id { get; set; }
+    public required string UserId { get; set; }
+    public required string Text { get; set; }
+    /// <summary>user: written by the user; agent: suggested by the agent with the remember tool.</summary>
+    public required string Source { get; set; }
+    /// <summary>The profile of the run that suggested it (provenance).</summary>
+    public string? Profile { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? ConfirmedAt { get; set; }
+}
 
 /// <summary>A channel event (Slack event id, mail message id) that has been handled (#107): retries and duplicates are dropped.</summary>
 public sealed class ChannelEventRecord

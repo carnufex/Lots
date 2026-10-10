@@ -76,6 +76,8 @@ public sealed class RetentionWorker(IServiceScopeFactory scopes, IOptions<Retent
         await Purge("audit", o.AuditDays, db.AuditLog.Where(a => a.At < now.AddDays(-o.AuditDays)));
         await Purge("voice consents", o.AuditDays, db.VoiceConsents.Where(c => c.At < now.AddDays(-o.AuditDays)));
         await Purge("attachments", o.RunsDays, db.Attachments.Where(a => a.CreatedAt < now.AddDays(-o.RunsDays)));
+        // Suggestions nobody confirmed (#99); confirmed memories stay until the user deletes them.
+        await Purge("memory suggestions", 30, db.Memories.Where(m => m.ConfirmedAt == null && m.CreatedAt < now.AddDays(-30)));
         await Purge("voice_usage", o.VoiceUsageDays, db.VoiceUsage.Where(v => v.At < now.AddDays(-o.VoiceUsageDays)));
         await Purge("notifications", o.NotificationsDays, db.Notifications.Where(n => n.CreatedAt < now.AddDays(-o.NotificationsDays) && (n.SentAt != null || n.Attempts >= 5)));
         await Purge("knowledge_conflicts", o.KnowledgeConflictsDays, db.KnowledgeConflicts.Where(c => c.DetectedAt < now.AddDays(-o.KnowledgeConflictsDays)));
@@ -124,6 +126,7 @@ public sealed class ExportMyDataEndpoint(LotsDbContext db, IAudioStore audio, IK
             connectedAccounts = await db.UserCredentials.AsNoTracking().Where(c => c.UserId == me).Select(c => new { c.Server, c.ConnectedAt, c.ExpiresAt, c.Scope }).ToListAsync(ct),
             personalKnowledge = personal,
             speechUsage = await db.VoiceUsage.AsNoTracking().Where(v => v.UserId == me).ToListAsync(ct),
+            memories = await db.Memories.AsNoTracking().Where(m => m.UserId == me).ToListAsync(ct),
         };
 
         using var zip = new MemoryStream();
@@ -228,6 +231,9 @@ public static class DataDeletion
         if (await db.UserProfiles.SingleOrDefaultAsync(p => p.UserId == user, ct) is { } profile) { db.UserProfiles.Remove(profile); d["login profile"] = 1; }
         if (await db.QuotaOverrides.SingleOrDefaultAsync(q => q.UserId == user, ct) is { } quota) db.QuotaOverrides.Remove(quota);
         db.VoiceUsage.RemoveRange(await db.VoiceUsage.Where(v => v.UserId == user).ToListAsync(ct));
+        var memories = await db.Memories.Where(m => m.UserId == user).ToListAsync(ct);
+        db.Memories.RemoveRange(memories);
+        d["memories"] = memories.Count;
         var files = await db.Attachments.Where(a => a.UserId == user).ToListAsync(ct);
         db.Attachments.RemoveRange(files);
         d["attachments"] = files.Count;

@@ -192,7 +192,7 @@ public class ProfileParserTests
         var registry = ProfileRegistry.LoadDirectory(Path.GetFullPath(path));
 
         var homelab = registry.Find("homelab")!;
-        Assert.Equal(["get_container_logs", "list_containers", "search_knowledge"], homelab.Tools.Select(t => t.Name).Order());
+        Assert.Equal(["get_container_logs", "list_containers", "remember", "search_knowledge"], homelab.Tools.Select(t => t.Name).Order());
         Assert.Equal(Decision.Allow, PolicyEngine.Decide(new Principal("u", ["operator"]), homelab, "list_containers").Decision);
     }
 }

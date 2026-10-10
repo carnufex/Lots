@@ -1,6 +1,6 @@
 # Homelab profile: inspect the Docker host. Declarative; loaded at startup.
 name: homelab
-version: 4
+version: 5
 description: Read-only insight into the homelab's Docker containers.
 instructions: |
   You help operate a homelab. Use list_containers to see what exists and get_container_logs to find out why
@@ -23,6 +23,8 @@ tools:
   - name: get_container_logs
     risk: read
   - name: search_knowledge   # built in (ADR 0016): results are filtered by the user's own access
+    risk: read
+  - name: remember           # built in (#99): only suggests a memory; the user confirms it
     risk: read
 
 # Policy tests as code (#70): checked whenever the profile is loaded or applied, and by `lotsctl validate`.

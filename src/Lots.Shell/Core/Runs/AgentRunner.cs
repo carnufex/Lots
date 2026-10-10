@@ -128,6 +128,8 @@ public sealed class AgentRunner(
             var instructions = profiles.Find(run.Profile)?.Instructions;
             var system = string.IsNullOrWhiteSpace(instructions) ? _options.SystemPrompt : _options.SystemPrompt + "\n\n" + instructions;
             if (run.Voice) system += "\n\n" + _options.VoiceInstructions;
+            // The user's confirmed memories (#99), as their own notes inside the untrusted-data envelope.
+            if (await Memory.UserMemory.ContextAsync(db, run.UserId, ct) is { } memory) system += "\n\n" + memory;
             Add(run, new ChatMessage("system", system));
             foreach (var turn in await PreviousTurnsAsync(run, ct))
             {
