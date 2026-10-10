@@ -8,13 +8,14 @@ RUN npm run build
 FROM mcr.microsoft.com/dotnet/sdk:10.0@sha256:e70cdb7f80b0348f5cb85f19a8f670fca061f033d57eed12fa003d58b0e06317 AS build
 WORKDIR /src
 COPY Lots.slnx ./
-COPY Directory.Build.props ./
+COPY Directory.Build.props VERSION ./
 COPY src/Lots.Shell/Lots.Shell.csproj src/Lots.Shell/packages.lock.json src/Lots.Shell/
 COPY tests/Lots.Shell.Tests/Lots.Shell.Tests.csproj tests/Lots.Shell.Tests/
 RUN dotnet restore src/Lots.Shell/Lots.Shell.csproj --locked-mode
 COPY src/Shared/ src/Shared/
 COPY src/Lots.Shell/ src/Lots.Shell/
-RUN dotnet publish src/Lots.Shell/Lots.Shell.csproj -c Release -o /app --no-restore
+ARG SOURCE_REVISION=""
+RUN dotnet publish src/Lots.Shell/Lots.Shell.csproj -c Release -o /app --no-restore -p:SourceRevisionId=${SOURCE_REVISION}
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0@sha256:222759b391a1aaf241166672c8f99b2d4ada452e7b5319f3c6e8f265a37b5ad4 AS runtime
 WORKDIR /app

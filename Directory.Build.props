@@ -1,6 +1,11 @@
 <Project>
   <!-- Supply chain (#91): every restore uses exactly the versions in packages.lock.json (CI and images restore in locked mode),
        and NuGet's vulnerability audit fails the build on a known high or critical advisory in any direct or transitive package. -->
+  <!-- Release version (#129): one source of truth, the VERSION file, bumped by scripts/release.sh. Images pass the commit as
+       SourceRevisionId, so the informational version reads 0.1.0+<sha>. -->
+  <PropertyGroup Condition="Exists('$(MSBuildThisFileDirectory)VERSION')">
+    <Version>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)VERSION').Trim())</Version>
+  </PropertyGroup>
   <PropertyGroup>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <NuGetAudit>true</NuGetAudit>

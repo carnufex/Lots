@@ -3,7 +3,15 @@ using Lots.Shell.Persistence;
 
 namespace Lots.Shell.Features.Health;
 
-public sealed record HealthResponse(string Status);
+/// <param name="Version">The running release (VERSION file, plus the commit for images), so operators can tell what is deployed.</param>
+public sealed record HealthResponse(string Status, string? Version = null);
+
+public static class AppVersion
+{
+    public static readonly string Value =
+        typeof(AppVersion).Assembly.GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
+            .OfType<System.Reflection.AssemblyInformationalVersionAttribute>().FirstOrDefault()?.InformationalVersion ?? "unknown";
+}
 
 /// <summary>Liveness: the process is up. Does not touch the database.</summary>
 public sealed class LiveEndpoint : EndpointWithoutRequest<HealthResponse>
@@ -15,7 +23,7 @@ public sealed class LiveEndpoint : EndpointWithoutRequest<HealthResponse>
     }
 
     public override Task HandleAsync(CancellationToken ct) =>
-        Send.OkAsync(new HealthResponse("ok"), ct);
+        Send.OkAsync(new HealthResponse("ok", AppVersion.Value), ct);
 }
 
 /// <summary>Readiness: the database is reachable.</summary>
