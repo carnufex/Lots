@@ -42,6 +42,7 @@ class Settings:
     voices: dict[str, VoiceDef] = field(default_factory=lambda: dict(DEFAULT_VOICES))
     max_audio_bytes: int = 25 * 1024 * 1024
     max_text_chars: int = 2000
+    max_prompt_chars: int = 600
     max_concurrency: int = 2
 
     @staticmethod
@@ -64,6 +65,7 @@ class Settings:
             voices=voices,
             max_audio_bytes=int(e.get("VOICE_MAX_AUDIO_BYTES", base.max_audio_bytes)),
             max_text_chars=int(e.get("VOICE_MAX_TEXT_CHARS", base.max_text_chars)),
+            max_prompt_chars=int(e.get("VOICE_MAX_PROMPT_CHARS", base.max_prompt_chars)),
             max_concurrency=int(e.get("VOICE_MAX_CONCURRENCY", base.max_concurrency)),
         )
 

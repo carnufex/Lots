@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import hmac
 import time
+from dataclasses import replace
 from collections.abc import AsyncIterator
 
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
@@ -13,6 +14,7 @@ from pydantic import BaseModel
 
 from .config import LANGUAGES, Settings
 from .engines import SttEngine, TtsEngine
+from .vocabulary import apply_vocabulary, parse_vocabulary
 from .wav import streaming_header, to_pcm16
 
 
@@ -52,11 +54,14 @@ def create_app(settings: Settings, stt: SttEngine, tts: TtsEngine) -> FastAPI:
         model: str = Form("whisper"),
         language: str | None = Form(None),
         response_format: str = Form("json"),
+        prompt: str | None = Form(None),
     ):
         if language is not None and language not in LANGUAGES:
             raise HTTPException(400, f"Unsupported language '{language}' (supported: {', '.join(LANGUAGES)}).")
         if response_format not in ("json", "verbose_json", "text"):
             raise HTTPException(400, "response_format must be json, verbose_json or text.")
+        if prompt is not None and len(prompt) > settings.max_prompt_chars:
+            raise HTTPException(413, f"prompt is longer than {settings.max_prompt_chars} characters.")
         data = await file.read(settings.max_audio_bytes + 1)
         if not data:
             raise HTTPException(400, "Empty audio.")
@@ -66,10 +71,16 @@ def create_app(settings: Settings, stt: SttEngine, tts: TtsEngine) -> FastAPI:
         started = time.perf_counter()
         async with gate:
             try:
-                result = await run_in_threadpool(stt.transcribe, data, language)
+                result = await run_in_threadpool(stt.transcribe, data, language, prompt)
             except Exception as ex:
                 raise HTTPException(422, f"Could not transcribe this audio: {type(ex).__name__}") from ex
         elapsed = time.perf_counter() - started
+
+        # The prompt is a comma separated vocabulary: a hint for the model and a spelling correction afterwards.
+        words = parse_vocabulary(prompt)
+        if words:
+            result = replace(result, text=apply_vocabulary(result.text, words),
+                             segments=[replace(s, text=apply_vocabulary(s.text, words)) for s in result.segments])
 
         headers = {"X-Processing-Ms": str(round(elapsed * 1000))}
         if response_format == "text":

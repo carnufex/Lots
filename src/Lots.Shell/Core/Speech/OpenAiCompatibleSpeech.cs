@@ -12,7 +12,7 @@ public sealed class OpenAiCompatibleSpeech(HttpClient http, IOptions<SpeechOptio
 {
     private readonly SpeechOptions _options = options.Value;
 
-    public async Task<Transcript> TranscribeAsync(AudioInput audio, string? language, CancellationToken ct)
+    public async Task<Transcript> TranscribeAsync(AudioInput audio, string? language, IReadOnlyList<string>? vocabulary, CancellationToken ct)
     {
         using var form = new MultipartFormDataContent();
         var file = new StreamContent(audio.Content);
@@ -21,6 +21,7 @@ public sealed class OpenAiCompatibleSpeech(HttpClient http, IOptions<SpeechOptio
         form.Add(new StringContent(_options.SttModel), "model");
         form.Add(new StringContent("verbose_json"), "response_format");
         if (!string.IsNullOrEmpty(language)) form.Add(new StringContent(language), "language");
+        if (PromptOf(vocabulary, _options.MaxVocabularyChars) is { Length: > 0 } prompt) form.Add(new StringContent(prompt), "prompt");
 
         try
         {
@@ -49,6 +50,20 @@ public sealed class OpenAiCompatibleSpeech(HttpClient http, IOptions<SpeechOptio
         {
             throw new SpeechUnavailableException("Speech-to-text provider is unreachable.", ex);
         }
+    }
+
+    /// <summary>The words as one comma separated prompt, whole words only, never longer than <paramref name="maxChars"/>.</summary>
+    public static string PromptOf(IReadOnlyList<string>? words, int maxChars)
+    {
+        if (words is null) return "";
+        var sb = new System.Text.StringBuilder();
+        foreach (var w in words)
+        {
+            var add = (sb.Length == 0 ? "" : ", ") + w;
+            if (sb.Length + add.Length > maxChars) break;
+            sb.Append(add);
+        }
+        return sb.ToString();
     }
 
     /// <summary>

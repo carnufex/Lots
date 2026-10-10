@@ -587,3 +587,54 @@ input.wide {
   width: auto;
   vertical-align: middle;
 }
+
+/* vocabulary */
+.vocab {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+}
+
+.vocab summary {
+  cursor: pointer;
+}
+
+.vocab .small {
+  font-size: 12.5px;
+}
+
+.chips {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chips .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+}
+
+.chips .chip.shared {
+  color: var(--muted);
+  border-style: dashed;
+}
+
+.chipx {
+  font: inherit;
+  line-height: 1;
+  color: var(--muted);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.chipx:hover,
+.chipx:focus-visible {
+  color: var(--danger);
+}

@@ -25,7 +25,8 @@ public sealed class SpeechUnavailableException(string message, Exception? inner 
 /// <summary>Provider-neutral speech to text. Implementations: our own voice service, later hosted APIs.</summary>
 public interface ISpeechToText
 {
-    Task<Transcript> TranscribeAsync(AudioInput audio, string? language, CancellationToken ct);
+    /// <param name="vocabulary">Words the speaker is likely to say (names, products, jargon): a spelling hint for the provider.</param>
+    Task<Transcript> TranscribeAsync(AudioInput audio, string? language, IReadOnlyList<string>? vocabulary, CancellationToken ct);
 }
 
 /// <summary>Provider-neutral text to speech.</summary>
@@ -48,6 +49,15 @@ public sealed class SpeechOptions
     public int MaxAudioBytes { get; set; } = 15 * 1024 * 1024;
     public int MaxTextChars { get; set; } = 1500;
     public int TimeoutSeconds { get; set; } = 60;
+
+    /// <summary>
+    /// Words shared by everyone on this deployment (product names, jargon), comma separated, e.g. "Lots, Authentik, Longhorn".
+    /// Users add their own on the website. All of it is sent to the speech provider, so it must never contain secrets.
+    /// </summary>
+    public string? Vocabulary { get; set; }
+
+    /// <summary>Longest vocabulary prompt (characters) sent to the provider; user words come first.</summary>
+    public int MaxVocabularyChars { get; set; } = 500;
 
     public bool Enabled => !string.IsNullOrWhiteSpace(BaseUrl);
     public static readonly IReadOnlyList<string> Languages = ["sv", "en"];

@@ -16,12 +16,14 @@ class FakeStt:
     def warm_up(self):
         pass
 
-    def transcribe(self, audio, language):
+    def transcribe(self, audio, language, prompt=None):
         if self.fail:
             raise ValueError("bad audio")
+        self.prompts = getattr(self, "prompts", []) + [prompt]
         self.calls.append((len(audio), language))
         lang = language or "sv"
-        return Transcription("hej världen", lang, 1.5, [Segment(0.0, 1.5, "hej världen")])
+        text = getattr(self, "text", "hej världen")
+        return Transcription(text, lang, 1.5, [Segment(0.0, 1.5, text)])
 
 
 class FakeTts:
@@ -85,6 +87,27 @@ def test_transcription_json_verbose_and_text(client, parts):
     assert text.text == "hej världen"
     assert "x-processing-ms" in text.headers
     assert parts[1].calls[0] == (100, "sv") and parts[1].calls[1] == (100, None)  # no language -> the engine detects
+
+
+def test_vocabulary_prompt_reaches_the_engine_and_is_limited(client, parts):
+    c, auth = client
+    files = {"file": ("a.wav", b"x" * 10, "audio/wav")}
+    assert c.post("/v1/audio/transcriptions", headers=auth, files=files, data={"prompt": "Christopher, Lots"}).status_code == 200
+    assert c.post("/v1/audio/transcriptions", headers=auth, files=files).status_code == 200
+    assert parts[1].prompts == ["Christopher, Lots", None]
+    too_long = c.post("/v1/audio/transcriptions", headers=auth, files=files, data={"prompt": "x" * 601})
+    assert too_long.status_code == 413
+
+
+def test_vocabulary_spelling_is_applied_to_text_and_segments(client, parts):
+    c, auth = client
+    parts[1].text = "Hej, jag heter Christoffer."
+    r = c.post("/v1/audio/transcriptions", headers=auth, files={"file": ("a.wav", b"x" * 10, "audio/wav")},
+               data={"prompt": "Christopher, Lots", "response_format": "verbose_json"}).json()
+    assert r["text"] == "Hej, jag heter Christopher."
+    assert r["segments"][0]["text"] == "Hej, jag heter Christopher."
+    plain = c.post("/v1/audio/transcriptions", headers=auth, files={"file": ("a.wav", b"x" * 10, "audio/wav")}).json()
+    assert plain["text"] == "Hej, jag heter Christoffer."  # nothing is changed without a vocabulary
 
 
 def test_transcription_validation(client, parts):

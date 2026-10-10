@@ -78,6 +78,11 @@ export interface Transcription {
   durationSeconds: number | null
 }
 
+export interface Vocabulary {
+  words: string[]
+  shared: string[]
+}
+
 export type VoiceLanguage = 'auto' | 'sv' | 'en'
 
 export type RunStatus = 'Pending' | 'Running' | 'WaitingForApproval' | 'Completed' | 'Failed'
@@ -116,6 +121,8 @@ export function createApi(auth: Auth) {
       if (language !== 'auto') form.append('Language', language)
       return request<Transcription>('/voice/transcribe', { method: 'POST', body: form })
     },
+    getVocabulary: () => request<Vocabulary>('/voice/vocabulary'),
+    putVocabulary: (words: string[]) => request<Vocabulary>('/voice/vocabulary', { method: 'PUT', body: JSON.stringify({ words }) }),
     /** The spoken final answer of a run, as an audio blob. */
     speak: async (runId: string, language: VoiceLanguage): Promise<Blob> => {
       const res = await fetch(`/runs/${runId}/speak`, {

@@ -30,7 +30,7 @@ class Transcription:
 
 
 class SttEngine(Protocol):
-    def transcribe(self, audio: bytes, language: str | None) -> Transcription: ...
+    def transcribe(self, audio: bytes, language: str | None, prompt: str | None = None) -> Transcription: ...
 
     def warm_up(self) -> None:
         """Load models now so the first request is not slow."""
@@ -84,7 +84,7 @@ class WhisperStt:
         for key in ("detect", *self._settings.stt_models):
             self._model(key)
 
-    def transcribe(self, audio: bytes, language: str | None) -> Transcription:
+    def transcribe(self, audio: bytes, language: str | None, prompt: str | None = None) -> Transcription:
         from faster_whisper.audio import decode_audio
 
         samples = decode_audio(io.BytesIO(audio), sampling_rate=16000)
@@ -92,7 +92,8 @@ class WhisperStt:
         if language is None:
             language = self._identify(samples)
         segments, _info = self._model(language).transcribe(
-            samples, language=language, beam_size=1, vad_filter=False, condition_on_previous_text=False)
+            samples, language=language, beam_size=1, vad_filter=False, condition_on_previous_text=False,
+            initial_prompt=prompt or None)  # words the speaker is likely to say: names, products, jargon
         segs = [Segment(s.start, s.end, s.text.strip()) for s in segments]
         return Transcription(" ".join(s.text for s in segs).strip(), language, duration, segs)
 

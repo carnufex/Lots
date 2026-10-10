@@ -36,6 +36,7 @@ def key_from_env_file() -> str | None:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--url", default="http://127.0.0.1:8700")
+    ap.add_argument("--prompt", default=None, help="vocabulary hint, e.g. \"Christopher, Lots\"")
     ap.add_argument("--key", default=os.environ.get("VOICE_API_KEY") or key_from_env_file())
     args = ap.parse_args()
     manifest = REC / "manifest.json"
@@ -56,7 +57,7 @@ def main() -> int:
             row = {"file": it["file"], "lang": it["language"], "ref": it["text"], "note": it.get("note", "")}
             for mode, form in (("hinted", {"language": it["language"]}), ("auto", {})):
                 t = time.perf_counter()
-                r = c.post("/v1/audio/transcriptions", files={"file": (path.name, data)}, data={"response_format": "verbose_json", **form})
+                r = c.post("/v1/audio/transcriptions", files={"file": (path.name, data)}, data={"response_format": "verbose_json", **form, **({"prompt": args.prompt} if args.prompt else {})})
                 ms = (time.perf_counter() - t) * 1000
                 if r.status_code != 200:
                     row[mode] = {"error": r.status_code, "ms": ms}

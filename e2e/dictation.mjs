@@ -28,10 +28,10 @@ async function dictate(n) {
   console.log(`dictation ${n}: button says "${(await button.innerText()).trim()}", disabled=${await button.isDisabled()}`)
   await button.click({ timeout: 5000 })
   await page.waitForTimeout(3500)
-  await page.getByRole('button', { name: 'Stop' }).click({ timeout: 5000 })
+  await page.getByRole('button', { name: 'Stop', exact: true }).click({ timeout: 5000 })
   const before = await prompt.inputValue()
   await page.waitForFunction((b) => document.querySelector('textarea').value !== b, before, { timeout: 20000 }).catch(() => {})
-  await page.getByRole('button', { name: 'Dictate' }).waitFor({ timeout: 20000 })
+  await page.getByRole('button', { name: 'Dictate', exact: true }).waitFor({ timeout: 20000 })
   console.log(`dictation ${n} -> prompt: ${JSON.stringify(await prompt.inputValue())}`)
 }
 

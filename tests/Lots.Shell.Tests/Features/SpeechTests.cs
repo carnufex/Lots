@@ -38,7 +38,7 @@ public class SpeechAdapterTests
             Content = new StringContent("""{"text":" Hej där ","language":"sv","duration":2.5,"segments":[{"start":0.0,"end":2.5,"text":" Hej där "}]}""", Encoding.UTF8, "application/json"),
         }));
 
-        var t = await Adapter(p).TranscribeAsync(new AudioInput(new MemoryStream([1, 2, 3]), "audio/wav", "a.wav"), "sv", default);
+        var t = await Adapter(p).TranscribeAsync(new AudioInput(new MemoryStream([1, 2, 3]), "audio/wav", "a.wav"), "sv", null, default);
 
         Assert.Equal("Hej där", t.Text);
         Assert.Equal("sv", t.Language);
@@ -47,6 +47,22 @@ public class SpeechAdapterTests
         Assert.Equal("/v1/audio/transcriptions", p.Requests[0].Path);
         Assert.Contains("name=language", p.Requests[0].Body);
         Assert.Contains("verbose_json", p.Requests[0].Body);
+    }
+
+    [Fact]
+    public async Task Configured_vocabulary_is_sent_as_the_spelling_prompt()
+    {
+        var p = new Provider(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("""{"text":"x"}""", Encoding.UTF8, "application/json"),
+        }));
+        var adapter = new OpenAiCompatibleSpeech(new HttpClient(p) { BaseAddress = new Uri("http://voice.test/v1/") },
+            Options.Create(new SpeechOptions { BaseUrl = "http://voice.test/v1" }));
+
+        await adapter.TranscribeAsync(new AudioInput(new MemoryStream([1]), "audio/wav", "a.wav"), "sv", ["Christopher", "Lots"], default);
+
+        Assert.Contains("name=prompt", p.Requests[0].Body);
+        Assert.Contains("Christopher, Lots", p.Requests[0].Body);
     }
 
     [Fact]
@@ -74,9 +90,9 @@ public class SpeechAdapterTests
         var down = new Provider(_ => throw new HttpRequestException("connection refused"));
         var error = new Provider(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.InternalServerError)));
 
-        await Assert.ThrowsAsync<SpeechUnavailableException>(() => Adapter(down).TranscribeAsync(new AudioInput(new MemoryStream([1]), "audio/wav", "a"), null, default));
+        await Assert.ThrowsAsync<SpeechUnavailableException>(() => Adapter(down).TranscribeAsync(new AudioInput(new MemoryStream([1]), "audio/wav", "a"), null, null, default));
         await Assert.ThrowsAsync<SpeechUnavailableException>(() => Adapter(down).SynthesizeAsync("x", "en", default));
-        await Assert.ThrowsAsync<SpeechUnavailableException>(() => Adapter(error).TranscribeAsync(new AudioInput(new MemoryStream([1]), "audio/wav", "a"), null, default));
+        await Assert.ThrowsAsync<SpeechUnavailableException>(() => Adapter(error).TranscribeAsync(new AudioInput(new MemoryStream([1]), "audio/wav", "a"), null, null, default));
         await Assert.ThrowsAsync<SpeechUnavailableException>(() => Adapter(error).SynthesizeAsync("x", "en", default));
         await Assert.ThrowsAsync<SpeechUnavailableException>(() => Adapter(error).SynthesizeAsync("x", "de", default)); // no voice for the language
     }
@@ -100,7 +116,7 @@ public class SpeechAdapterTests
             Content = new StringContent("""{"text":"hej","language":"sv"}""", Encoding.UTF8, "application/json"),
         }));
 
-        var t = await Adapter(p).TranscribeAsync(new AudioInput(new MemoryStream([1, 2, 3]), "audio/webm;codecs=opus", "dictation.webm"), null, default);
+        var t = await Adapter(p).TranscribeAsync(new AudioInput(new MemoryStream([1, 2, 3]), "audio/webm;codecs=opus", "dictation.webm"), null, null, default);
 
         Assert.Equal("hej", t.Text);
         Assert.Contains("Content-Type: audio/webm", p.Requests[0].Body);
@@ -124,10 +140,13 @@ public class VoiceApiTests : IClassFixture<WebApplicationFactory<Program>>
         public bool Down { get; set; }
         public string? LastLanguage { get; private set; }
 
-        public Task<Transcript> TranscribeAsync(AudioInput audio, string? language, CancellationToken ct)
+        public IReadOnlyList<string>? LastVocabulary { get; private set; }
+
+        public Task<Transcript> TranscribeAsync(AudioInput audio, string? language, IReadOnlyList<string>? vocabulary, CancellationToken ct)
         {
             if (Down) throw new SpeechUnavailableException("down");
             LastLanguage = language;
+            LastVocabulary = vocabulary;
             return Task.FromResult(new Transcript("vilka containrar är trasiga", language ?? "sv", 3.2, []));
         }
     }
@@ -163,6 +182,7 @@ public class VoiceApiTests : IClassFixture<WebApplicationFactory<Program>>
                 ["Auth:Dev:AllowHeaders"] = "true",
                 ["Speech:BaseUrl"] = "http://voice.test:8700/v1",
                 ["Speech:MaxAudioBytes"] = "1000",
+                ["Speech:Vocabulary"] = "Authentik, Longhorn",
             }));
             b.ConfigureServices(s =>
             {
@@ -293,6 +313,51 @@ public class VoiceApiTests : IClassFixture<WebApplicationFactory<Program>>
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, res.StatusCode);
         Assert.Contains(await UsageAsync(), u => u is { Direction: "Tts", Outcome: "error", Characters: 12 });
+    }
+
+    [Fact]
+    public async Task Each_user_edits_only_their_own_vocabulary_and_it_reaches_the_provider_with_the_shared_words()
+    {
+        var client = _factory.CreateClient();
+        var put = await client.SendAsync(As(HttpMethod.Put, "/voice/vocabulary", "alice", "operator",
+            JsonContent.Create(new { words = new[] { " Christopher ", "Lots", "christopher", "", "Kubernetes," } })));
+        Assert.Equal(HttpStatusCode.OK, put.StatusCode);
+        Assert.Equal(["Christopher", "Lots", "Kubernetes"], (await put.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("words").EnumerateArray().Select(w => w.GetString()!));
+
+        var alice = await (await client.SendAsync(As(HttpMethod.Get, "/voice/vocabulary", "alice", "operator"))).Content.ReadFromJsonAsync<JsonElement>();
+        var bob = await (await client.SendAsync(As(HttpMethod.Get, "/voice/vocabulary", "bob", "operator"))).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(3, alice.GetProperty("words").GetArrayLength());
+        Assert.Equal(0, bob.GetProperty("words").GetArrayLength());
+        Assert.Equal(["Authentik", "Longhorn"], alice.GetProperty("shared").EnumerateArray().Select(w => w.GetString()!));
+
+        await client.SendAsync(As(HttpMethod.Post, "/voice/transcribe", "alice", "operator", Audio(language: "sv")));
+        Assert.Equal(["Christopher", "Lots", "Kubernetes", "Authentik", "Longhorn"], _stt.LastVocabulary);
+
+        await client.SendAsync(As(HttpMethod.Post, "/voice/transcribe", "bob", "operator", Audio(language: "sv")));
+        Assert.Equal(["Authentik", "Longhorn"], _stt.LastVocabulary); // bob only gets the shared words
+    }
+
+    [Fact]
+    public async Task Vocabulary_is_validated_and_can_be_cleared()
+    {
+        var client = _factory.CreateClient();
+        var tooMany = Enumerable.Range(0, 101).Select(i => $"word{i}").ToArray();
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.SendAsync(As(HttpMethod.Put, "/voice/vocabulary", "carol", "operator", JsonContent.Create(new { words = tooMany })))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.SendAsync(As(HttpMethod.Put, "/voice/vocabulary", "carol", "operator", JsonContent.Create(new { words = new[] { new string('x', 61) } })))).StatusCode);
+
+        await client.SendAsync(As(HttpMethod.Put, "/voice/vocabulary", "carol", "operator", JsonContent.Create(new { words = new[] { "Hello" } })));
+        var cleared = await client.SendAsync(As(HttpMethod.Put, "/voice/vocabulary", "carol", "operator", JsonContent.Create(new { words = Array.Empty<string>() })));
+        Assert.Equal(0, (await cleared.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("words").GetArrayLength());
+    }
+
+    [Fact]
+    public void Prompt_keeps_whole_words_within_the_limit_and_user_words_first()
+    {
+        Assert.Equal("Christopher, Lots", OpenAiCompatibleSpeech.PromptOf(["Christopher", "Lots"], 500));
+        Assert.Equal("Christopher", OpenAiCompatibleSpeech.PromptOf(["Christopher", "Lots"], 15)); // "Lots" would not fit whole
+        Assert.Equal("", OpenAiCompatibleSpeech.PromptOf(null, 500));
+        Assert.Equal("", OpenAiCompatibleSpeech.PromptOf([], 500));
     }
 
     [Fact]

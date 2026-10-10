@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { Api, VoiceLanguage } from '../api'
 import type { ProfileInfo, VoiceConfig } from '../config'
 import MicButton from './MicButton'
+import VocabularyEditor from './VocabularyEditor'
 
 const LANGUAGE_KEY = 'lots.voice-language'
 
@@ -93,6 +94,7 @@ export default function NewRun({ api, profiles, voice }: { api: Api; profiles: P
           {busy ? 'Starting…' : 'Start run'}
         </button>
       </div>
+      {voice.enabled && <VocabularyEditor api={api} />}
     </form>
   )
 }

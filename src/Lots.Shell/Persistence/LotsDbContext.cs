@@ -10,6 +10,7 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
     public DbSet<ApprovalRecord> Approvals => Set<ApprovalRecord>();
     public DbSet<AuditRecord> AuditLog => Set<AuditRecord>();
     public DbSet<VoiceUsageRecord> VoiceUsage => Set<VoiceUsageRecord>();
+    public DbSet<UserVocabularyRecord> UserVocabulary => Set<UserVocabularyRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -46,6 +47,13 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
             e.Property(x => x.ToolCallId).HasMaxLength(256).IsRequired();
             e.Property(x => x.RequestedBy).HasMaxLength(256).IsRequired();
             e.Property(x => x.DecidedBy).HasMaxLength(256);
+        });
+
+        modelBuilder.Entity<UserVocabularyRecord>(e =>
+        {
+            e.ToTable("user_vocabulary");
+            e.HasKey(x => x.UserId);
+            e.Property(x => x.UserId).HasMaxLength(256);
         });
 
         modelBuilder.Entity<VoiceUsageRecord>(e =>
@@ -203,4 +211,13 @@ public sealed class VoiceUsageRecord
     public string? Provider { get; set; }
     public required string Outcome { get; set; }
     public Guid? RunId { get; set; }
+}
+
+/// <summary>A user's own dictation vocabulary (names, products, jargon), one row per user. Words only; no audio, no secrets.</summary>
+public sealed class UserVocabularyRecord
+{
+    public required string UserId { get; set; }
+    /// <summary>JSON array of words.</summary>
+    public string WordsJson { get; set; } = "[]";
+    public DateTimeOffset UpdatedAt { get; set; }
 }
