@@ -82,6 +82,31 @@ public class SpeechAdapterTests
     }
 
     [Theory]
+    [InlineData("audio/webm;codecs=opus", "audio/webm")]
+    [InlineData("audio/webm; codecs=opus", "audio/webm")]
+    [InlineData("audio/ogg;codecs=opus", "audio/ogg")]
+    [InlineData("AUDIO/WAV", "audio/wav")]
+    [InlineData("audio/mp4", "audio/mp4")]
+    [InlineData("rubbish", "application/octet-stream")]
+    [InlineData("", "application/octet-stream")]
+    public void Browser_recording_content_types_are_reduced_to_a_valid_media_type(string raw, string expected) =>
+        Assert.Equal(expected, OpenAiCompatibleSpeech.MediaType(raw));
+
+    [Fact]
+    public async Task A_webm_opus_recording_from_a_browser_is_forwarded_not_rejected()
+    {
+        var p = new Provider(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("""{"text":"hej","language":"sv"}""", Encoding.UTF8, "application/json"),
+        }));
+
+        var t = await Adapter(p).TranscribeAsync(new AudioInput(new MemoryStream([1, 2, 3]), "audio/webm;codecs=opus", "dictation.webm"), null, default);
+
+        Assert.Equal("hej", t.Text);
+        Assert.Contains("Content-Type: audio/webm", p.Requests[0].Body);
+    }
+
+    [Theory]
     [InlineData("Två av containrarna är inte friska just nu.", "sv")]
     [InlineData("Jag kollar det åt dig", "sv")]
     [InlineData("Which containers are unhealthy right now?", "en")]
@@ -163,7 +188,7 @@ public class VoiceApiTests : IClassFixture<WebApplicationFactory<Program>>
 
     private static MultipartFormDataContent Audio(int bytes = 100, string? language = null)
     {
-        var form = new MultipartFormDataContent { { new ByteArrayContent(new byte[bytes]) { Headers = { ContentType = new("audio/wav") } }, "Audio", "q.wav" } };
+        var form = new MultipartFormDataContent { { new ByteArrayContent(new byte[bytes]) { Headers = { ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("audio/webm;codecs=opus") } }, "Audio", "q.webm" } };
         if (language is not null) form.Add(new StringContent(language), "Language");
         return form;
     }

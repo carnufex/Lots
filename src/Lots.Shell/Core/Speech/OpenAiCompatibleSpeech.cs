@@ -16,7 +16,7 @@ public sealed class OpenAiCompatibleSpeech(HttpClient http, IOptions<SpeechOptio
     {
         using var form = new MultipartFormDataContent();
         var file = new StreamContent(audio.Content);
-        file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(audio.ContentType);
+        file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(MediaType(audio.ContentType));
         form.Add(file, "file", audio.FileName);
         form.Add(new StringContent(_options.SttModel), "model");
         form.Add(new StringContent("verbose_json"), "response_format");
@@ -49,6 +49,16 @@ public sealed class OpenAiCompatibleSpeech(HttpClient http, IOptions<SpeechOptio
         {
             throw new SpeechUnavailableException("Speech-to-text provider is unreachable.", ex);
         }
+    }
+
+    /// <summary>
+    /// The bare media type. Browsers record as e.g. <c>audio/webm;codecs=opus</c>, which .NET's strict header parser
+    /// rejects; the provider decodes by content, so the parameters are not needed.
+    /// </summary>
+    public static string MediaType(string contentType)
+    {
+        var bare = contentType.Split(';', 2)[0].Trim().ToLowerInvariant();
+        return System.Text.RegularExpressions.Regex.IsMatch(bare, @"^[a-z0-9.+-]+/[a-z0-9.+-]+$") ? bare : "application/octet-stream";
     }
 
     public async Task<SpeechAudio> SynthesizeAsync(string text, string language, CancellationToken ct)
