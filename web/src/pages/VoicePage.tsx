@@ -145,7 +145,85 @@ export default function VoicePage({ api, voice }: { api: Api; voice: VoiceConfig
           {error}
         </p>
       )}
+      <OwnVoicesAdmin api={api} />
     </div>
+  )
+}
+
+interface OwnVoices {
+  voices: { userId: string; seconds: number; consentAt: string; registrationsLast30Days: number }[]
+  recentEvents: { userId: string; event: string; actor: string; at: string }[]
+}
+
+/** Admins (#93): who has a recorded voice, the consent trail, and revoking one. Hidden for everyone else. */
+function OwnVoicesAdmin({ api }: { api: Api }) {
+  const [data, setData] = useState<OwnVoices | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const load = useCallback(() => {
+    api.raw<OwnVoices>('/admin/voices').then(setData).catch(() => setData(null))
+  }, [api])
+  useEffect(load, [load])
+  if (!data) return null
+
+  const revoke = async (user: string) => {
+    if (!window.confirm(`Delete the recorded voice of ${user}? They can record it again.`)) return
+    setError(null)
+    try {
+      await api.raw(`/admin/voices/${encodeURIComponent(user)}`, { method: 'DELETE' })
+      load()
+    } catch (e) {
+      setError(String(e))
+    }
+  }
+
+  return (
+    <section className="card">
+      <h2>Recorded voices (admin)</h2>
+      {data.voices.length === 0 ? (
+        <p className="muted small">Nobody has recorded their own voice.</p>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Length</th>
+              <th>Consent given</th>
+              <th>Recordings (30 days)</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {data.voices.map((v) => (
+              <tr key={v.userId}>
+                <td>{v.userId}</td>
+                <td>{v.seconds.toFixed(1)} s</td>
+                <td>{new Date(v.consentAt).toLocaleString()}</td>
+                <td>{v.registrationsLast30Days}</td>
+                <td>
+                  <button type="button" className="btn small" onClick={() => void revoke(v.userId)}>
+                    Revoke
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {data.recentEvents.length > 0 && (
+        <details>
+          <summary className="small">Consent trail</summary>
+          <ul className="small muted">
+            {data.recentEvents.map((e, i) => (
+              <li key={i}>
+                {new Date(e.at).toLocaleString()} · {e.userId} · {e.event.toLowerCase()}
+                {e.actor !== e.userId && ` by ${e.actor}`}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+      {error && <p className="error small">{error}</p>}
+    </section>
   )
 }
 
@@ -256,7 +334,7 @@ function OwnVoice({
     }
   }
 
-  const useClip = async () => {
+  const saveClip = async () => {
     if (!clip) return
     setBusy(true)
     setError(null)
@@ -373,10 +451,10 @@ function OwnVoice({
           <audio controls src={clipUrl} aria-label="Your recording" />
           <label className="consent">
             <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-            This is my own voice, and I agree that Lots stores it to speak to me with it.
+            This recording is my own voice. Lots may use it only to speak answers to me, and I can delete it at any time.
           </label>
           <div className="row">
-            <button type="button" className="btn primary" disabled={!consent || busy} onClick={() => void useClip()}>
+            <button type="button" className="btn primary" disabled={!consent || busy} onClick={() => void saveClip()}>
               Use this voice
             </button>
             <button type="button" className="btn" disabled={busy} onClick={() => setPhase('idle')}>

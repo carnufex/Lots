@@ -159,6 +159,24 @@ public sealed class OpenAiCompatibleSpeech(HttpClient http, IOptions<SpeechOptio
         }
     }
 
+    public async Task<bool?> ExistsAsync(string voiceId, CancellationToken ct)
+    {
+        try
+        {
+            using var response = await http.GetAsync($"voices/{voiceId}", ct);
+            return response.StatusCode switch
+            {
+                System.Net.HttpStatusCode.OK => true,
+                System.Net.HttpStatusCode.NotFound => false,
+                _ => null, // e.g. 405 from a voice service without the endpoint
+            };
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
+        {
+            throw new SpeechUnavailableException("The voice service is unreachable.", ex);
+        }
+    }
+
     public async Task DeleteAsync(string voiceId, CancellationToken ct)
     {
         try

@@ -288,3 +288,12 @@ def test_urlencoded_bodies_are_refused_before_parsing(client):
     c, auth = client
     r = c.post("/v1/audio/transcriptions", headers={**auth, "Content-Type": "application/x-www-form-urlencoded"}, content=b"a=" + b"x" * 1000)
     assert r.status_code == 415
+
+
+def test_a_registered_voice_can_be_looked_up_so_deletion_can_be_verified(client, parts):
+    c, h = client
+    parts[2].voices = lambda: {"sv-nst": "sv", "u-abc": "*"}
+    assert c.get("/v1/voices/u-abc", headers=h).json() == {"id": "u-abc"}
+    assert c.get("/v1/voices/u-gone", headers=h).status_code == 404
+    assert c.get("/v1/voices/cb-default", headers=h).status_code == 404  # built-in voices are not user voices
+    assert c.get("/v1/voices/u-abc").status_code == 401

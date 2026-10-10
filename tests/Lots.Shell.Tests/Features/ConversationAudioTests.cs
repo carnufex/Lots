@@ -103,6 +103,20 @@ public class ConversationAudioTests : IClassFixture<WebApplicationFactory<Progra
     }
 
     [Fact]
+    public async Task The_retention_job_keeps_audio_for_the_configured_days_only()
+    {
+        var store = _factory.Services.GetRequiredService<IAudioStore>();
+        await store.SaveAsync(_conversation, null, "alice", "user", "audio/wav", [1], DateTimeOffset.UtcNow.AddDays(-29), default);
+        await store.SaveAsync(_conversation, null, "alice", "user", "audio/wav", [2], DateTimeOffset.UtcNow.AddDays(-31), default);
+        var worker = new AudioRetentionWorker(store, Microsoft.Extensions.Options.Options.Create(new SpeechOptions { AudioRetentionDays = 30 }),
+            TimeProvider.System, Microsoft.Extensions.Logging.Abstractions.NullLogger<AudioRetentionWorker>.Instance);
+
+        Assert.Equal(1, await worker.PurgeOnceAsync(default));
+        Assert.Equal(0, await worker.PurgeOnceAsync(default)); // the 29-day clip stays until it is due
+        Assert.Single(Directory.EnumerateFiles(_dir.FullName, "*", SearchOption.AllDirectories));
+    }
+
+    [Fact]
     public async Task A_summary_becomes_the_title_and_the_owner_can_delete_the_whole_conversation()
     {
         var client = _factory.CreateClient();

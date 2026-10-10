@@ -74,6 +74,7 @@ public sealed class RetentionWorker(IServiceScopeFactory scopes, IOptions<Retent
             await Purge("approvals", o.RunsDays, db.Approvals.Where(a => a.Status != ApprovalStatus.Pending && a.RequestedAt < runsBefore));
         }
         await Purge("audit", o.AuditDays, db.AuditLog.Where(a => a.At < now.AddDays(-o.AuditDays)));
+        await Purge("voice consents", o.AuditDays, db.VoiceConsents.Where(c => c.At < now.AddDays(-o.AuditDays)));
         await Purge("voice_usage", o.VoiceUsageDays, db.VoiceUsage.Where(v => v.At < now.AddDays(-o.VoiceUsageDays)));
         await Purge("notifications", o.NotificationsDays, db.Notifications.Where(n => n.CreatedAt < now.AddDays(-o.NotificationsDays) && (n.SentAt != null || n.Attempts >= 5)));
         await Purge("knowledge_conflicts", o.KnowledgeConflictsDays, db.KnowledgeConflicts.Where(c => c.DetectedAt < now.AddDays(-o.KnowledgeConflictsDays)));
@@ -165,7 +166,18 @@ public sealed class DeleteMyDataEndpoint(LotsDbContext db, IAudioStore audio, IK
             return;
         }
         var me = who.Get(HttpContext).UserId;
-        var deleted = await DataDeletion.DeleteUserAsync(db, audio, knowledge, voices, me, ct);
+        Dictionary<string, int> deleted;
+        try
+        {
+            deleted = await DataDeletion.DeleteUserAsync(db, audio, knowledge, voices, me, ct);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or SpeechUnavailableException)
+        {
+            // The own voice could not be removed (or its removal not verified): nothing else was deleted, so the user can retry.
+            AddError(ex is SpeechUnavailableException ? "The voice service is unavailable, so your recorded voice could not be deleted. Nothing was deleted; try again." : ex.Message);
+            await Send.ErrorsAsync(ex is SpeechUnavailableException ? 503 : 502, ct);
+            return;
+        }
         await Send.OkAsync(new DeletionReport(deleted, ["audit log entries (accountability record, kept per Retention:AuditDays)"]), ct);
     }
 }
@@ -179,6 +191,13 @@ public static class DataDeletion
         if (settings?.VoiceId is { } voiceId)
         {
             await voices.DeleteAsync(voiceId, ct); // the clip lives in the voice service; fails loudly if it cannot be removed
+            // Verified, not assumed (#93): a clip that is still there stops the deletion before anything else is removed.
+            if (await voices.ExistsAsync(voiceId, ct) == true)
+                throw new InvalidOperationException("The voice service still has the recording after deleting it; nothing was deleted. Try again.");
+            db.VoiceConsents.Add(new VoiceConsentRecord
+            {
+                Id = Guid.NewGuid(), UserId = user, VoiceId = voiceId, Event = VoiceConsentEvent.Erased, Actor = user, At = DateTimeOffset.UtcNow,
+            });
             d["own voice"] = 1;
         }
         var runs = await db.Runs.Where(r => r.UserId == user).ToListAsync(ct);

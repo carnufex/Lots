@@ -45,7 +45,6 @@ def create_app(settings: Settings, stt: SttEngine, tts: TtsEngine, gpu: GpuMonit
             return JSONResponse({"detail": "Form-encoded bodies are not accepted."}, status_code=415)
         return await call_next(request)
 
-
     def authorize(authorization: str | None = Header(default=None)) -> None:
         if settings.api_key is None:
             return  # validate() guarantees this only happens with VOICE_ALLOW_ANONYMOUS=1
@@ -171,6 +170,13 @@ def create_app(settings: Settings, stt: SttEngine, tts: TtsEngine, gpu: GpuMonit
         except ValueError as e:
             raise HTTPException(400, str(e))
         return {"id": voice_id, "seconds": round(seconds, 1)}
+
+    @app.get("/v1/voices/{voice_id}", dependencies=[Depends(authorize)])
+    def get_voice(voice_id: str):
+        """Whether a registered voice exists: the shell checks it after deleting one (#93)."""
+        if not _VOICE_ID.match(voice_id) or voice_id.startswith("cb-") or voice_id not in tts.voices():
+            raise HTTPException(404, "No such voice.")
+        return {"id": voice_id}
 
     @app.delete("/v1/voices/{voice_id}", dependencies=[Depends(authorize)])
     async def delete_voice(voice_id: str):

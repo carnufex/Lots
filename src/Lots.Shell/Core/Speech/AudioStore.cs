@@ -118,9 +118,7 @@ public sealed class AudioRetentionWorker(IAudioStore store, IOptions<SpeechOptio
         {
             try
             {
-                var days = options.Value.AudioRetentionDays;
-                var purged = await store.PurgeAsync(clock.GetUtcNow().AddDays(-Math.Max(days, 0)), stop);
-                if (purged > 0) logger.LogInformation("Purged {Count} conversation audio clips older than {Days} days", purged, days);
+                await PurgeOnceAsync(stop);
             }
             catch (Exception ex) when (ex is not OperationCanceledException || !stop.IsCancellationRequested)
             {
@@ -128,5 +126,14 @@ public sealed class AudioRetentionWorker(IAudioStore store, IOptions<SpeechOptio
             }
             await Task.Delay(TimeSpan.FromHours(1), stop).ContinueWith(_ => { });
         }
+    }
+
+    /// <summary>One pass: deletes clips older than <c>Speech:AudioRetentionDays</c> (ADR 0014). Returns how many.</summary>
+    public async Task<int> PurgeOnceAsync(CancellationToken ct)
+    {
+        var days = options.Value.AudioRetentionDays;
+        var purged = await store.PurgeAsync(clock.GetUtcNow().AddDays(-Math.Max(days, 0)), ct);
+        if (purged > 0) logger.LogInformation("Purged {Count} conversation audio clips older than {Days} days", purged, days);
+        return purged;
     }
 }

@@ -173,3 +173,17 @@ Masks are `[email]`, `[phone]`, `[personnummer]`, `[card]`, `[redacted]`.
 
 Logs are deployment-wide: `Privacy:RedactLogs` (for example `Privacy__RedactLogs__0=email`). The personal data export
 (`/me/export`) is the user's own data and is not masked.
+
+## Own voice: consent, limits and erasure (#93, ADR 0013/0015)
+
+- **Consent**: a recording is accepted only with the user's explicit confirmation of a versioned statement; every registration,
+  withdrawal, admin revocation and erasure is appended to `voice_consents` (who, when, which statement, clip length, never audio),
+  kept like the audit log (`Retention:AuditDays`).
+- **Owner only**: the agent speaks with a recorded voice only to its owner (the voice is taken from the caller's own settings, so
+  an admin reading someone else's run hears the deployment voice). Voice is never an authority: no approvals or writes by voice.
+- **Limits**: `Speech:VoiceRegistrationsPerDay` (5) per user, clip length 8-30 s, size `Speech:MaxAudioBytes`.
+- **Admins** see who has a recorded voice and the consent trail on the Voice page (`GET /admin/voices`) and can revoke one
+  (`DELETE /admin/voices/{user}`).
+- **Erasure is verified**: deleting a voice (by the user, an admin, or with "delete my data") asks the voice service afterwards
+  whether the clip still exists (`GET /v1/voices/{id}`); if it does, nothing is deleted and the user is told to retry.
+- **Conversation audio** is purged after `Speech:AudioRetentionDays` (30) by the retention job (ADR 0014).

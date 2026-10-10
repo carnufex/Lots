@@ -24,6 +24,7 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
     public DbSet<UserSettingsRecord> UserSettings => Set<UserSettingsRecord>();
     public DbSet<UserVocabularyRecord> UserVocabulary => Set<UserVocabularyRecord>();
     public DbSet<ApiTokenRecord> ApiTokens => Set<ApiTokenRecord>();
+    public DbSet<VoiceConsentRecord> VoiceConsents => Set<VoiceConsentRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -168,6 +169,18 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
             e.ToTable("user_vocabulary");
             e.HasKey(x => x.UserId);
             e.Property(x => x.UserId).HasMaxLength(256);
+        });
+
+        modelBuilder.Entity<VoiceConsentRecord>(e =>
+        {
+            e.ToTable("voice_consents");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.UserId, x.At });
+            e.Property(x => x.UserId).HasMaxLength(256);
+            e.Property(x => x.Actor).HasMaxLength(256);
+            e.Property(x => x.VoiceId).HasMaxLength(64);
+            e.Property(x => x.Event).HasConversion<string>().HasMaxLength(16);
+            e.Property(x => x.Statement).HasMaxLength(512);
         });
 
         modelBuilder.Entity<ApiTokenRecord>(e =>
@@ -578,6 +591,27 @@ public sealed class UserVocabularyRecord
 /// A user's personal settings (ADR 0015): how the agent behaves in text and voice (0..100 sliders; 50 = no instruction)
 /// and, optionally, the user's own voice. The clip itself lives only in the voice service; here is its id and consent.
 /// </summary>
+public enum VoiceConsentEvent { Given, Withdrawn, Revoked, Erased }
+
+/// <summary>
+/// The own-voice consent trail (#93), append-only: when a user gave consent for a recording (and to which statement), withdrew it,
+/// had it revoked by an admin, or had it erased with their data. No audio, only who, when and what. Kept like the audit log
+/// (<c>Retention:AuditDays</c>) as the record that the voice was used with consent.
+/// </summary>
+public sealed class VoiceConsentRecord
+{
+    public Guid Id { get; set; }
+    public required string UserId { get; set; }
+    public string? VoiceId { get; set; }
+    public VoiceConsentEvent Event { get; set; }
+    /// <summary>Who caused the event: the user, or the admin who revoked it.</summary>
+    public required string Actor { get; set; }
+    public DateTimeOffset At { get; set; }
+    /// <summary>For <see cref="VoiceConsentEvent.Given"/>: the statement the user confirmed.</summary>
+    public string? Statement { get; set; }
+    public double? Seconds { get; set; }
+}
+
 /// <summary>A personal API token (#88). Only the SHA-256 hash of the token is stored.</summary>
 public sealed class ApiTokenRecord
 {

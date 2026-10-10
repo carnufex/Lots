@@ -44,6 +44,10 @@ public class SettingsApiTests : IClassFixture<WebApplicationFactory<Program>>
         public Dictionary<string, int> Voices { get; } = [];
         public string? Reject { get; set; }
         public bool Down { get; set; }
+        /// <summary>Simulates a voice service that reports success but keeps the clip.</summary>
+        public bool KeepOnDelete { get; set; }
+
+        public Task<bool?> ExistsAsync(string voiceId, CancellationToken ct) => Task.FromResult<bool?>(Voices.ContainsKey(voiceId));
 
         public Task<double> RegisterAsync(string voiceId, AudioInput clip, CancellationToken ct)
         {
@@ -58,7 +62,7 @@ public class SettingsApiTests : IClassFixture<WebApplicationFactory<Program>>
         public Task DeleteAsync(string voiceId, CancellationToken ct)
         {
             if (Down) throw new SpeechUnavailableException("down");
-            Voices.Remove(voiceId);
+            if (!KeepOnDelete) Voices.Remove(voiceId);
             return Task.CompletedTask;
         }
     }
@@ -108,12 +112,81 @@ public class SettingsApiTests : IClassFixture<WebApplicationFactory<Program>>
         });
     }
 
-    private static HttpRequestMessage As(HttpMethod m, string url, string user, HttpContent? body = null)
+    private static HttpRequestMessage As(HttpMethod m, string url, string user, HttpContent? body = null, string roles = "operator")
     {
         var r = new HttpRequestMessage(m, url) { Content = body };
         r.Headers.Add("X-Dev-User", user);
-        r.Headers.Add("X-Dev-Roles", "operator");
+        r.Headers.Add("X-Dev-Roles", roles);
         return r;
+    }
+
+    private async Task<List<VoiceConsentRecord>> ConsentsAsync(string user)
+    {
+        using var scope = _factory.Services.CreateScope();
+        return await scope.ServiceProvider.GetRequiredService<LotsDbContext>().VoiceConsents.Where(c => c.UserId == user).OrderBy(c => c.At).ToListAsync();
+    }
+
+    [Fact]
+    public async Task Every_registration_and_withdrawal_is_kept_in_the_consent_trail()
+    {
+        var client = _factory.CreateClient();
+        Assert.Equal(HttpStatusCode.OK, (await client.SendAsync(As(HttpMethod.Put, "/me/voice", "carol", Clip()))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.SendAsync(As(HttpMethod.Delete, "/me/voice", "carol"))).StatusCode);
+
+        var trail = await ConsentsAsync("carol");
+        Assert.Equal([VoiceConsentEvent.Given, VoiceConsentEvent.Withdrawn], trail.Select(c => c.Event));
+        Assert.Equal(VoiceConsent.Statement, trail[0].Statement);
+        Assert.Equal(12.5, trail[0].Seconds);
+        Assert.All(trail, c => Assert.Equal("carol", c.Actor));
+    }
+
+    [Fact]
+    public async Task Registrations_are_limited_per_day()
+    {
+        var client = _factory.CreateClient();
+        for (var i = 0; i < 5; i++)
+            Assert.Equal(HttpStatusCode.OK, (await client.SendAsync(As(HttpMethod.Put, "/me/voice", "dave", Clip()))).StatusCode);
+        var sixth = await client.SendAsync(As(HttpMethod.Put, "/me/voice", "dave", Clip()));
+        Assert.Equal(HttpStatusCode.TooManyRequests, sixth.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.SendAsync(As(HttpMethod.Put, "/me/voice", "erin", Clip()))).StatusCode); // per user
+    }
+
+    [Fact]
+    public async Task Admins_see_own_voices_and_can_revoke_them()
+    {
+        var client = _factory.CreateClient();
+        await client.SendAsync(As(HttpMethod.Put, "/me/voice", "frank", Clip()));
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.SendAsync(As(HttpMethod.Get, "/admin/voices", "frank"))).StatusCode);
+
+        var list = await (await client.SendAsync(As(HttpMethod.Get, "/admin/voices", "claude-test-admin", roles: "admin"))).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Contains(list.GetProperty("voices").EnumerateArray(), v => v.GetProperty("userId").GetString() == "frank");
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.SendAsync(As(HttpMethod.Delete, "/admin/voices/frank", "frank"))).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.SendAsync(As(HttpMethod.Delete, "/admin/voices/frank", "claude-test-admin", roles: "admin"))).StatusCode);
+        Assert.Empty(_registry.Voices);
+        var settings = await (await client.SendAsync(As(HttpMethod.Get, "/me/settings", "frank"))).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(JsonValueKind.Null, settings.GetProperty("ownVoice").ValueKind);
+        var revoked = (await ConsentsAsync("frank")).Last();
+        Assert.Equal((VoiceConsentEvent.Revoked, "claude-test-admin"), (revoked.Event, revoked.Actor));
+    }
+
+    [Fact]
+    public async Task A_recording_the_voice_service_keeps_after_deletion_stops_the_deletion()
+    {
+        var client = _factory.CreateClient();
+        await client.SendAsync(As(HttpMethod.Put, "/me/voice", "gina", Clip()));
+        _registry.KeepOnDelete = true;
+
+        Assert.Equal(HttpStatusCode.BadGateway, (await client.SendAsync(As(HttpMethod.Delete, "/admin/voices/gina", "claude-test-admin", roles: "admin"))).StatusCode);
+        var erase = await client.SendAsync(As(HttpMethod.Delete, "/me/data", "gina", JsonContent.Create(new { confirm = "delete my data" })));
+        Assert.False(erase.IsSuccessStatusCode);
+        var settings = await (await client.SendAsync(As(HttpMethod.Get, "/me/settings", "gina"))).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.NotEqual(JsonValueKind.Null, settings.GetProperty("ownVoice").ValueKind); // nothing was deleted half-way
+
+        _registry.KeepOnDelete = false;
+        Assert.Equal(HttpStatusCode.OK, (await client.SendAsync(As(HttpMethod.Delete, "/me/data", "gina", JsonContent.Create(new { confirm = "delete my data" })))).StatusCode);
+        Assert.Empty(_registry.Voices);
+        Assert.Equal(VoiceConsentEvent.Erased, (await ConsentsAsync("gina")).Last().Event);
     }
 
     private static MultipartFormDataContent Clip(bool consent = true, int bytes = 100)

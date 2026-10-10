@@ -55,6 +55,9 @@ public interface IVoiceRegistry
     Task<double> RegisterAsync(string voiceId, AudioInput clip, CancellationToken ct);
 
     Task DeleteAsync(string voiceId, CancellationToken ct);
+
+    /// <summary>Whether the provider still has the voice; null when it cannot say (an older voice service). Used to verify deletion (#93).</summary>
+    Task<bool?> ExistsAsync(string voiceId, CancellationToken ct) => Task.FromResult<bool?>(null);
 }
 
 /// <summary>The provider refused the reference clip (too short, too quiet, unreadable). The message is safe to show the user.</summary>
@@ -72,6 +75,8 @@ public sealed class SpeechOptions
     /// <summary>Voice per language, e.g. sv -> nst, en -> lessac.</summary>
     public Dictionary<string, string> Voices { get; set; } = new() { ["sv"] = "sv-nst", ["en"] = "en-lessac" };
     public int MaxAudioBytes { get; set; } = 15 * 1024 * 1024;
+    /// <summary>How often a user may (re-)register their own voice per 24 hours (#93): limits probing the cloning with many clips.</summary>
+    public int VoiceRegistrationsPerDay { get; set; } = 5;
     public int MaxTextChars { get; set; } = 1500;
 
     /// <summary>

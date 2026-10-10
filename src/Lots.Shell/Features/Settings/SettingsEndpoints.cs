@@ -9,6 +9,21 @@ namespace Lots.Shell.Features.Settings;
 
 public sealed record VoiceInfo(double Seconds, DateTimeOffset ConsentAt);
 
+/// <summary>Own-voice consent (#93): the statement users confirm, recorded with each registration.</summary>
+public static class VoiceConsent
+{
+    public const string Statement =
+        "v1: This recording is my own voice. Lots may use it only to speak answers to me, and I can delete it at any time.";
+
+    public static void Log(LotsDbContext db, string userId, string? voiceId, VoiceConsentEvent e, string actor, DateTimeOffset at,
+        double? seconds = null) =>
+        db.VoiceConsents.Add(new VoiceConsentRecord
+        {
+            Id = Guid.NewGuid(), UserId = userId, VoiceId = voiceId, Event = e, Actor = actor, At = at, Seconds = seconds,
+            Statement = e == VoiceConsentEvent.Given ? Statement : null,
+        });
+}
+
 public sealed record SettingsDto(
     int Talkativeness, int Warmth, int Formality, int Expressiveness, int Pace, VoiceInfo? OwnVoice, bool VoiceEnabled);
 
@@ -138,6 +153,13 @@ public sealed class RecordVoiceEndpoint(
         }
 
         var me = who.Get(HttpContext);
+        var since = clock.GetUtcNow().AddDays(-1);
+        if (await db.VoiceConsents.CountAsync(c => c.UserId == me.UserId && c.Event == VoiceConsentEvent.Given && c.At > since, ct) >= o.VoiceRegistrationsPerDay)
+        {
+            AddError($"At most {o.VoiceRegistrationsPerDay} recordings per day. Try again tomorrow.");
+            await Send.ErrorsAsync(429, ct);
+            return;
+        }
         var row = await UserSettings.GetOrAddAsync(db, me.UserId, ct);
         var voiceId = row.VoiceId ?? "u-" + Guid.NewGuid().ToString("N")[..20];
         try
@@ -162,6 +184,7 @@ public sealed class RecordVoiceEndpoint(
         row.VoiceId = voiceId;
         row.VoiceConsentAt = clock.GetUtcNow();
         row.UpdatedAt = row.VoiceConsentAt.Value;
+        VoiceConsent.Log(db, me.UserId, voiceId, VoiceConsentEvent.Given, me.UserId, row.VoiceConsentAt.Value, row.VoiceSeconds);
         await db.SaveChangesAsync(ct);
         await Send.OkAsync(UserSettings.ToDto(row, o.Enabled), ct);
     }
@@ -192,6 +215,7 @@ public sealed class DeleteVoiceEndpoint(IVoiceRegistry registry, IOptions<Speech
             row.VoiceSeconds = null;
             row.VoiceConsentAt = null;
             row.UpdatedAt = clock.GetUtcNow();
+            VoiceConsent.Log(db, row.UserId, id, VoiceConsentEvent.Withdrawn, row.UserId, row.UpdatedAt);
             await db.SaveChangesAsync(ct);
         }
         await Send.OkAsync(UserSettings.ToDto(row, speech.Value.Enabled), ct);
