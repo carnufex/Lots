@@ -26,7 +26,7 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton(sp => ProfileRegistry.LoadDirectory(sp.GetRequiredService<IConfiguration>()["Profiles:Path"] ?? "profiles"));
 builder.Services.AddSingleton(sp => new TokenExchangeClient(new HttpClient(), sp.GetRequiredService<TimeProvider>()));
 builder.Services.AddSingleton<IToolSource>(sp =>
-    new McpToolSource(sp.GetRequiredService<ProfileRegistry>().Servers, sp.GetRequiredService<ILoggerFactory>(),
+    new McpToolSource(() => sp.GetRequiredService<ProfileRegistry>().Servers, sp.GetRequiredService<ILoggerFactory>(),
         sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<TokenExchangeClient>()));
 
 // Encrypts the login tokens kept on delegated runs. Set DataProtection:KeysPath to a persistent volume so tokens
@@ -40,6 +40,8 @@ builder.Services.AddScoped<AgentRunner>();
 builder.Services.AddScoped<RunLeases>();
 builder.Services.AddScoped<RunControl>();
 builder.Services.AddKnowledge(builder.Configuration);
+builder.Services.AddScoped<Lots.Shell.Core.Config.ConfigService>();
+builder.Services.AddHostedService<Lots.Shell.Core.Config.ConfigSyncWorker>(); // profiles applied through the admin API, on every replica
 if (builder.Configuration.GetValue("Agent:RunWorkerEnabled", true))
     builder.Services.AddHostedService<RunWorker>();
 builder.Services.AddDbContext<LotsDbContext>(o =>

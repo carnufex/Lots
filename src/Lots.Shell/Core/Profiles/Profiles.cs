@@ -248,25 +248,55 @@ public static class ProfileParser
     }
 }
 
-/// <summary>All profiles loaded from a directory at startup. Startup fails if any manifest is invalid.</summary>
+/// <summary>
+/// The profiles the shell serves: the ones loaded from files at startup (read-only, <c>file</c>) plus the ones applied through the
+/// admin API or GitOps (<c>api</c> / <c>gitops</c>, stored in the database). Readers get a consistent snapshot; applying swaps it.
+/// </summary>
 public sealed class ProfileRegistry
 {
-    private readonly Dictionary<string, Profile> _profiles;
+    public const string FileManaged = "file";
+
+    private readonly Dictionary<string, Profile> _files;
+    private readonly Dictionary<string, string> _fileTexts = new(StringComparer.OrdinalIgnoreCase);
+    private volatile Snapshot _current;
+
+    private sealed record Snapshot(Dictionary<string, Profile> Profiles, Dictionary<string, string> ManagedBy);
 
     public ProfileRegistry(IEnumerable<Profile> profiles)
     {
-        _profiles = new Dictionary<string, Profile>(StringComparer.OrdinalIgnoreCase);
+        _files = new Dictionary<string, Profile>(StringComparer.OrdinalIgnoreCase);
         foreach (var p in profiles)
-            if (!_profiles.TryAdd(p.Name, p))
+            if (!_files.TryAdd(p.Name, p))
                 throw new ProfileException([$"duplicate profile name '{p.Name}'"]);
+        _current = Build([]);
     }
 
-    public IReadOnlyCollection<Profile> All => _profiles.Values;
+    public IReadOnlyCollection<Profile> All => _current.Profiles.Values;
 
-    public Profile? Find(string name) => _profiles.GetValueOrDefault(name);
+    public Profile? Find(string name) => _current.Profiles.GetValueOrDefault(name);
+
+    /// <summary>file, api or gitops; null when unknown.</summary>
+    public string? ManagedBy(string name) => _current.ManagedBy.GetValueOrDefault(name);
+
+    public bool IsFileManaged(string name) => _files.ContainsKey(name);
+
+    /// <summary>The manifest text of a file-loaded profile (for export and the Profiles page).</summary>
+    public string? FileSpec(string name) => _fileTexts.GetValueOrDefault(name);
 
     public IReadOnlyList<McpServerConfig> Servers =>
-        _profiles.Values.SelectMany(p => p.Servers).DistinctBy(s => s.Name).ToList();
+        _current.Profiles.Values.SelectMany(p => p.Servers).DistinctBy(s => s.Name).ToList();
+
+    /// <summary>Replaces the database-managed profiles. File profiles always win a name clash.</summary>
+    public void SetManaged(IEnumerable<(Profile Profile, string ManagedBy)> managed) => _current = Build(managed);
+
+    private Snapshot Build(IEnumerable<(Profile Profile, string ManagedBy)> managed)
+    {
+        var profiles = new Dictionary<string, Profile>(_files, StringComparer.OrdinalIgnoreCase);
+        var by = _files.Keys.ToDictionary(k => k, _ => FileManaged, StringComparer.OrdinalIgnoreCase);
+        foreach (var (p, m) in managed)
+            if (profiles.TryAdd(p.Name, p)) by[p.Name] = m;
+        return new Snapshot(profiles, by);
+    }
 
     public static ProfileRegistry LoadDirectory(string path)
     {
@@ -274,14 +304,17 @@ public sealed class ProfileRegistry
             throw new ProfileException([$"profiles directory '{path}' does not exist"]);
 
         var errors = new List<string>();
-        var profiles = new List<Profile>();
+        var profiles = new List<(Profile Profile, string Text)>();
         foreach (var file in Directory.EnumerateFiles(path, "*.y*ml").Order())
         {
-            try { profiles.Add(ProfileParser.Parse(File.ReadAllText(file), Path.GetFileName(file))); }
+            var text = File.ReadAllText(file);
+            try { profiles.Add((ProfileParser.Parse(text, Path.GetFileName(file)), text)); }
             catch (ProfileException ex) { errors.AddRange(ex.Errors); }
         }
         if (errors.Count > 0) throw new ProfileException(errors);
         if (profiles.Count == 0) throw new ProfileException([$"no profile manifests found in '{path}'"]);
-        return new ProfileRegistry(profiles);
+        var registry = new ProfileRegistry(profiles.Select(p => p.Profile));
+        foreach (var (p, text) in profiles) registry._fileTexts[p.Name] = text;
+        return registry;
     }
 }

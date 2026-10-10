@@ -13,9 +13,16 @@ namespace Lots.Shell.Core.Mcp;
 /// catalog are kept per user and are only available inside a <see cref="DelegationContext"/>.
 /// </remarks>
 public sealed class McpToolSource(
-    IReadOnlyList<McpServerConfig> servers, ILoggerFactory loggers, TimeProvider? clock = null, TokenExchangeClient? exchange = null)
+    Func<IReadOnlyList<McpServerConfig>> serverList, ILoggerFactory loggers, TimeProvider? clock = null, TokenExchangeClient? exchange = null)
     : IToolSource, IAsyncDisposable
 {
+    /// <summary>A fixed server list (tests, single-profile setups).</summary>
+    public McpToolSource(IReadOnlyList<McpServerConfig> servers, ILoggerFactory loggers, TimeProvider? clock = null, TokenExchangeClient? exchange = null)
+        : this(() => servers, loggers, clock, exchange) { }
+
+    /// <summary>The servers right now: profiles applied through the admin API add or change servers without a restart.</summary>
+    private IReadOnlyList<McpServerConfig> servers => serverList();
+
     private static readonly TimeSpan CatalogTtl = TimeSpan.FromSeconds(60);
 
     private sealed class State(McpClient client)

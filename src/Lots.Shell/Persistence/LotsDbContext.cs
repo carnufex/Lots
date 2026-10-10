@@ -11,6 +11,8 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
     public DbSet<AuditRecord> AuditLog => Set<AuditRecord>();
     public DbSet<VoiceUsageRecord> VoiceUsage => Set<VoiceUsageRecord>();
     public DbSet<KnowledgeConflictRecord> KnowledgeConflicts => Set<KnowledgeConflictRecord>();
+    public DbSet<ConfigResourceRecord> ConfigResources => Set<ConfigResourceRecord>();
+    public DbSet<ConfigVersionRecord> ConfigVersions => Set<ConfigVersionRecord>();
     public DbSet<ConflictVoteRecord> ConflictVotes => Set<ConflictVoteRecord>();
     public DbSet<UserSettingsRecord> UserSettings => Set<UserSettingsRecord>();
     public DbSet<UserVocabularyRecord> UserVocabulary => Set<UserVocabularyRecord>();
@@ -52,6 +54,29 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
             e.Property(x => x.ToolCallId).HasMaxLength(256).IsRequired();
             e.Property(x => x.RequestedBy).HasMaxLength(256).IsRequired();
             e.Property(x => x.DecidedBy).HasMaxLength(256);
+        });
+
+        modelBuilder.Entity<ConfigResourceRecord>(e =>
+        {
+            e.ToTable("config_resources");
+            e.HasKey(x => new { x.Kind, x.Name });
+            e.Property(x => x.Kind).HasMaxLength(64);
+            e.Property(x => x.Name).HasMaxLength(128);
+            e.Property(x => x.ManagedBy).HasMaxLength(16).IsRequired();
+            e.Property(x => x.AppliedBy).HasMaxLength(256).IsRequired();
+        });
+
+        modelBuilder.Entity<ConfigVersionRecord>(e =>
+        {
+            e.ToTable("config_versions");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.Kind, x.Name, x.AppliedAt });
+            e.HasIndex(x => x.AppliedAt);
+            e.Property(x => x.Kind).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Name).HasMaxLength(128).IsRequired();
+            e.Property(x => x.ManagedBy).HasMaxLength(16).IsRequired();
+            e.Property(x => x.AppliedBy).HasMaxLength(256).IsRequired();
+            e.Property(x => x.Action).HasMaxLength(16).IsRequired();
         });
 
         modelBuilder.Entity<KnowledgeConflictRecord>(e =>
@@ -264,6 +289,33 @@ public sealed class VoiceUsageRecord
     public Guid? ConversationId { get; set; }
     /// <summary>Total time of the call. For speech output <see cref="LatencyMs"/> is only time to first audio.</summary>
     public long? DurationMs { get; set; }
+}
+
+/// <summary>A declarative resource applied through the admin API (#66): its current spec (YAML) and who manages it (api or gitops).</summary>
+public sealed class ConfigResourceRecord
+{
+    public required string Kind { get; set; }
+    public required string Name { get; set; }
+    public required string ManagedBy { get; set; }
+    public int Version { get; set; }
+    public string Spec { get; set; } = "";
+    public required string AppliedBy { get; set; }
+    public DateTimeOffset AppliedAt { get; set; }
+}
+
+/// <summary>Append-only history of every admin change: who, what, the spec after it (null when deleted). Before = the previous row.</summary>
+public sealed class ConfigVersionRecord
+{
+    public Guid Id { get; set; }
+    public required string Kind { get; set; }
+    public required string Name { get; set; }
+    public int Version { get; set; }
+    public string? Spec { get; set; }
+    public required string ManagedBy { get; set; }
+    public required string AppliedBy { get; set; }
+    public DateTimeOffset AppliedAt { get; set; }
+    /// <summary>create | update | delete</summary>
+    public required string Action { get; set; }
 }
 
 /// <summary>

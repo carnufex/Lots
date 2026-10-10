@@ -24,12 +24,15 @@ internal static partial class KnowledgeRules
     public static bool CanManage(KnowledgeSource s, Principal me, IConfiguration config) =>
         ConversationViews.IsAdmin(me, config) || (IsPersonal(s) && s.Owner == me.UserId);
 
+    /// <summary>Defined in configuration or applied from Git: read-only here (principle 7).</summary>
+    public static bool IsAsCode(KnowledgeSource s) => s.ManagedBy is "config" or "gitops";
+
     /// <summary>A personal source (#56): only its owner can read it.</summary>
     public static bool IsPersonal(KnowledgeSource s) => s.Readers.Count == 1 && s.Readers[0] == "user:" + s.Owner;
 
     public static SourceDto ToDto(KnowledgeSource s, Principal me, IConfiguration config) => new(
         s.Id, s.Name, s.Kind, ConversationViews.IsAdmin(me, config) ? s.Location : null, s.Readers, s.Owner, s.Status, s.Error, s.IndexedAt,
-        s.Documents, s.Chunks, s.EmbedModel, s.ManagedBy, CanManage(s, me, config) && s.ManagedBy != "config", IsPersonal(s));
+        s.Documents, s.Chunks, s.EmbedModel, s.ManagedBy, CanManage(s, me, config) && !IsAsCode(s), IsPersonal(s));
 
     public static HitDto ToDto(KnowledgeHit h) =>
         new(h.ChunkId, h.SourceId, h.SourceName, h.Title, h.Url, h.UpdatedAt, h.Heading, h.Text, h.Score, h.VectorRank, h.TextRank);
@@ -103,9 +106,9 @@ public sealed class CreateSourceEndpoint(IKnowledgeStore store, KnowledgeIndexer
         ThrowIfAnyErrors();
 
         var existing = await store.GetSourceAsync(id, ct);
-        if (existing is not null && (existing.ManagedBy == "config" || !KnowledgeRules.CanManage(existing, me, config)))
+        if (existing is not null && (KnowledgeRules.IsAsCode(existing) || !KnowledgeRules.CanManage(existing, me, config)))
         {
-            AddError(existing.ManagedBy == "config" ? "This source is defined in configuration and is read-only here." : "That source id is taken.");
+            AddError(KnowledgeRules.IsAsCode(existing) ? "This source is managed as code (configuration or Git) and is read-only here." : "That source id is taken.");
             await Send.ErrorsAsync(409, ct);
             return;
         }
@@ -131,7 +134,7 @@ public sealed class DeleteSourceEndpoint(IKnowledgeStore store, ICurrentPrincipa
             await Send.NotFoundAsync(ct);
             return;
         }
-        if (s.ManagedBy == "config")
+        if (KnowledgeRules.IsAsCode(s))
         {
             AddError("This source is defined in configuration; remove it there.");
             await Send.ErrorsAsync(409, ct);
