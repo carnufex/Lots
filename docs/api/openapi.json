@@ -4931,6 +4931,19 @@
           },
           "sensitivity": {
             "type": "string"
+          },
+          "parentRunId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "subRuns": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string",
+              "format": "guid"
+            }
           }
         }
       },

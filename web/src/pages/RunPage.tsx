@@ -119,6 +119,16 @@ function Detail({ run, api, voice, reconnecting, traceUrl }: { run: RunDetail; a
             Retry
           </button>
         )}
+        {run.parentRunId && (
+          <a className="muted small" href={`#/runs/${run.parentRunId}`}>
+            sub-run of an earlier run
+          </a>
+        )}
+        {(run.subRuns ?? []).map((id, i) => (
+          <a key={id} className="muted small" href={`#/runs/${id}`}>
+            sub-run {i + 1}
+          </a>
+        ))}
         {run.retryOf && (
           <a className="muted small" href={`#/runs/${run.retryOf}`}>
             retry of an earlier run

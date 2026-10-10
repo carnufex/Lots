@@ -73,6 +73,8 @@ builder.Services.AddHttpClient(nameof(Lots.Shell.Core.Channels.SlackClient), h =
 builder.Services.AddSingleton<Lots.Shell.Core.Channels.SlackClient>();
 builder.Services.Configure<Lots.Shell.Core.Memory.MemoryOptions>(builder.Configuration.GetSection(Lots.Shell.Core.Memory.MemoryOptions.Section));
 builder.Services.AddSingleton<IToolSource, Lots.Shell.Core.Memory.MemoryToolSource>(); // remember (#99): only where a profile declares it
+builder.Services.Configure<DelegationOptions>(builder.Configuration.GetSection(DelegationOptions.Section));
+builder.Services.AddSingleton<IToolSource, DelegateToolSource>(); // delegate (#103): only where a profile declares it and lists delegates
 builder.Services.Configure<Lots.Shell.Core.Attachments.AttachmentOptions>(builder.Configuration.GetSection(Lots.Shell.Core.Attachments.AttachmentOptions.Section));
 builder.Services.AddKnowledge(builder.Configuration);
 builder.Services.AddSingleton<Lots.Shell.Features.Usage.PriceTable>();

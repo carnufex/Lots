@@ -330,6 +330,12 @@ public sealed class RunRecord
     public string? Trigger { get; set; }
     /// <summary>Who besides the owner and admins may read the run: <c>,role:operator,user:bob,</c> (#101).</summary>
     public string? Viewers { get; set; }
+    /// <summary>The run that delegated this one to another profile (#103); null for top-level runs.</summary>
+    public Guid? ParentRunId { get; set; }
+    /// <summary>0 for a top-level run, 1 for a sub-run, ...</summary>
+    public int Depth { get; set; }
+    /// <summary>A lower model-call limit than Agent:MaxSteps, for sub-runs (#103).</summary>
+    public int? StepLimit { get; set; }
     /// <summary>Where the answer goes for a run asked in a channel (#107): Slack channel and thread, or a mail address.</summary>
     public string? ReplyJson { get; set; }
     /// <summary>Files given with the prompt (#105): <c>[{"id","name","kind"}]</c>.</summary>

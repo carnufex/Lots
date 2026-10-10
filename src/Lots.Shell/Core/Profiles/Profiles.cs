@@ -77,8 +77,12 @@ public sealed record Profile(
     IReadOnlyList<PolicyTest>? PolicyTests = null,
     ApprovalRules? Approvals = null,
     DataClass Sensitivity = DataClass.Internal,
-    PiiRedaction? Pii = null)
+    PiiRedaction? Pii = null,
+    IReadOnlyList<string>? DelegateTo = null)
 {
+    /// <summary>Profiles a run of this profile may hand tasks to with the <c>delegate</c> tool (#103).</summary>
+    public IReadOnlyList<string> Delegates => DelegateTo ?? [];
+
     /// <summary>The personal data kinds masked in this profile's stored traces; empty unless the profile opts in (#90).</summary>
     public IReadOnlyCollection<Security.PiiKind> PiiKinds => Pii?.Kinds ?? [];
 
@@ -245,7 +249,8 @@ public static class ProfileParser
         }
 
         var profile = new Profile(doc.Name!, doc.Version, doc.Description ?? "", doc.Instructions?.Trim() ?? "", servers, tools, roles,
-            string.IsNullOrWhiteSpace(doc.Model) ? null : doc.Model.Trim(), doc.DetectConflicts, tests, approvalRules, profileClass, pii);
+            string.IsNullOrWhiteSpace(doc.Model) ? null : doc.Model.Trim(), doc.DetectConflicts, tests, approvalRules, profileClass, pii,
+            (doc.Delegates ?? []).Select(d => d.Trim()).Where(d => d.Length > 0 && !d.Equals(doc.Name, StringComparison.OrdinalIgnoreCase)).Distinct().ToList());
         var failures = Policy.PolicyTests.Run(profile).Where(r => !r.Passed).Select(r => $"{source}: policy test failed: {r.Description}").ToList();
         if (failures.Count > 0) throw new ProfileException(failures);
         return profile;
@@ -320,6 +325,8 @@ public static class ProfileParser
         public bool DetectConflicts { get; set; }
         /// <summary>Default data class of the profile's tool results (#89); internal when not set.</summary>
         public string? Sensitivity { get; set; }
+        /// <summary>Profiles runs may delegate to with the delegate tool (#103).</summary>
+        public List<string>? Delegates { get; set; }
         /// <summary>Personal data masking (#90): <c>redact: [email, phone, personnummer, card, tokens]</c>, <c>scope: trace|all</c>.</summary>
         public PiiDoc? Pii { get; set; }
         public List<PolicyTestDoc>? PolicyTests { get; set; }

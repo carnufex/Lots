@@ -43,6 +43,9 @@ export interface RunDetail {
   traceId: string | null
   /** The highest data class the run has read (#89): public, internal, confidential or restricted. */
   sensitivity?: string
+  /** Sub-agents (#103): the run that delegated to this one, and the runs this one delegated to. */
+  parentRunId?: string | null
+  subRuns?: string[] | null
 }
 
 export const isTerminal = (s: RunStatus) => s === 'Completed' || s === 'Failed' || s === 'Cancelled'

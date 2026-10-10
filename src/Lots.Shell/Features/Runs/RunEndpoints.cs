@@ -116,7 +116,7 @@ public sealed class ListRunsEndpoint(LotsDbContext db, ICurrentPrincipal who, IC
         var admins = (config["Auth:AdminRoles"] ?? "admin").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         var isAdmin = me.Roles.Any(r => admins.Contains(r, StringComparer.OrdinalIgnoreCase));
 
-        var q = db.Runs.AsNoTracking().AsQueryable();
+        var q = db.Runs.AsNoTracking().Where(r => r.ParentRunId == null); // sub-runs are listed on their parent (#103)
         if (!isAdmin) q = q.Where(r => r.UserId == me.UserId);
 
         var runs = await q.OrderByDescending(r => r.CreatedAt).Take(100).ToListAsync(ct);
@@ -157,7 +157,7 @@ public sealed record RunDto(
     Guid Id, string Prompt, string Status, string? FinalAnswer, string? Error,
     DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, IReadOnlyList<StepDto> Steps,
     string? Waiting = null, Guid? RetryOf = null, string? TraceId = null, double Cost = 0, string? Currency = null,
-    string Sensitivity = "public");
+    string Sensitivity = "public", Guid? ParentRunId = null, IReadOnlyList<Guid>? SubRuns = null);
 
 /// <summary>A run can be read by its owner and by admins (<c>Auth:AdminRoles</c>, default admin). Others get 404.</summary>
 public sealed class GetRunEndpoint(LotsDbContext db, ICurrentPrincipal who, IConfiguration config, Lots.Shell.Features.Usage.PriceTable prices) : Endpoint<GetRunRequest, RunDto>
@@ -191,7 +191,8 @@ public sealed class GetRunEndpoint(LotsDbContext db, ICurrentPrincipal who, ICon
             }).ToList(),
             WaitingFor(run), run.RetryOf, run.TraceId,
             Math.Round(run.Steps.Where(s => s.Kind == StepKind.ModelCall).Sum(s => prices.Cost(s.Name, s.PromptTokens ?? 0, s.CompletionTokens ?? 0)), 4),
-            prices.Currency, run.Sensitivity.ToString().ToLowerInvariant()), ct);
+            prices.Currency, run.Sensitivity.ToString().ToLowerInvariant(), run.ParentRunId,
+            await db.Runs.AsNoTracking().Where(r => r.ParentRunId == run.Id).OrderBy(r => r.CreatedAt).Select(r => r.Id).ToListAsync(ct)), ct);
     }
 
     internal static string? WaitingFor(RunRecord run)

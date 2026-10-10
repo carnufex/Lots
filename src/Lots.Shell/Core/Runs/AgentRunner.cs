@@ -153,6 +153,8 @@ public sealed class AgentRunner(
             ct = budget.Token; // from here on the run's own time budget applies as well
             var principal = PrincipalOf(run);
             var definitions = await tools.DefinitionsAsync(principal, run.Profile, ct);
+            if (run.ParentRunId is not null) // a sub-agent (#103) only gets tools it may use without asking anyone
+                definitions = definitions.Where(d => tools.Evaluate(new ToolCall("", d.Name, "{}"), principal, run.Profile).Decision == Decision.Allow).ToList();
             var modelCalls = run.Messages.Count(m => m.Role == "assistant");
 
             while (true)
@@ -185,10 +187,10 @@ public sealed class AgentRunner(
                     break;
                 }
 
-                if (modelCalls >= _options.MaxSteps)
+                if (modelCalls >= (run.StepLimit ?? _options.MaxSteps))
                 {
                     run.Status = RunStatus.Failed;
-                    run.Error = $"Stopped after {_options.MaxSteps} model calls without a final answer.";
+                    run.Error = $"Stopped after {run.StepLimit ?? _options.MaxSteps} model calls without a final answer.";
                     break;
                 }
 
@@ -359,6 +361,8 @@ public sealed class AgentRunner(
             var sw = Stopwatch.StartNew();
             ToolInvoker.ToolResult result;
             var policy = tools.Evaluate(call, principal, run.Profile);
+            if (run.ParentRunId is not null && policy.Decision == Decision.RequireApproval)
+                policy = new PolicyResult(Decision.Deny, "denied: a sub-agent cannot ask for approvals", "sub-agent (#103)");
             if (policy.Decision == Decision.Allow && run.Tainted && _options.EscalateAfterInjection
                 && profiles.Find(run.Profile)?.Tools.FirstOrDefault(t => t.Name == call.Name)?.Risk is ToolRisk.Write or ToolRisk.Destructive)
                 policy = new PolicyResult(Decision.RequireApproval,
@@ -460,6 +464,7 @@ public sealed class AgentRunner(
         limit.CancelAfter(TimeSpan.FromSeconds(_options.ToolTimeoutSeconds));
         try
         {
+            using var scope = RunScope.Enter(new RunScope(run.Id, run.Depth, run.Sensitivity, run.Tainted, run.Profile)); // for delegate (#103)
             var result = await tools.InvokeDetailedAsync(call, principal, profile, limit.Token, approved);
             run.Sensitivity = DataClasses.Max(run.Sensitivity, result.Data); // from now on the model calls of this run must be cleared for it
             if (result.Suspicious)
