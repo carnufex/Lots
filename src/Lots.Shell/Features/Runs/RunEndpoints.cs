@@ -2,6 +2,7 @@ using FastEndpoints;
 using Lots.Shell.Core.Mcp;
 using Lots.Shell.Core.Policy;
 using Lots.Shell.Core.Profiles;
+using Lots.Shell.Core.Runs;
 using Lots.Shell.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -45,31 +46,39 @@ public sealed class StartRunEndpoint(LotsDbContext db, TimeProvider clock, Profi
             return;
         }
 
-        // Roles are fixed on the run when it starts: the run acts with the permissions its user had then.
-        var me = who.Get(HttpContext);
+        var run = RunFactory.Create(HttpContext, who.Get(HttpContext), clock.GetUtcNow(), profile, config, vault,
+            req.Prompt, req.Voice, req.ConversationId);
+        db.Runs.Add(run);
+        await db.SaveChangesAsync(ct);
+        await Send.ResponseAsync(new StartRunResponse(run.Id, run.Status.ToString()), 202, ct);
+    }
+}
 
-        var now = clock.GetUtcNow();
+/// <summary>Creates runs for the calling user (new prompts and retries alike).</summary>
+public static class RunFactory
+{
+    public static RunRecord Create(HttpContext http, Principal me, DateTimeOffset now, Profile profile, IConfiguration config, SubjectTokenVault vault,
+        string prompt, bool voice, Guid? conversationId, Guid? retryOf = null)
+    {
+        // Roles are fixed on the run when it starts: the run acts with the permissions its user had then.
         var run = new RunRecord
         {
-            Id = Guid.NewGuid(), Prompt = req.Prompt, Profile = profile.Name, Voice = req.Voice, ConversationId = req.ConversationId, UserId = me.UserId, Roles = string.Join(',', me.Roles),
-            CreatedAt = now, UpdatedAt = now,
+            Id = Guid.NewGuid(), Prompt = prompt, Profile = profile.Name, Voice = voice, ConversationId = conversationId, RetryOf = retryOf,
+            UserId = me.UserId, Roles = string.Join(',', me.Roles), CreatedAt = now, UpdatedAt = now,
         };
         // Only runs whose profile uses delegated servers keep the user's login token (encrypted), and only until the
         // run ends. It is exchanged per call for a backend-scoped token and never sent to a backend itself.
         if (profile.Servers.Any(s => s.Auth == AuthStrategies.Delegated)
             && AuthSetup.IsOidc(config)
-            && HttpContext.Request.Headers.Authorization.ToString() is { } auth
+            && http.Request.Headers.Authorization.ToString() is { } auth
             && auth.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
         {
             run.SubjectTokenProtected = vault.Protect(auth["Bearer ".Length..].Trim());
-            run.SubjectTokenExpiresAt = long.TryParse(HttpContext.User.FindFirst("exp")?.Value, out var exp)
+            run.SubjectTokenExpiresAt = long.TryParse(http.User.FindFirst("exp")?.Value, out var exp)
                 ? DateTimeOffset.FromUnixTimeSeconds(exp)
                 : now.AddMinutes(5);
         }
-
-        db.Runs.Add(run);
-        await db.SaveChangesAsync(ct);
-        await Send.ResponseAsync(new StartRunResponse(run.Id, run.Status.ToString()), 202, ct);
+        return run;
     }
 }
 
@@ -110,9 +119,11 @@ public sealed record StepDto(
     int Seq, string Kind, string Name, string? ToolCallId, string? Arguments, string? Result,
     long LatencyMs, int? PromptTokens, int? CompletionTokens, DateTimeOffset At);
 
+/// <param name="Waiting">What an unfinished run is waiting for: queued, model, tool, approval or cancelling; null when finished.</param>
 public sealed record RunDto(
     Guid Id, string Prompt, string Status, string? FinalAnswer, string? Error,
-    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, IReadOnlyList<StepDto> Steps);
+    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, IReadOnlyList<StepDto> Steps,
+    string? Waiting = null, Guid? RetryOf = null);
 
 /// <summary>A run can be read by its owner and by admins (<c>Auth:AdminRoles</c>, default admin). Others get 404.</summary>
 public sealed class GetRunEndpoint(LotsDbContext db, ICurrentPrincipal who, IConfiguration config) : Endpoint<GetRunRequest, RunDto>
@@ -124,7 +135,7 @@ public sealed class GetRunEndpoint(LotsDbContext db, ICurrentPrincipal who, ICon
 
     public override async Task HandleAsync(GetRunRequest req, CancellationToken ct)
     {
-        var run = await db.Runs.AsNoTracking().Include(r => r.Steps).SingleOrDefaultAsync(r => r.Id == req.Id, ct);
+        var run = await db.Runs.AsNoTracking().Include(r => r.Steps).Include(r => r.Messages).SingleOrDefaultAsync(r => r.Id == req.Id, ct);
         var me = who.Get(HttpContext);
         if (run is null || !RunAccess.CanRead(run, me, config))
         {
@@ -136,6 +147,107 @@ public sealed class GetRunEndpoint(LotsDbContext db, ICurrentPrincipal who, ICon
             run.Id, run.Prompt, run.Status.ToString(), run.FinalAnswer, run.Error, run.CreatedAt, run.UpdatedAt,
             run.Steps.OrderBy(s => s.Seq).Select(s => new StepDto(
                 s.Seq, s.Kind.ToString(), s.Name, s.ToolCallId, s.ArgumentsJson, s.Result,
-                s.LatencyMs, s.PromptTokens, s.CompletionTokens, s.CreatedAt)).ToList()), ct);
+                s.LatencyMs, s.PromptTokens, s.CompletionTokens, s.CreatedAt)).ToList(),
+            WaitingFor(run), run.RetryOf), ct);
+    }
+
+    internal static string? WaitingFor(RunRecord run)
+    {
+        if (run.Status is RunStatus.Completed or RunStatus.Failed or RunStatus.Cancelled) return null;
+        if (run.CancelRequestedAt is not null) return "cancelling";
+        if (run.Status == RunStatus.WaitingForApproval) return "approval";
+        if (run.Status == RunStatus.Pending) return "queued";
+        var last = run.Messages.OrderBy(m => m.Seq).LastOrDefault();
+        return last is { Role: "assistant", ToolCallsJson: not null } ? "tool" : "model";
+    }
+}
+
+public sealed record RunActionRequest(Guid Id);
+
+/// <summary>
+/// Stops a run: its owner or an admin. 200 + Cancelled when no worker held it; 202 + Running when a worker does (it stops
+/// within about a second, <c>waiting</c> = cancelling until then); 409 when the run already finished.
+/// </summary>
+public sealed class CancelRunEndpoint(LotsDbContext db, RunControl control, ICurrentPrincipal who, IConfiguration config)
+    : Endpoint<RunActionRequest, StartRunResponse>
+{
+    public override void Configure()
+    {
+        Post("/runs/{Id}/cancel");
+    }
+
+    public override async Task HandleAsync(RunActionRequest req, CancellationToken ct)
+    {
+        var me = who.Get(HttpContext);
+        var run = await db.Runs.AsNoTracking().SingleOrDefaultAsync(r => r.Id == req.Id, ct);
+        if (run is null || !RunAccess.CanRead(run, me, config))
+        {
+            await Send.NotFoundAsync(ct);
+            return;
+        }
+
+        switch (await control.RequestCancelAsync(run.Id, me.UserId, ct))
+        {
+            case CancelOutcome.Cancelled:
+                await Send.OkAsync(new StartRunResponse(run.Id, nameof(RunStatus.Cancelled)), ct);
+                break;
+            case CancelOutcome.Requested:
+                await Send.ResponseAsync(new StartRunResponse(run.Id, nameof(RunStatus.Running)), 202, ct);
+                break;
+            case CancelOutcome.NotFound:
+                await Send.NotFoundAsync(ct);
+                break;
+            default:
+                AddError($"The run already finished ({run.Status}).");
+                await Send.ErrorsAsync(409, ct);
+                break;
+        }
+    }
+}
+
+/// <summary>
+/// Starts a failed or cancelled run again as a new run (same prompt, profile, voice mode and conversation). Only the owner may:
+/// the new run acts with the caller's current roles, never with someone else's.
+/// </summary>
+public sealed class RetryRunEndpoint(LotsDbContext db, TimeProvider clock, ProfileRegistry profiles, IConfiguration config, ICurrentPrincipal who, SubjectTokenVault vault)
+    : Endpoint<RunActionRequest, StartRunResponse>
+{
+    public override void Configure()
+    {
+        Post("/runs/{Id}/retry");
+    }
+
+    public override async Task HandleAsync(RunActionRequest req, CancellationToken ct)
+    {
+        var me = who.Get(HttpContext);
+        var old = await db.Runs.AsNoTracking().SingleOrDefaultAsync(r => r.Id == req.Id, ct);
+        if (old is null || !RunAccess.CanRead(old, me, config))
+        {
+            await Send.NotFoundAsync(ct);
+            return;
+        }
+        if (old.UserId != me.UserId)
+        {
+            AddError("Only the user who started a run can retry it.");
+            await Send.ErrorsAsync(403, ct);
+            return;
+        }
+        if (old.Status is not (RunStatus.Failed or RunStatus.Cancelled))
+        {
+            AddError($"Only failed or cancelled runs can be retried; this one is {old.Status}.");
+            await Send.ErrorsAsync(409, ct);
+            return;
+        }
+        if (profiles.Find(old.Profile) is not { } profile)
+        {
+            AddError($"The run's profile '{old.Profile}' no longer exists.");
+            await Send.ErrorsAsync(409, ct);
+            return;
+        }
+
+        var run = RunFactory.Create(HttpContext, me, clock.GetUtcNow(), profile, config, vault, old.Prompt, old.Voice, old.ConversationId, retryOf: old.Id);
+        db.Runs.Add(run);
+        await db.SaveChangesAsync(ct);
+        await Send.ResponseAsync(new StartRunResponse(run.Id, run.Status.ToString()), 202, ct);
     }
 }

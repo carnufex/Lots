@@ -27,6 +27,7 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
             e.HasIndex(x => x.Status);
             e.Property(x => x.LeaseOwner).HasMaxLength(256);
+            e.Property(x => x.CancelRequestedBy).HasMaxLength(256);
             e.HasMany(x => x.Messages).WithOne().HasForeignKey(x => x.RunId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(x => x.Steps).WithOne().HasForeignKey(x => x.RunId).OnDelete(DeleteBehavior.Cascade);
         });
@@ -105,7 +106,7 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
     }
 }
 
-public enum RunStatus { Pending, Running, WaitingForApproval, Completed, Failed }
+public enum RunStatus { Pending, Running, WaitingForApproval, Completed, Failed, Cancelled }
 
 /// <summary>A persisted agent run: a job that is created, stepped, persisted and resumable.</summary>
 public sealed class RunRecord
@@ -125,6 +126,11 @@ public sealed class RunRecord
     public DateTimeOffset UpdatedAt { get; set; }
     public string? FinalAnswer { get; set; }
     public string? Error { get; set; }
+    /// <summary>Someone asked to stop the run. The worker holding it stops within about a second and marks it Cancelled.</summary>
+    public DateTimeOffset? CancelRequestedAt { get; set; }
+    public string? CancelRequestedBy { get; set; }
+    /// <summary>The failed or cancelled run this one was started again from.</summary>
+    public Guid? RetryOf { get; set; }
     /// <summary>Worker currently executing the run, and until when (unix ms). See RunLeases.</summary>
     public string? LeaseOwner { get; set; }
     public long? LeaseUntilMs { get; set; }

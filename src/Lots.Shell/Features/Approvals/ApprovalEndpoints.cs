@@ -31,7 +31,8 @@ public sealed class ListApprovalsEndpoint(LotsDbContext db, ProfileRegistry prof
         var me = who.Get(HttpContext);
         var pending = await db.Approvals.AsNoTracking()
             .Where(a => a.Status == ApprovalStatus.Pending)
-            .Join(db.Runs.AsNoTracking(), a => a.RunId, r => r.Id, (a, r) => new { Approval = a, r.Profile })
+            .Join(db.Runs.AsNoTracking(), a => a.RunId, r => r.Id, (a, r) => new { Approval = a, r.Profile, r.Status })
+            .Where(x => x.Status != RunStatus.Cancelled) // nothing left to decide for a stopped run
             .OrderBy(x => x.Approval.RequestedAt)
             .ToListAsync(ct);
 
@@ -64,6 +65,13 @@ public abstract class DecideEndpoint(LotsDbContext db, ProfileRegistry profiles,
         if (profile is null || !PolicyEngine.CanApprove(me, profile, approval.ToolName))
         {
             await Send.ForbiddenAsync(ct);
+            return;
+        }
+
+        if (run.Status == RunStatus.Cancelled)
+        {
+            AddError("The run was cancelled; there is nothing to approve.");
+            await Send.ErrorsAsync(409, ct);
             return;
         }
 

@@ -321,6 +321,10 @@ tr:hover td {
   border-color: #5a3430;
 }
 
+.status.Cancelled {
+  color: var(--muted, #8b93a1);
+}
+
 .status.WaitingForApproval {
   color: var(--warn);
   border-color: #5a4a26;
@@ -942,7 +946,7 @@ input.wide {
   border-radius: 50%;
   margin-right: 6px;
 }
-.meta {
+dl.meta {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 10px 20px;

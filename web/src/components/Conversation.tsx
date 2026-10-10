@@ -128,6 +128,7 @@ export default function Conversation({
         window.clearTimeout(ack)
         if (mine !== turn.current) return
         if (!isTerminal(detail.status)) {
+          void api.cancelRun(run.id).catch(() => undefined) // nobody is waiting for it any more
           player.current.stop()
           add({ who: 'agent', text: 'This is taking too long, so I stopped waiting. Try again in a moment.', runId: run.id, failed: true })
           go('listening')

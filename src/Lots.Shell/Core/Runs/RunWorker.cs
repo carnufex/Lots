@@ -9,6 +9,8 @@ public sealed class RunWorker(IServiceScopeFactory scopes, ILogger<RunWorker> lo
 {
     public static readonly TimeSpan LeaseTtl = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(1);
+    /// <summary>How often a worker looks for a cancel request on the run it is executing.</summary>
+    private static readonly TimeSpan CancelCheckInterval = TimeSpan.FromSeconds(1);
 
     private readonly string _owner = $"{Environment.MachineName}:{Guid.NewGuid():N}";
 
@@ -48,6 +50,12 @@ public sealed class RunWorker(IServiceScopeFactory scopes, ILogger<RunWorker> lo
         {
             await scope.ServiceProvider.GetRequiredService<AgentRunner>().ExecuteAsync(id.Value, lost.Token);
         }
+        catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested)
+        {
+            // Stopped on request (or the lease was lost: then the request check is a no-op and another worker continues).
+            using var fresh = scopes.CreateScope();
+            await fresh.ServiceProvider.GetRequiredService<RunControl>().FinishCancelledAsync(id.Value);
+        }
         finally
         {
             await lost.CancelAsync();
@@ -62,12 +70,20 @@ public sealed class RunWorker(IServiceScopeFactory scopes, ILogger<RunWorker> lo
         // Own scope: the renewal runs concurrently with the runner, which owns the other DbContext.
         using var scope = scopes.CreateScope();
         var leases = scope.ServiceProvider.GetRequiredService<RunLeases>();
+        var control = scope.ServiceProvider.GetRequiredService<RunControl>();
+        var renewEvery = (int)((LeaseTtl / 3) / CancelCheckInterval);
         try
         {
-            while (!lost.IsCancellationRequested)
+            for (var tick = 1; !lost.IsCancellationRequested; tick++)
             {
-                await Task.Delay(LeaseTtl / 3, lost.Token);
-                if (!await leases.RenewAsync(runId, _owner, LeaseTtl, lost.Token))
+                await Task.Delay(CancelCheckInterval, lost.Token);
+                if (await control.IsCancelRequestedAsync(runId, lost.Token))
+                {
+                    logger.LogInformation("Run {Run} was cancelled; stopping work on it", runId);
+                    await lost.CancelAsync();
+                    break;
+                }
+                if (tick % renewEvery == 0 && !await leases.RenewAsync(runId, _owner, LeaseTtl, lost.Token))
                 {
                     logger.LogWarning("Lost the lease on run {Run}; stopping work on it", runId);
                     await lost.CancelAsync();

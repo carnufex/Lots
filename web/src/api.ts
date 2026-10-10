@@ -31,9 +31,12 @@ export interface RunDetail {
   createdAt: string
   updatedAt: string
   steps: Step[]
+  /** What an unfinished run waits for; null when it is finished. */
+  waiting: 'queued' | 'model' | 'tool' | 'approval' | 'cancelling' | null
+  retryOf: string | null
 }
 
-export const isTerminal = (s: RunStatus) => s === 'Completed' || s === 'Failed'
+export const isTerminal = (s: RunStatus) => s === 'Completed' || s === 'Failed' || s === 'Cancelled'
 
 export interface Approval {
   id: string
@@ -195,7 +198,7 @@ export interface UserSettings {
 
 export type VoiceLanguage = 'auto' | 'sv' | 'en'
 
-export type RunStatus = 'Pending' | 'Running' | 'WaitingForApproval' | 'Completed' | 'Failed'
+export type RunStatus = 'Pending' | 'Running' | 'WaitingForApproval' | 'Completed' | 'Failed' | 'Cancelled'
 
 export class ApiError extends Error {
   status: number
@@ -224,6 +227,8 @@ export function createApi(auth: Auth) {
   return {
     listRuns: () => request<RunSummary[]>('/runs'),
     getRun: (id: string) => request<RunDetail>(`/runs/${id}`),
+    cancelRun: (id: string) => request<{ id: string; status: RunStatus }>(`/runs/${id}/cancel`, { method: 'POST', body: '{}' }),
+    retryRun: (id: string) => request<{ id: string; status: RunStatus }>(`/runs/${id}/retry`, { method: 'POST', body: '{}' }),
     /** Dictation: audio in, text out. The text is only a draft for the user to review. */
     transcribe: (audio: Blob, language: VoiceLanguage, conversationId?: string) => {
       const form = new FormData()

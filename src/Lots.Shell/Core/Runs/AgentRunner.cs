@@ -17,6 +17,17 @@ public sealed class AgentOptions
     public int MaxSteps { get; set; } = 12;
 
     /// <summary>
+    /// Longest a run may work before it fails as timed out. Counted per execution: time spent waiting for an approval does not count.
+    /// </summary>
+    public int RunTimeoutSeconds { get; set; } = 300;
+
+    /// <summary>The same for spoken turns: nobody waits on a voice answer for minutes.</summary>
+    public int VoiceRunTimeoutSeconds { get; set; } = 60;
+
+    /// <summary>Longest a single tool call may take; the model then gets a timeout error as the tool result.</summary>
+    public int ToolTimeoutSeconds { get; set; } = 60;
+
+    /// <summary>
     /// Rough budget (characters) for the conversation sent to the model. When exceeded, the oldest tool results
     /// are replaced by a placeholder in the request (the stored conversation and trace are untouched).
     /// ~4 chars per token; the default fits an 8k-token context.
@@ -77,7 +88,13 @@ public sealed class AgentRunner(
     public async Task ExecuteAsync(Guid runId, CancellationToken ct)
     {
         var run = await db.Runs.Include(r => r.Messages).Include(r => r.Steps).SingleAsync(r => r.Id == runId, ct);
-        if (run.Status is RunStatus.Completed or RunStatus.Failed) return;
+        if (run.Status is RunStatus.Completed or RunStatus.Failed or RunStatus.Cancelled) return;
+        if (run.CancelRequestedAt is not null)
+        {
+            RunControl.MarkCancelled(run);
+            await SaveAsync(run);
+            return;
+        }
 
         run.Status = RunStatus.Running;
         if (run.Messages.Count == 0)
@@ -99,8 +116,13 @@ public sealed class AgentRunner(
         using var delegation = DelegationContext.Enter(new DelegationContext(
             run.UserId, vault?.Unprotect(run.SubjectTokenProtected), run.SubjectTokenExpiresAt, clock));
 
+        var timeoutSeconds = run.Voice ? _options.VoiceRunTimeoutSeconds : _options.RunTimeoutSeconds;
+        var outer = ct; // lease lost, cancel requested or shutdown
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        budget.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
         try
         {
+            ct = budget.Token; // from here on the run's own time budget applies as well
             var principal = PrincipalOf(run);
             var definitions = await tools.DefinitionsAsync(principal, run.Profile, ct);
             var modelCalls = run.Messages.Count(m => m.Role == "assistant");
@@ -170,6 +192,11 @@ public sealed class AgentRunner(
                 });
                 await SaveAsync(run);
             }
+        }
+        catch (OperationCanceledException) when (budget.IsCancellationRequested && !outer.IsCancellationRequested)
+        {
+            run.Status = RunStatus.Failed;
+            run.Error = $"Timed out after {timeoutSeconds} s.";
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -267,13 +294,13 @@ public sealed class AgentRunner(
                 else
                 {
                     audit = AuditDecision.Allowed;
-                    result = await tools.InvokeAsync(call, principal, run.Profile, ct, approved: true);
+                    result = await InvokeWithTimeoutAsync(call, principal, run.Profile, approved: true, ct);
                 }
             }
             else
             {
                 audit = policy.Decision == Decision.Deny ? AuditDecision.Denied : AuditDecision.Allowed;
-                result = await tools.InvokeAsync(call, principal, run.Profile, ct);
+                result = await InvokeWithTimeoutAsync(call, principal, run.Profile, approved: false, ct);
             }
             sw.Stop();
             var backendAuth = audit == AuditDecision.Allowed ? await tools.AuthStrategyAsync(call.Name, run.Profile, ct) : null;
@@ -296,6 +323,21 @@ public sealed class AgentRunner(
         }
 
         return false;
+    }
+
+    /// <summary>A tool that hangs must not hold the run: after the tool timeout the model gets an error result and can react.</summary>
+    private async Task<string> InvokeWithTimeoutAsync(ToolCall call, Principal principal, string profile, bool approved, CancellationToken ct)
+    {
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        limit.CancelAfter(TimeSpan.FromSeconds(_options.ToolTimeoutSeconds));
+        try
+        {
+            return await tools.InvokeAsync(call, principal, profile, limit.Token, approved);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            return $"Error: tool '{call.Name}' timed out after {_options.ToolTimeoutSeconds} s.";
+        }
     }
 
     internal List<ChatMessage> FitToBudget(List<ChatMessage> messages)

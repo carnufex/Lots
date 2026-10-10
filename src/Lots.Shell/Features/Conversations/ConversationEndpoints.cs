@@ -84,7 +84,8 @@ public static class ConversationViews
 
         var status = runs.Any(r => r.Status == RunStatus.Failed) ? "Failed"
             : runs.Any(r => r.Status is RunStatus.Running or RunStatus.Pending) ? "Running"
-            : runs.Any(r => r.Status == RunStatus.WaitingForApproval) ? "WaitingForApproval" : "Completed";
+            : runs.Any(r => r.Status == RunStatus.WaitingForApproval) ? "WaitingForApproval"
+            : runs.All(r => r.Status == RunStatus.Cancelled) ? "Cancelled" : "Completed";
         var title = first.Prompt.Length <= 80 ? first.Prompt : first.Prompt[..80] + "…";
         var steps = runs.SelectMany(r => r.Steps).ToList();
         var summary = new ConversationSummary(

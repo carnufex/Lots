@@ -37,6 +37,7 @@ builder.Services.AddSingleton<SubjectTokenVault>();
 builder.Services.AddScoped<ToolInvoker>();
 builder.Services.AddScoped<AgentRunner>();
 builder.Services.AddScoped<RunLeases>();
+builder.Services.AddScoped<RunControl>();
 if (builder.Configuration.GetValue("Agent:RunWorkerEnabled", true))
     builder.Services.AddHostedService<RunWorker>();
 builder.Services.AddDbContext<LotsDbContext>(o =>
@@ -67,7 +68,12 @@ if (!AuthSetup.IsOidc(app.Configuration))
     app.Logger.LogWarning("Auth:Mode is Dev: every request is authenticated as the configured dev user. Local development only.");
 
 app.UseDefaultFiles();
-app.UseStaticFiles(); // the browser app, built into wwwroot
+app.UseStaticFiles(new StaticFileOptions // the browser app, built into wwwroot
+{
+    // index.html must be revalidated so a deploy reaches browsers at once; the hashed bundles it points to never change.
+    OnPrepareResponse = ctx => ctx.Context.Response.Headers.CacheControl =
+        ctx.Context.Request.Path.StartsWithSegments("/assets") ? "public, max-age=31536000, immutable" : "no-cache",
+});
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseFastEndpoints();
