@@ -593,4 +593,7 @@ export const sv: Record<string, string> = {
   'with pgvector': 'med pgvector',
   'Configured as code': 'Konfigurerat som kod',
   'An alias falls back to the next target when an endpoint is down, times out or answers 5xx.': 'Ett alias faller tillbaka till nästa mål när en endpoint är nere, inte svarar i tid eller svarar 5xx.',
+  'Skip to content': 'Hoppa till innehållet',
+  'Menu': 'Meny',
+  'Close menu': 'Stäng meny',
 }

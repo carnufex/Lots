@@ -102,7 +102,7 @@ function ApprovalCard({ approval, api, onDecided }: { approval: Approval; api: A
         {approval.expiresAt && <span> · {t('expires {when} (then refused)', { when: fmt.dateTime(approval.expiresAt) })}</span>}
       </p>
       {approval.arguments && <pre>{pretty(approval.arguments)}</pre>}
-      <div className="row">
+      <div className="row approval-actions">
         <input
           className="wide"
           placeholder={approval.commentRequired ? t('Reason (required)') : t('Comment (optional)')}

@@ -132,12 +132,27 @@ export default function App() {
 function Shell({ config, auth, session }: { config: ClientConfig; auth: Auth; session: Session }) {
   const route = useHashRoute()
   const api: Api = useMemo(() => createApi(auth), [auth])
+  // Phones (#113): the navigation folds into a menu; it closes when a page is chosen.
+  const [menu, setMenu] = useState(false)
+  useEffect(() => {
+    const close = () => setMenu(false)
+    window.addEventListener('hashchange', close)
+    return () => window.removeEventListener('hashchange', close)
+  }, [])
 
   return (
     <div className="app">
+      <a className="skip" href="#main" onClick={(e) => { e.preventDefault(); document.getElementById('main')?.focus() }}>
+        {t('Skip to content')}
+      </a>
       <aside className="rail">
-        <Brand />
-        <nav aria-label={t('Main')}>
+        <div className="railhead">
+          <Brand />
+          <button type="button" className="btn menu-toggle" aria-expanded={menu} aria-controls="mainnav" onClick={() => setMenu((m) => !m)}>
+            {menu ? t('Close menu') : t('Menu')}
+          </button>
+        </div>
+        <nav id="mainnav" aria-label={t('Main')} className={menu ? 'open' : undefined}>
           {NAV.map((g) => (
             <div key={g.title} className="navgroup">
               <div className="navtitle">{t(g.title)}</div>
@@ -170,7 +185,7 @@ function Shell({ config, auth, session }: { config: ClientConfig; auth: Auth; se
             )}
           </div>
         </header>
-        <main>
+        <main id="main" tabIndex={-1}>
           {route.name === 'chat' && <ChatPage key={route.id ?? 'new'} api={api} profiles={config.profiles} id={route.id} />}
           {route.name === 'runs' && <RunsPage api={api} profiles={config.profiles} voice={config.voice} />}
           {route.name === 'run' && <RunPage api={api} id={route.id} voice={config.voice} traceUrl={config.traceUrl} />}

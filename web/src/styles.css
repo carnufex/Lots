@@ -169,11 +169,53 @@ p {
   background: var(--surface-2);
 }
 
-.rail nav a:focus-visible,
-.btn:focus-visible,
-input:focus-visible {
+/* Every focusable thing shows where the keyboard is (#113). */
+:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
+}
+
+main:focus {
+  outline: none;
+}
+
+.skip {
+  position: absolute;
+  left: 8px;
+  top: -48px;
+  z-index: 50;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.skip:focus {
+  top: 8px;
+  text-decoration: none;
+}
+
+.railhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.menu-toggle {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 .main {
@@ -332,29 +374,35 @@ tr:hover td {
 
 @media (max-width: 720px) {
   .app {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto 1fr;
   }
 
+  /* Phones (#113): the rail becomes a top bar and the navigation a menu behind a button. */
   .rail {
-    flex-direction: row;
-    align-items: center;
     border-right: 0;
     border-bottom: 1px solid var(--border);
     padding: 8px 12px;
+    gap: 8px;
+  }
+
+  .menu-toggle {
+    display: inline-flex;
   }
 
   .rail nav {
-    flex-direction: row;
-    gap: 12px;
-  }
-
-  .navgroup {
-    flex-direction: row;
-  }
-
-  .navtitle {
     display: none;
+  }
+
+  .rail nav.open {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px 12px;
+    padding: 8px 0 4px;
+  }
+
+  .rail nav a {
+    padding: 10px 8px;
   }
 
   .brand img {
@@ -364,10 +412,73 @@ tr:hover td {
   .topbar {
     padding: 8px 12px;
     flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .who,
+  .row {
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+
+  .dev {
+    flex-wrap: wrap;
+    margin-right: 0;
+    padding-right: 0;
+    border-right: 0;
+  }
+
+  .dev input {
+    min-width: 0;
+    width: 110px;
   }
 
   main {
     padding: 16px 12px;
+  }
+
+  /* Wide tables scroll inside themselves instead of widening the page. */
+  main table {
+    display: block;
+    overflow-x: auto;
+    max-width: 100%;
+  }
+
+  .filters > *,
+  .filters input,
+  .filters select,
+  .filters textarea,
+  .filters input[type='datetime-local'] {
+    max-width: 100%;
+  }
+
+  .filters label {
+    flex: 1 1 100%;
+  }
+
+  .filters label input,
+  .filters label select,
+  .filters input[type='datetime-local'] {
+    width: 100%;
+  }
+
+  .talk {
+    padding: 12px;
+  }
+
+  .talkhead {
+    gap: 12px;
+  }
+
+  /* Approve and deny stay large enough to hit with a thumb. */
+  .approval-actions .wide {
+    flex: 1 1 100%;
+  }
+
+  .approval-actions .btn {
+    flex: 1 1 40%;
+    min-height: 44px;
+    justify-content: center;
   }
 }
 
