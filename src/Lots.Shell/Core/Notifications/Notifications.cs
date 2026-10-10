@@ -13,6 +13,7 @@ public static class NotificationEvents
     public const string ApprovalRequested = "approval.requested";
     public const string ApprovalDecided = "approval.decided";
     public const string ApprovalExpired = "approval.expired";
+    public const string QuotaWarning = "quota.warning";
 }
 
 public sealed class WebhookTarget
@@ -158,6 +159,7 @@ public sealed class NotificationWorker(IServiceScopeFactory scopes, IHttpClientF
                 (S("requiredApprovals") == "2" ? ", two approvers required" : "") + $". Expires {S("expiresAt")}.{link}",
             NotificationEvents.ApprovalExpired => $"Approval expired without a decision: {S("tool")} requested by {S("requestedBy")}.{link}",
             NotificationEvents.ApprovalDecided => $"{S("tool")} requested by {S("requestedBy")} was {S("outcome")} by {S("decidedBy")}.",
+            NotificationEvents.QuotaWarning => $"{S("user")} has used {S("used")} of {S("limit")} ({S("share")}) of their daily {S("budget")} budget.",
             _ => @event,
         };
     }

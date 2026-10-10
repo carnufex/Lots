@@ -74,7 +74,8 @@ public sealed class AgentRunner(
     TimeProvider clock,
     IOptions<ModelOptions>? modelOptions = null,
     SubjectTokenVault? vault = null,
-    ModelCatalog? catalog = null)
+    ModelCatalog? catalog = null,
+    Quotas.QuotaService? quotas = null)
 {
     public static readonly ActivitySource Telemetry = new("Lots.Shell");
     private const int MaxTraceResultChars = 2000;
@@ -174,6 +175,14 @@ public sealed class AgentRunner(
                 {
                     run.Status = RunStatus.Failed;
                     run.Error = $"Stopped after {_options.MaxSteps} model calls without a final answer.";
+                    break;
+                }
+
+                if (quotas is not null
+                    && await quotas.RunBudgetProblemAsync(principal, run.Profile, run.Steps.Count(s => s.Kind == StepKind.ToolCall), ct) is { } problem)
+                {
+                    run.Status = RunStatus.Failed;
+                    run.Error = problem;
                     break;
                 }
 

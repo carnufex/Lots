@@ -46,6 +46,8 @@ builder.Services.AddScoped<RunLeases>();
 builder.Services.AddScoped<RunControl>();
 builder.Services.AddKnowledge(builder.Configuration);
 builder.Services.AddSingleton<Lots.Shell.Features.Usage.PriceTable>();
+builder.Services.Configure<Lots.Shell.Core.Quotas.QuotaOptions>(builder.Configuration.GetSection(Lots.Shell.Core.Quotas.QuotaOptions.Section));
+builder.Services.AddScoped<Lots.Shell.Core.Quotas.QuotaService>();
 builder.Services.AddScoped<Lots.Shell.Core.Config.ConfigService>();
 builder.Services.Configure<Lots.Shell.Core.Notifications.NotificationOptions>(builder.Configuration.GetSection(Lots.Shell.Core.Notifications.NotificationOptions.Section));
 builder.Services.AddHttpClient(nameof(Lots.Shell.Core.Notifications.NotificationWorker), h => h.Timeout = TimeSpan.FromSeconds(15));

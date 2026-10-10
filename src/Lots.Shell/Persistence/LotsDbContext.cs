@@ -15,6 +15,7 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
     public DbSet<NotificationRecord> Notifications => Set<NotificationRecord>();
     public DbSet<UserCredentialRecord> UserCredentials => Set<UserCredentialRecord>();
     public DbSet<UserProfileRecord> UserProfiles => Set<UserProfileRecord>();
+    public DbSet<QuotaOverrideRecord> QuotaOverrides => Set<QuotaOverrideRecord>();
     public DbSet<ConfigVersionRecord> ConfigVersions => Set<ConfigVersionRecord>();
     public DbSet<ConflictVoteRecord> ConflictVotes => Set<ConflictVoteRecord>();
     public DbSet<UserSettingsRecord> UserSettings => Set<UserSettingsRecord>();
@@ -61,6 +62,14 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
             e.Property(x => x.ApprovedBy).HasMaxLength(1024);
             e.Property(x => x.Risk).HasMaxLength(16);
             e.HasIndex(x => new { x.Status, x.ExpiresAt });
+        });
+
+        modelBuilder.Entity<QuotaOverrideRecord>(e =>
+        {
+            e.ToTable("quota_overrides");
+            e.HasKey(x => x.UserId);
+            e.Property(x => x.UserId).HasMaxLength(256);
+            e.Property(x => x.SetBy).HasMaxLength(256);
         });
 
         modelBuilder.Entity<UserProfileRecord>(e =>
@@ -279,6 +288,25 @@ public sealed class ApprovalRecord
     /// <summary>Undecided after this, the request expires and counts as refused.</summary>
     public DateTimeOffset? ExpiresAt { get; set; }
     public string? Risk { get; set; }
+}
+
+/// <summary>An admin's per-user quota override (#78); fields left empty keep the role/profile limits.</summary>
+public sealed class QuotaOverrideRecord
+{
+    public required string UserId { get; set; }
+    public int? RunsPerMinute { get; set; }
+    public int? ConcurrentRuns { get; set; }
+    public long? TokensPerDay { get; set; }
+    public int? ToolCallsPerRun { get; set; }
+    public double? SpeechSecondsPerDay { get; set; }
+    public string? SetBy { get; set; }
+    public DateTimeOffset SetAt { get; set; }
+
+    public Lots.Shell.Core.Quotas.QuotaLimits Limits() => new()
+    {
+        RunsPerMinute = RunsPerMinute, ConcurrentRuns = ConcurrentRuns, TokensPerDay = TokensPerDay,
+        ToolCallsPerRun = ToolCallsPerRun, SpeechSecondsPerDay = SpeechSecondsPerDay,
+    };
 }
 
 /// <summary>

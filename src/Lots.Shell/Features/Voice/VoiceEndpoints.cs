@@ -67,6 +67,13 @@ public sealed class TranscribeEndpoint(
         }
 
         var me = who.Get(HttpContext);
+        try { await HttpContext.RequestServices.GetRequiredService<Lots.Shell.Core.Quotas.QuotaService>().CheckSpeechAsync(me, ct); }
+        catch (Lots.Shell.Core.Quotas.QuotaExceededException ex)
+        {
+            AddError(ex.Message);
+            await Send.ErrorsAsync(429, ct);
+            return;
+        }
         var sw = Stopwatch.StartNew();
         using var span = Lots.Shell.Core.Telemetry.Tracing.Source.StartActivity("speech_to_text", ActivityKind.Client);
         span?.SetTag("lots.speech.language", language ?? "auto");

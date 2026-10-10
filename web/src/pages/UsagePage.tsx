@@ -45,6 +45,34 @@ function Bars({ rows, value, format }: { rows: UsageRow[]; value: (r: UsageRow) 
   )
 }
 
+interface Quota {
+  limits: { runsPerMinute: number | null; concurrentRuns: number | null; tokensPerDay: number | null; toolCallsPerRun: number | null; speechSecondsPerDay: number | null }
+  usage: { runsLastMinute: number; activeRuns: number; tokensToday: number; speechSecondsToday: number }
+}
+
+/** Your limits (#78) and how much of today's budgets is used. */
+function QuotaCard({ api }: { api: Api }) {
+  const [q, setQ] = useState<Quota | null>(null)
+  useEffect(() => {
+    api.raw<Quota>('/me/quota').then(setQ).catch(() => setQ(null))
+  }, [api])
+  if (!q) return null
+  const part = (used: number, limit: number | null, unit = '') =>
+    limit === null ? <span className="muted">no limit</span> : (
+      <span className={used >= limit ? 'error' : used >= limit * 0.8 ? 'warn' : undefined}>
+        {used.toLocaleString()} / {limit.toLocaleString()}
+        {unit}
+      </span>
+    )
+  return (
+    <div className="card small">
+      Your limits: tokens today {part(q.usage.tokensToday, q.limits.tokensPerDay)} · voice today {part(Math.round(q.usage.speechSecondsToday), q.limits.speechSecondsPerDay, ' s')} · runs in progress{' '}
+      {part(q.usage.activeRuns, q.limits.concurrentRuns)} · per minute {part(q.usage.runsLastMinute, q.limits.runsPerMinute)} · tool calls per run{' '}
+      {q.limits.toolCallsPerRun ?? 'no limit'}
+    </div>
+  )
+}
+
 /** Usage (#77): tokens, cost, latency and failures over time or per model, profile or user. */
 export default function UsagePage({ api }: { api: Api }) {
   const [groupBy, setGroupBy] = useState<string>('day')
@@ -66,6 +94,7 @@ export default function UsagePage({ api }: { api: Api }) {
   return (
     <section>
       <h1>Usage</h1>
+      <QuotaCard api={api} />
       <div className="filters">
         <label>
           Group

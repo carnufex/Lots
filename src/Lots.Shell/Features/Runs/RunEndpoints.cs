@@ -12,7 +12,8 @@ public sealed record StartRunRequest(string Prompt, string? Profile = null, bool
 
 public sealed record StartRunResponse(Guid Id, string Status);
 
-public sealed class StartRunEndpoint(LotsDbContext db, TimeProvider clock, ProfileRegistry profiles, IConfiguration config, ICurrentPrincipal who, SubjectTokenVault vault)
+public sealed class StartRunEndpoint(LotsDbContext db, TimeProvider clock, ProfileRegistry profiles, IConfiguration config, ICurrentPrincipal who, SubjectTokenVault vault,
+    Lots.Shell.Core.Quotas.QuotaService quotas)
     : Endpoint<StartRunRequest, StartRunResponse>
 {
     public override void Configure()
@@ -43,6 +44,14 @@ public sealed class StartRunEndpoint(LotsDbContext db, TimeProvider clock, Profi
         {
             AddError("That conversation belongs to someone else.");
             await Send.ErrorsAsync(400, ct);
+            return;
+        }
+
+        try { await quotas.CheckStartAsync(who.Get(HttpContext), profile.Name, ct); }
+        catch (Lots.Shell.Core.Quotas.QuotaExceededException ex)
+        {
+            AddError(ex.Message);
+            await Send.ErrorsAsync(429, ct);
             return;
         }
 
