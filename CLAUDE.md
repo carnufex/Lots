@@ -70,6 +70,7 @@ Roadmap map: `docs/roadmap.md` (milestones M5-M13).
 - Run locally: `docker compose up --build` (shell on `http://localhost:8088`, override with `LOTS_PORT`; `GET /health`, `GET /health/ready`)
 - New migration: `dotnet ef migrations add <Name> --project src/Lots.Shell -o Persistence/Migrations`
 
+- Models (#135): `Models:Endpoints:<name>` (BaseUrl, ApiKeyEnv, TimeoutSeconds, Location local|hosted) and `Models:Aliases:<alias>:Targets` (ordered `{Endpoint, Model}` fallback chain; next target on connection error, timeout, 5xx or 429, never on 4xx). The legacy `Model` section is endpoint + alias `default`. A profile picks an alias with `model:` (unknown alias = startup error); voice runs use alias `voice` when configured. Trace steps record the model and endpoint that answered. `GET /models` (admins): endpoint health + aliases.
 - Live model test (opt-in): `LOTS_TEST_MODEL_URL=http://ollama.local:11434/v1 LOTS_TEST_MODEL=<model> dotnet test --filter Live`
 - Homelab MCP server: `docker compose up` also starts `mcp-homelab` (`http://localhost:8089/mcp`, tools `list_containers`, `get_container_logs`) behind a read-only `docker-proxy`.
 - Runs API: `POST /runs {"prompt": "..."}` -> 202 + id; `GET /runs/{id}` returns status, final answer and the step trace. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to export GenAI-convention spans.

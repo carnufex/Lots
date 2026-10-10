@@ -72,7 +72,8 @@ public sealed class AgentRunner(
     IOptions<AgentOptions> options,
     TimeProvider clock,
     IOptions<ModelOptions>? modelOptions = null,
-    SubjectTokenVault? vault = null)
+    SubjectTokenVault? vault = null,
+    ModelCatalog? catalog = null)
 {
     public static readonly ActivitySource Telemetry = new("Lots.Shell");
     private const int MaxTraceResultChars = 2000;
@@ -164,12 +165,14 @@ public sealed class AgentRunner(
                     break;
                 }
 
-                var modelName = modelOptions?.Value.Model ?? "";
+                var callOptions = CallOptions(run, modelCalls);
+                var modelName = catalog?.PrimaryModel(callOptions.Alias) ?? modelOptions?.Value.Model ?? "";
                 using var activity = Telemetry.StartActivity($"chat {modelName}", ActivityKind.Client);
                 activity?.SetTag("gen_ai.operation.name", "chat");
                 activity?.SetTag("gen_ai.request.model", modelName);
                 activity?.SetTag("lots.run.id", run.Id.ToString());
-                var response = await model.CompleteAsync(FitToBudget(ToMessages(run)), definitions, VoiceOptions(run, modelCalls), ct);
+                var response = await model.CompleteAsync(FitToBudget(ToMessages(run)), definitions, callOptions, ct);
+                activity?.SetTag("gen_ai.response.model", response.Model);
                 activity?.SetTag("gen_ai.usage.input_tokens", response.Usage.PromptTokens);
                 activity?.SetTag("gen_ai.usage.output_tokens", response.Usage.CompletionTokens);
                 modelCalls++;
@@ -182,7 +185,8 @@ public sealed class AgentRunner(
                     RunId = run.Id,
                     Seq = NextStepSeq(run),
                     Kind = StepKind.ModelCall,
-                    Name = modelName,
+                    Name = response.Model ?? modelName,
+                    Endpoint = response.Endpoint,
                     Result = Cut(response.Message.Content) ?? DescribeEmpty(response),
                     ArgumentsJson = response.Message.ToolCalls is null ? null : JsonSerializer.Serialize(response.Message.ToolCalls, Json),
                     LatencyMs = (long)response.Latency.TotalMilliseconds,
@@ -228,10 +232,20 @@ public sealed class AgentRunner(
         return turns.OrderBy(t => t.CreatedAt).Select(t => (t.Prompt, t.FinalAnswer!)).ToList();
     }
 
-    private ModelCallOptions VoiceOptions(RunRecord run, int modelCallsSoFar) =>
+    /// <summary>
+    /// Which model alias a run uses: voice runs the <c>voice</c> alias when one is configured (a small fast model), otherwise the
+    /// profile's <c>model</c>, otherwise <c>default</c>.
+    /// </summary>
+    internal string? AliasFor(RunRecord run)
+    {
+        if (run.Voice && catalog?.Aliases.ContainsKey(ModelCatalog.Voice) == true) return ModelCatalog.Voice;
+        return profiles.Find(run.Profile)?.Model;
+    }
+
+    private ModelCallOptions CallOptions(RunRecord run, int modelCallsSoFar) =>
         !run.Voice
-            ? new ModelCallOptions()
-            : new ModelCallOptions(Fast: true,
+            ? new ModelCallOptions(Alias: AliasFor(run))
+            : new ModelCallOptions(Fast: true, Alias: AliasFor(run),
                 ReasoningEffort: modelCallsSoFar == 0
                     ? _options.VoiceFirstCallEffort
                     : run.Messages.OrderBy(m => m.Seq).Last().Content == VoiceToolNudge

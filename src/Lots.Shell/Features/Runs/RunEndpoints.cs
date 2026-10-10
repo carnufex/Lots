@@ -117,7 +117,7 @@ public sealed record GetRunRequest(Guid Id);
 
 public sealed record StepDto(
     int Seq, string Kind, string Name, string? ToolCallId, string? Arguments, string? Result,
-    long LatencyMs, int? PromptTokens, int? CompletionTokens, DateTimeOffset At);
+    long LatencyMs, int? PromptTokens, int? CompletionTokens, DateTimeOffset At, string? Endpoint = null);
 
 /// <param name="Waiting">What an unfinished run is waiting for: queued, model, tool, approval or cancelling; null when finished.</param>
 public sealed record RunDto(
@@ -147,7 +147,7 @@ public sealed class GetRunEndpoint(LotsDbContext db, ICurrentPrincipal who, ICon
             run.Id, run.Prompt, run.Status.ToString(), run.FinalAnswer, run.Error, run.CreatedAt, run.UpdatedAt,
             run.Steps.OrderBy(s => s.Seq).Select(s => new StepDto(
                 s.Seq, s.Kind.ToString(), s.Name, s.ToolCallId, s.ArgumentsJson, s.Result,
-                s.LatencyMs, s.PromptTokens, s.CompletionTokens, s.CreatedAt)).ToList(),
+                s.LatencyMs, s.PromptTokens, s.CompletionTokens, s.CreatedAt, s.Endpoint)).ToList(),
             WaitingFor(run), run.RetryOf), ct);
     }
 

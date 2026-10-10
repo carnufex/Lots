@@ -55,6 +55,15 @@ builder.Services.AddOpenTelemetry()
 
 var app = builder.Build();
 
+// A profile naming a model alias that does not exist is a configuration error: stop instead of silently using another model.
+{
+    var catalog = app.Services.GetRequiredService<ModelCatalog>();
+    var unknown = app.Services.GetRequiredService<ProfileRegistry>().All
+        .Where(p => p.Model is { } m && !catalog.Aliases.ContainsKey(m)).Select(p => $"{p.Name} -> {p.Model}").ToList();
+    if (unknown.Count > 0)
+        throw new InvalidOperationException("Profiles refer to unknown model aliases (Models:Aliases): " + string.Join(", ", unknown));
+}
+
 _ = app.Services.GetRequiredService<ProfileRegistry>(); // fail fast on invalid profiles
 AuthSetup.Validate(app.Configuration); // fail fast unless Auth:Mode is explicit
 

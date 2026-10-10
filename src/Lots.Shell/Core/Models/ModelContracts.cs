@@ -17,17 +17,21 @@ public sealed record ToolDefinition(string Name, string Description, JsonElement
 
 public sealed record ModelUsage(int PromptTokens, int CompletionTokens);
 
+/// <param name="Model">The model that answered and <paramref name="Endpoint"/> the endpoint it ran on (after any fallback).</param>
 public sealed record ModelResponse(
     ChatMessage Message,
     string? FinishReason,
     ModelUsage Usage,
-    TimeSpan Latency);
+    TimeSpan Latency,
+    string? Model = null,
+    string? Endpoint = null);
 
 /// <summary>
 /// Per-call hints. <see cref="Fast"/>: answer without a long reasoning phase (voice needs the first words quickly).
 /// <see cref="ReasoningEffort"/>: an explicit effort ("none", "low", ...) that wins over <see cref="Fast"/>.
+/// <see cref="Alias"/>: which configured model alias to use (default when null or unknown).
 /// </summary>
-public sealed record ModelCallOptions(bool Fast = false, string? ReasoningEffort = null);
+public sealed record ModelCallOptions(bool Fast = false, string? ReasoningEffort = null, string? Alias = null);
 
 public interface IModelClient
 {

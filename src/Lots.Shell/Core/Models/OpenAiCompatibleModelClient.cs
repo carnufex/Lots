@@ -47,7 +47,7 @@ public sealed class OpenAiCompatibleModelClient(HttpClient http, IOptions<ModelO
         sw.Stop();
         if (!response.IsSuccessStatusCode)
             throw new HttpRequestException(
-                $"Model endpoint returned {(int)response.StatusCode}: {Truncate(text, 500)}");
+                $"Model endpoint returned {(int)response.StatusCode}: {Truncate(text, 500)}", null, response.StatusCode);
 
         var root = JsonNode.Parse(text)!;
         var choice = root["choices"]![0]!;
@@ -69,7 +69,8 @@ public sealed class OpenAiCompatibleModelClient(HttpClient http, IOptions<ModelO
             new ModelUsage(
                 usage?["prompt_tokens"]?.GetValue<int>() ?? 0,
                 usage?["completion_tokens"]?.GetValue<int>() ?? 0),
-            sw.Elapsed);
+            sw.Elapsed,
+            _options.Model);
     }
 
     private static JsonNode ToJson(ChatMessage m)
@@ -91,18 +92,31 @@ public sealed class OpenAiCompatibleModelClient(HttpClient http, IOptions<ModelO
 
 public static class ModelClientRegistration
 {
+    /// <summary>
+    /// Registers the model endpoints (<c>Models:Endpoints</c>, plus the legacy <c>Model</c> section as <c>default</c>), the aliases
+    /// and the routing client every caller uses as <see cref="IModelClient"/>.
+    /// </summary>
     public static IServiceCollection AddModelClient(this IServiceCollection services, IConfiguration config)
     {
         services.Configure<ModelOptions>(config.GetSection(ModelOptions.Section));
-        services.AddHttpClient<IModelClient, OpenAiCompatibleModelClient>((sp, http) =>
-        {
-            var o = sp.GetRequiredService<IOptions<ModelOptions>>().Value;
-            http.BaseAddress = new Uri(o.BaseUrl.TrimEnd('/') + "/");
-            http.Timeout = TimeSpan.FromMinutes(5);
-            var key = string.IsNullOrEmpty(o.ApiKeyEnv) ? null : Environment.GetEnvironmentVariable(o.ApiKeyEnv);
-            if (!string.IsNullOrEmpty(key))
-                http.DefaultRequestHeaders.Authorization = new("Bearer", key);
-        });
+        services.Configure<ModelsOptions>(config.GetSection(ModelsOptions.Section));
+        services.AddSingleton<ModelCatalog>();
+
+        // Named HTTP clients have to be known at registration, so the catalog is built from configuration once here as well.
+        var catalog = new ModelCatalog(
+            Options.Create(config.GetSection(ModelsOptions.Section).Get<ModelsOptions>() ?? new ModelsOptions()),
+            Options.Create(config.GetSection(ModelOptions.Section).Get<ModelOptions>() ?? new ModelOptions()));
+        foreach (var (name, endpoint) in catalog.Endpoints)
+            services.AddHttpClient(RoutingModelClient.HttpClientName(name), http =>
+            {
+                http.BaseAddress = new Uri(endpoint.BaseUrl.TrimEnd('/') + "/");
+                http.Timeout = TimeSpan.FromSeconds(endpoint.TimeoutSeconds);
+                var key = string.IsNullOrEmpty(endpoint.ApiKeyEnv) ? null : Environment.GetEnvironmentVariable(endpoint.ApiKeyEnv);
+                if (!string.IsNullOrEmpty(key))
+                    http.DefaultRequestHeaders.Authorization = new("Bearer", key);
+            });
+        services.AddSingleton<RoutingModelClient>();
+        services.AddSingleton<IModelClient>(sp => sp.GetRequiredService<RoutingModelClient>());
         return services;
     }
 }

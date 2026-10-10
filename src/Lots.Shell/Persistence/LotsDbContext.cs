@@ -100,6 +100,7 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
         {
             e.ToTable("run_steps");
             e.HasKey(x => new { x.RunId, x.Seq });
+            e.Property(x => x.Endpoint).HasMaxLength(128);
             e.Property(x => x.Kind).HasConversion<string>().HasMaxLength(16).IsRequired();
             e.Property(x => x.Name).HasMaxLength(256).IsRequired();
         });
@@ -167,6 +168,8 @@ public sealed class RunStepRecord
     public string? ArgumentsJson { get; set; }
     /// <summary>Truncated result (tool output or model reply text).</summary>
     public string? Result { get; set; }
+    /// <summary>For model calls: the configured endpoint that answered (after any fallback).</summary>
+    public string? Endpoint { get; set; }
     public long LatencyMs { get; set; }
     public int? PromptTokens { get; set; }
     public int? CompletionTokens { get; set; }
