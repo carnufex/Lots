@@ -10,7 +10,8 @@ ARGS=(--set database.existingSecret=db --set auth.oidc.authority=https://idp.exa
       --set networkPolicy.enabled=true --set networkPolicy.cilium.enabled=true --set 'networkPolicy.cilium.toolpackFqdns={docs.example.com}'
       --set 'egress.allowedHosts={*.corp.example}'
       --set 'secretFiles[0].secretName=cmdb' --set 'secretFiles[0].mountPath=/run/secrets/cmdb'
-      --set voice.enabled=true --set voice.apiKey.existingSecret=voice --set voice.models.create=true)
+      --set voice.enabled=true --set voice.apiKey.existingSecret=voice --set voice.models.create=true
+      --set otlpEndpoint=http://otel-collector:4317 --set telemetry.userHashKey.existingSecret=lots-telemetry)
 
 helm lint charts/lots "${ARGS[@]}" >/dev/null
 OUT="$(helm template t charts/lots "${ARGS[@]}")"
@@ -43,6 +44,9 @@ done
 if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
   echo "$OUT" | docker run --rm -i ghcr.io/yannh/kubeconform:v0.6.7 -strict -ignore-missing-schemas -summary - >/dev/null     || fail "rendered manifests do not match the Kubernetes schemas (run kubeconform for details)"
 fi
+
+# Dashboards as code (#140): the chart's copy and the one the compose stack provisions are the same file.
+cmp -s charts/lots/dashboards/lots.json deploy/grafana/lots-dashboard.json || fail "charts/lots/dashboards/lots.json and deploy/grafana/lots-dashboard.json differ"
 
 # The values reference in charts/lots/README.md follows values.yaml.
 python scripts/chart-values-doc.py --check || fail "values reference is stale"

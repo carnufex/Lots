@@ -103,6 +103,15 @@ spec:
             {{- if .Values.otlpEndpoint }}
             - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: {{ .Values.otlpEndpoint | quote }} }
             {{- end }}
+            - { name: Telemetry__OtlpMetrics, value: {{ .Values.telemetry.otlpMetrics | quote }} }
+            - { name: Telemetry__CaptureContent, value: {{ .Values.telemetry.captureContent | quote }} }
+            {{- if .Values.telemetry.userHashKey.existingSecret }}
+            - name: Telemetry__UserHashKey
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.telemetry.userHashKey.existingSecret }}
+                  key: {{ .Values.telemetry.userHashKey.key }}
+            {{- end }}
             - name: ConnectionStrings__Lots
               valueFrom:
                 secretKeyRef:

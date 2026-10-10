@@ -129,7 +129,11 @@ Generated from the comments in `values.yaml` by `python scripts/chart-values-doc
 | `metrics.alerts.approvalAgeSeconds` | `3600` |  |
 | `metrics.alerts.modelP95Seconds` | `30` |  |
 | `metrics.alerts.gpuFreeBytes` | `1073741824` |  |
-| `otlpEndpoint` | `""` | Optional OTLP endpoint for GenAI traces. |
+| `otlpEndpoint` | `""` | OTLP endpoint (e.g. an OpenTelemetry Collector) for traces and logs of the shell, the MCP servers and the voice service (#140). Metrics stay on /metrics for Prometheus; deploy/observability/otel-collector.yaml is a collector config with tail sampling. |
+| `telemetry.otlpMetrics` | `false` | also push metrics over OTLP: only when nothing scrapes /metrics, or they are counted twice |
+| `telemetry.captureContent` | `false` | prompts, answers and tool data as span events (redacted); see ADR 0019 and #145 |
+| `telemetry.userHashKey.existingSecret` | `""` | Secret with a key for stable lots.user.hash values across restarts and replicas |
+| `telemetry.userHashKey.key` | `user-hash-key` |  |
 | `service.port` | `80` |  |
 | `ingress.enabled` | `false` |  |
 | `ingress.className` | `""` |  |

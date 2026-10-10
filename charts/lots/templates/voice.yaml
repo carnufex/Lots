@@ -83,6 +83,9 @@ spec:
           env:
             - { name: HOME, value: /tmp }
             - { name: PYTHONDONTWRITEBYTECODE, value: "1" }
+            {{- if .Values.otlpEndpoint }}
+            - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: {{ .Values.otlpEndpoint | quote }} }
+            {{- end }}
             - { name: VOICE_STT_COMPUTE, value: {{ $v.sttCompute | quote }} }
             - { name: VOICE_STT_DEVICE, value: {{ ternary "cuda" "cpu" (gt (int $v.gpu.count) 0) | quote }} }
             - { name: VOICE_CHATTERBOX, value: {{ ternary "1" "0" $v.chatterbox | quote }} }

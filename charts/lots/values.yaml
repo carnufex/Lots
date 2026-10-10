@@ -146,8 +146,15 @@ metrics:
     modelP95Seconds: 30
     gpuFreeBytes: 1073741824
 
-# Optional OTLP endpoint for GenAI traces.
+# OTLP endpoint (e.g. an OpenTelemetry Collector) for traces and logs of the shell, the MCP servers and the voice service (#140).
+# Metrics stay on /metrics for Prometheus; deploy/observability/otel-collector.yaml is a collector config with tail sampling.
 otlpEndpoint: ""
+telemetry:
+  otlpMetrics: false     # also push metrics over OTLP: only when nothing scrapes /metrics, or they are counted twice
+  captureContent: false  # prompts, answers and tool data as span events (redacted); see ADR 0019 and #145
+  userHashKey:
+    existingSecret: ""   # Secret with a key for stable lots.user.hash values across restarts and replicas
+    key: user-hash-key
 
 service:
   port: 80

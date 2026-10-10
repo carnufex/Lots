@@ -1,0 +1,50 @@
+# The alert rules of #83 for plain Prometheus (compose). The Helm chart renders the same rules as a PrometheusRule
+# (charts/lots/templates/alerts.yaml) with its thresholds as values; keep the two in step.
+groups:
+  - name: lots
+    rules:
+      - alert: LotsDown
+        expr: absent(up{job="lots-shell"} == 1)
+        for: 5m
+        labels: { severity: critical }
+        annotations: { summary: "The Lots shell is not being scraped." }
+      - alert: LotsDependencyDown
+        expr: max by (name, kind) (lots_dependency_up) == 0
+        for: 5m
+        labels: { severity: warning }
+        annotations: { summary: "Dependency {{ $labels.kind }}/{{ $labels.name }} is down." }
+      - alert: LotsDatabaseDown
+        expr: max(lots_dependency_up{kind="postgres"}) == 0
+        for: 2m
+        labels: { severity: critical }
+        annotations: { summary: "PostgreSQL is unreachable: nothing works." }
+      - alert: LotsRunsFailing
+        expr: sum(rate(lots_runs_finished_total{status="Failed"}[15m])) / clamp_min(sum(rate(lots_runs_finished_total[15m])), 1e-9) > 0.2
+        for: 15m
+        labels: { severity: warning }
+        annotations: { summary: "More than 20 % of runs fail." }
+      - alert: LotsStuckRuns
+        expr: max(lots_runs_stuck) > 0
+        for: 10m
+        labels: { severity: warning }
+        annotations: { summary: "Runs have been running without progress." }
+      - alert: LotsApprovalBacklog
+        expr: max(lots_approvals_oldest_pending_age_seconds) > 3600
+        for: 5m
+        labels: { severity: info }
+        annotations: { summary: "An approval has waited more than an hour." }
+      - alert: LotsNotificationsStuck
+        expr: max(lots_notifications_undelivered) > 20
+        for: 30m
+        labels: { severity: warning }
+        annotations: { summary: "Notifications are not being delivered." }
+      - alert: LotsModelSlow
+        expr: histogram_quantile(0.95, sum by (le) (rate(lots_model_duration_seconds_bucket[10m]))) > 30
+        for: 15m
+        labels: { severity: warning }
+        annotations: { summary: "Model calls are slow (p95 above 30 s)." }
+      - alert: LotsVoiceGpuMemory
+        expr: max(lots_voice_gpu_free_bytes) < 1073741824
+        for: 5m
+        labels: { severity: info }
+        annotations: { summary: "The voice GPU has less than 1 GB free: answers fall back to the fast voice." }

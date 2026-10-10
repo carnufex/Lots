@@ -27,6 +27,9 @@ spec:
           env:
             - { name: HOME, value: /tmp }
             - { name: Docker__Url, value: {{ .Values.mcpHomelab.dockerUrl | quote }} }
+            {{- if .Values.otlpEndpoint }}
+            - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: {{ .Values.otlpEndpoint | quote }} }
+            {{- end }}
           readinessProbe:
             httpGet: { path: /health, port: http }
           volumeMounts:

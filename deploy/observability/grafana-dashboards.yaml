@@ -1,0 +1,9 @@
+# Dashboards as code (#140): every JSON file in deploy/grafana is provisioned, read-only in the UI.
+apiVersion: 1
+providers:
+  - name: lots
+    folder: Lots
+    type: file
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards

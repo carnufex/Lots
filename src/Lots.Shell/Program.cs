@@ -128,7 +128,10 @@ builder.Services.AddOpenTelemetry()
         // #75: /metrics for Prometheus; OTLP as well when an endpoint is configured.
         m.AddMeter(Lots.Shell.Core.Telemetry.LotsMetrics.MeterName, Lots.Shell.Core.Telemetry.LotsMetrics.MeterName + ".Dependencies",
             Lots.Shell.Core.Telemetry.LotsMetrics.MeterName + ".Dependencies.Gpu").AddAspNetCoreInstrumentation().AddRuntimeInstrumentation().AddPrometheusExporter();
-        if (!string.IsNullOrEmpty(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]))
+        // Exemplars (#140): a histogram bucket links to a trace that landed in it (Prometheus with exemplar storage, OpenMetrics scrape).
+        m.SetExemplarFilter(OpenTelemetry.Metrics.ExemplarFilterType.TraceBased);
+        // OTLP metrics too only when asked: a deployment that scrapes /metrics would otherwise count everything twice.
+        if (!string.IsNullOrEmpty(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]) && builder.Configuration.GetValue("Telemetry:OtlpMetrics", false))
             m.AddOtlpExporter();
     });
 builder.Services.AddSingleton<Lots.Shell.Core.Telemetry.QueueGauges>();

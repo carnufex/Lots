@@ -49,6 +49,39 @@ The own-voice clips live in the voice service's `/models/refs` volume: back it u
 - Knowledge indexing is leased per source; the audit sealer takes a Postgres advisory lock; GitOps applies are idempotent.
 - Shared state: the database and the `/data` volume (ReadWriteMany if several replicas store audio).
 
+## Observability stack
+
+Lots works without any telemetry backend: run outcomes, the audit log and the run trace are in PostgreSQL. To see metrics, traces and
+logs together, start the default stack:
+
+```bash
+LOTS_OTLP_ENDPOINT=http://otel-collector:4317 LOTS_LOG_FORMAT=json docker compose --profile observability up -d
+```
+
+| Component | Role | Config |
+|---|---|---|
+| OpenTelemetry Collector | receives traces and logs over OTLP; tail sampling keeps every error, denied or approval trace and every trace over 10 s, plus `LOTS_TRACE_SAMPLE_PERCENT` (25) of the rest | `deploy/observability/otel-collector.yaml` |
+| Tempo | traces (a week) | `deploy/observability/tempo.yaml` |
+| Loki | logs over OTLP; `trace_id`, `span_id` and the `lots_*` fields are structured metadata | `deploy/observability/loki.yaml` |
+| Prometheus | scrapes `/metrics` (OpenMetrics, with exemplars) and evaluates the alert rules | `deploy/observability/prometheus.yml`, `alerts.yml` |
+| Grafana | <http://localhost:3000> (`LOTS_GRAFANA_PORT`), anonymous viewer; the Lots dashboard is the home page | `deploy/observability/grafana/`, dashboards from `deploy/grafana/` |
+
+Grafana links the datasources:
+
+- a metric exemplar opens its trace;
+- a trace opens its logs;
+- a log line opens its trace (the derived field `trace_id`).
+
+Metrics are scraped, not pushed: `Telemetry__OtlpMetrics` stays false unless nothing scrapes `/metrics`.
+
+**In a cluster.** Most clusters already run a collector, Prometheus, Loki and Tempo. Point the chart at them:
+
+- `otlpEndpoint` covers the shell, the MCP servers and the voice service;
+- `metrics.serviceMonitor` and `metrics.alerts` for Prometheus;
+- `metrics.grafanaDashboard` for the dashboard.
+
+`deploy/observability/otel-collector.yaml` is a starting point for the collector's sampling.
+
 ## Logs
 
 Outside Development, the shell, the MCP servers and the voice service write **one JSON object per line** to stdout. `Logging__Format`

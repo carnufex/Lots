@@ -4,6 +4,8 @@ services:
       context: .
       dockerfile: src/Lots.Shell/Dockerfile
     environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${LOTS_OTLP_ENDPOINT:-}   # http://otel-collector:4317 with --profile observability (#140)
+      Telemetry__OtlpMetrics: "false"   # Prometheus scrapes /metrics; OTLP metrics would count twice
       # Local compose is a development stack: Dev auth and header identities are refused in any other environment (#87).
       ASPNETCORE_ENVIRONMENT: ${LOTS_ENVIRONMENT:-Development}
       Logging__Format: ${LOTS_LOG_FORMAT:-text}   # json = one JSON object per line, as in production (#138)
@@ -52,6 +54,7 @@ services:
       context: .
       dockerfile: src/Lots.Mcp.Homelab/Dockerfile
     environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${LOTS_OTLP_ENDPOINT:-}   # http://otel-collector:4317 with --profile observability (#140)
       Docker__Url: http://docker-proxy:2375
     ports:
       - "127.0.0.1:${LOTS_MCP_PORT:-8089}:8080"
@@ -65,6 +68,7 @@ services:
       context: .
       dockerfile: src/Lots.Mcp.Toolpack/Dockerfile
     environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${LOTS_OTLP_ENDPOINT:-}   # http://otel-collector:4317 with --profile observability (#140)
       Files__Root: /files
       Fetch__AllowedHosts__0: ${LOTS_FETCH_HOST:-learn.microsoft.com}
     volumes:
@@ -94,6 +98,63 @@ services:
       interval: 3s
       retries: 20
 
+  # Default observability stack (#140), only with --profile observability:
+  #   LOTS_OTLP_ENDPOINT=http://otel-collector:4317 docker compose --profile observability up -d
+  # Grafana on http://localhost:3000 (anonymous viewer; admin/admin to edit), dashboards from deploy/grafana.
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.110.0
+    profiles: [observability]
+    command: ["--config=file:/etc/otelcol/config.yaml"]
+    environment:
+      LOTS_TRACE_SAMPLE_PERCENT: ${LOTS_TRACE_SAMPLE_PERCENT:-25}   # traces without errors, denials or slowness that are kept
+    volumes:
+      - ./deploy/observability/otel-collector.yaml:/etc/otelcol/config.yaml:ro
+    depends_on: [tempo, loki]
+
+  tempo:
+    image: grafana/tempo:2.6.0
+    profiles: [observability]
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./deploy/observability/tempo.yaml:/etc/tempo.yaml:ro
+      - tempo-data:/var/tempo
+
+  loki:
+    image: grafana/loki:3.2.0
+    profiles: [observability]
+    command: ["-config.file=/etc/loki/config.yaml"]
+    volumes:
+      - ./deploy/observability/loki.yaml:/etc/loki/config.yaml:ro
+      - loki-data:/loki
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    profiles: [observability]
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--enable-feature=exemplar-storage", "--storage.tsdb.retention.time=7d"]
+    volumes:
+      - ./deploy/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+
+  grafana:
+    image: grafana/grafana:11.2.2
+    profiles: [observability]
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/lots-dashboard.json
+      GF_FEATURE_TOGGLES_ENABLE: traceToMetrics
+    volumes:
+      - ./deploy/observability/grafana:/etc/grafana/provisioning/datasources:ro
+      - ./deploy/observability/grafana-dashboards.yaml:/etc/grafana/provisioning/dashboards/lots.yaml:ro
+      - ./deploy/grafana:/var/lib/grafana/dashboards:ro
+    ports:
+      - "127.0.0.1:${LOTS_GRAFANA_PORT:-3000}:3000"
+    depends_on: [prometheus, tempo, loki]
+
 volumes:
   lots-data:   # conversation audio and Data Protection keys
   pgdata:
+  tempo-data:
+  loki-data:
+  prometheus-data:
