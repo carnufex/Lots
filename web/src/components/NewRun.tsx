@@ -3,11 +3,33 @@ import type { Api, VoiceLanguage } from '../api'
 import type { ProfileInfo, VoiceConfig } from '../config'
 import MicButton from './MicButton'
 
+const LANGUAGE_KEY = 'lots.voice-language'
+
+/** Remembered choice, else the browser language (a language hint is far more reliable than detecting it from a short clip). */
+function initialLanguage(): VoiceLanguage {
+  try {
+    const saved = localStorage.getItem(LANGUAGE_KEY)
+    if (saved === 'sv' || saved === 'en' || saved === 'auto') return saved
+  } catch {
+    /* ignore */
+  }
+  const l = navigator.language.toLowerCase()
+  return l.startsWith('sv') ? 'sv' : l.startsWith('en') ? 'en' : 'auto'
+}
+
 export default function NewRun({ api, profiles, voice }: { api: Api; profiles: ProfileInfo[]; voice: VoiceConfig }) {
   const [prompt, setPrompt] = useState('')
   const [profile, setProfile] = useState(profiles[0]?.name ?? '')
   const [busy, setBusy] = useState(false)
-  const [language, setLanguage] = useState<VoiceLanguage>('auto')
+  const [language, setLanguageState] = useState<VoiceLanguage>(initialLanguage)
+  const setLanguage = (l: VoiceLanguage) => {
+    setLanguageState(l)
+    try {
+      localStorage.setItem(LANGUAGE_KEY, l)
+    } catch {
+      /* a per-viewer convenience only */
+    }
+  }
   const [error, setError] = useState<string | null>(null)
 
   const submit = async (e: React.FormEvent) => {

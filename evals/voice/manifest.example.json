@@ -1,0 +1,6 @@
+[
+  { "file": "sv-01.m4a", "language": "sv", "text": "Hallå hallå, fungerar det här?", "note": "quiet room, normal distance" },
+  { "file": "sv-02.m4a", "language": "sv", "text": "Vilka containrar är trasiga just nu?" },
+  { "file": "en-01.wav", "language": "en", "text": "Hello hello, does this work?" },
+  { "file": "mix-01.m4a", "language": "sv", "text": "Kan du checka pull requesten och se om bygget gick igenom?", "note": "English words inside a Swedish sentence" }
+]
