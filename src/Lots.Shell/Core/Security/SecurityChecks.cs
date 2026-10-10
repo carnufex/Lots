@@ -65,13 +65,13 @@ public sealed class RedactingLoggerProvider(ILoggerProvider inner) : ILoggerProv
 
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
             inner.Log(logLevel, eventId, state, exception is null ? null : new RedactedException(exception),
-                (s, e) => SecretRedactor.Redact(formatter(s, exception)));
+                (s, e) => PiiRedactor.Redact(SecretRedactor.Redact(formatter(s, exception)), PiiRedactor.LogKinds));
     }
 
     /// <summary>The exception as text with secrets masked (log sinks print ToString()).</summary>
     private sealed class RedactedException(Exception inner) : Exception(SecretRedactor.Redact(inner.Message))
     {
-        public override string ToString() => SecretRedactor.Redact(inner.ToString());
+        public override string ToString() => PiiRedactor.Redact(SecretRedactor.Redact(inner.ToString()), PiiRedactor.LogKinds);
         public override string? StackTrace => null;
     }
 }

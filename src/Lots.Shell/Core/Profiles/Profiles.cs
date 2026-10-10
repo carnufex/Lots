@@ -76,13 +76,24 @@ public sealed record Profile(
     bool DetectConflicts = false,
     IReadOnlyList<PolicyTest>? PolicyTests = null,
     ApprovalRules? Approvals = null,
-    DataClass Sensitivity = DataClass.Internal)
+    DataClass Sensitivity = DataClass.Internal,
+    PiiRedaction? Pii = null)
 {
+    /// <summary>The personal data kinds masked in this profile's stored traces; empty unless the profile opts in (#90).</summary>
+    public IReadOnlyCollection<Security.PiiKind> PiiKinds => Pii?.Kinds ?? [];
+
     public ApprovalRules ApprovalRules => Approvals ?? ApprovalRules.Default;
 
     /// <summary>The data class of a tool's results: its own, else the profile's (#89).</summary>
     public DataClass SensitivityOf(string tool) => Tools.FirstOrDefault(t => t.Name == tool)?.Sensitivity ?? Sensitivity;
 }
+
+/// <summary>
+/// Personal data masking for a profile (#90). <see cref="All"/> = false: the trace (steps, tool arguments, audit) is masked as it is
+/// written, while the run itself and its answer keep the data; true: the stored conversation and answer are masked too, when the
+/// run ends.
+/// </summary>
+public sealed record PiiRedaction(IReadOnlyList<Security.PiiKind> Kinds, bool All);
 
 /// <summary>
 /// How approvals work in a profile (#74): undecided requests expire (and count as refused) after <see cref="ExpireAfterHours"/>;
@@ -205,6 +216,18 @@ public static class ProfileParser
             else tests.Add(new PolicyTest(t.Roles ?? [], t.Tool, expect));
         }
 
+        PiiRedaction? pii = null;
+        if (doc.Pii is { } pd)
+        {
+            var kinds = new List<Security.PiiKind>();
+            foreach (var k in pd.Redact ?? [])
+                if (Security.PiiRedactor.TryParse(k, out var kind)) { if (!kinds.Contains(kind)) kinds.Add(kind); }
+                else Err($"pii.redact: unknown kind '{k}' ({Security.PiiRedactor.Choices})");
+            var scope = pd.Scope?.Trim().ToLowerInvariant() ?? "trace";
+            if (scope is not ("trace" or "all")) Err("pii.scope must be trace or all");
+            if (kinds.Count > 0) pii = new PiiRedaction(kinds, scope == "all");
+        }
+
         var profileClass = DataClass.Internal;
         if (doc.Sensitivity is not null && !DataClasses.TryParse(doc.Sensitivity, out profileClass))
             Err($"unknown sensitivity '{doc.Sensitivity}' ({DataClasses.Choices})");
@@ -222,7 +245,7 @@ public static class ProfileParser
         }
 
         var profile = new Profile(doc.Name!, doc.Version, doc.Description ?? "", doc.Instructions?.Trim() ?? "", servers, tools, roles,
-            string.IsNullOrWhiteSpace(doc.Model) ? null : doc.Model.Trim(), doc.DetectConflicts, tests, approvalRules, profileClass);
+            string.IsNullOrWhiteSpace(doc.Model) ? null : doc.Model.Trim(), doc.DetectConflicts, tests, approvalRules, profileClass, pii);
         var failures = Policy.PolicyTests.Run(profile).Where(r => !r.Passed).Select(r => $"{source}: policy test failed: {r.Description}").ToList();
         if (failures.Count > 0) throw new ProfileException(failures);
         return profile;
@@ -297,6 +320,8 @@ public static class ProfileParser
         public bool DetectConflicts { get; set; }
         /// <summary>Default data class of the profile's tool results (#89); internal when not set.</summary>
         public string? Sensitivity { get; set; }
+        /// <summary>Personal data masking (#90): <c>redact: [email, phone, personnummer, card, tokens]</c>, <c>scope: trace|all</c>.</summary>
+        public PiiDoc? Pii { get; set; }
         public List<PolicyTestDoc>? PolicyTests { get; set; }
         public ApprovalsDoc? Approvals { get; set; }
         public List<ServerDoc>? Servers { get; set; }
@@ -325,6 +350,8 @@ public static class ProfileParser
         public string? Audience { get; set; }
         public string? AuthorizeUrl { get; set; }
     }
+    private sealed class PiiDoc { public List<string>? Redact { get; set; } public string? Scope { get; set; } }
+
     private sealed class ToolDoc { public string? Name { get; set; } public string? Risk { get; set; } public string? Sensitivity { get; set; } }
 
     private sealed class ApprovalsDoc

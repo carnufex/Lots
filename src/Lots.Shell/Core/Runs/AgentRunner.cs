@@ -99,6 +99,7 @@ public sealed class AgentRunner(
         if (run.CancelRequestedAt is not null)
         {
             RunControl.MarkCancelled(run);
+            MaskStoredConversation(run);
             await SaveAsync(run);
             return;
         }
@@ -241,8 +242,8 @@ public sealed class AgentRunner(
                     Name = response.Model ?? modelName,
                     Endpoint = response.Endpoint,
                     Routing = response.Rerouted,
-                    Result = Cut(response.Message.Content) ?? DescribeEmpty(response),
-                    ArgumentsJson = response.Message.ToolCalls is null ? null : JsonSerializer.Serialize(response.Message.ToolCalls, Json),
+                    Result = Pii(run, Cut(response.Message.Content)) ?? DescribeEmpty(response),
+                    ArgumentsJson = response.Message.ToolCalls is null ? null : Pii(run, JsonSerializer.Serialize(response.Message.ToolCalls, Json)),
                     LatencyMs = (long)response.Latency.TotalMilliseconds,
                     PromptTokens = response.Usage.PromptTokens,
                     CompletionTokens = response.Usage.CompletionTokens,
@@ -268,6 +269,7 @@ public sealed class AgentRunner(
         // A finished run no longer needs the user's login token.
         if (run.Status is RunStatus.Completed or RunStatus.Failed)
         {
+            MaskStoredConversation(run);
             LotsMetrics.RunsFinished.Add(1, new("profile", run.Profile), new("status", run.Status.ToString()), new("voice", run.Voice));
             LotsMetrics.RunDuration.Record((clock.GetUtcNow() - run.CreatedAt).TotalSeconds, new("profile", run.Profile), new("status", run.Status.ToString()));
             run.SubjectTokenProtected = null;
@@ -410,8 +412,8 @@ public sealed class AgentRunner(
                 Kind = StepKind.ToolCall,
                 Name = call.Name,
                 ToolCallId = call.Id,
-                ArgumentsJson = Security.SecretRedactor.Redact(call.ArgumentsJson),
-                Result = Cut(result.Text),
+                ArgumentsJson = Pii(run, Security.SecretRedactor.Redact(call.ArgumentsJson)),
+                Result = Pii(run, Cut(result.Text)),
                 Flagged = result.Suspicious,
                 LatencyMs = sw.ElapsedMilliseconds,
                 CreatedAt = clock.GetUtcNow(),
@@ -474,9 +476,16 @@ public sealed class AgentRunner(
         {
             Id = Guid.NewGuid(), At = clock.GetUtcNow(), UserId = principal.UserId, Roles = run.Roles,
             Profile = run.Profile, ProfileVersion = profiles.Find(run.Profile)?.Version ?? 0, RunId = run.Id,
-            Tool = call.Name, ToolCallId = call.Id, ArgumentsJson = call.ArgumentsJson, Decision = decision, Reason = reason,
+            Tool = call.Name, ToolCallId = call.Id, ArgumentsJson = Pii(run, Security.SecretRedactor.Redact(call.ArgumentsJson)), Decision = decision, Reason = reason,
             ApproverId = approver, ResultStatus = resultStatus, BackendAuth = backendAuth,
         });
+
+    /// <summary>Masks the personal data kinds the run's profile opted into (#90); unchanged when it did not.</summary>
+    private string? Pii(RunRecord run, string? text) =>
+        profiles.Find(run.Profile)?.PiiKinds is { Count: > 0 } kinds ? Security.PiiRedactor.RedactOrNull(text, kinds) : text;
+
+    /// <summary>With <c>pii.scope: all</c> the stored prompt, conversation and answer are masked once the run no longer needs them.</summary>
+    private void MaskStoredConversation(RunRecord run) => Security.PiiMasking.MaskConversation(run, profiles.Find(run.Profile));
 
     private void AuditModel(RunRecord run, Principal principal, string? alias, AuditDecision decision, string reason) =>
         db.AuditLog.Add(new AuditRecord

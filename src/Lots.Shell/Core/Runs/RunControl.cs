@@ -10,8 +10,18 @@ public enum CancelOutcome { NotFound, AlreadyFinished, Cancelled, Requested }
 /// recorded: the worker watches for it, stops the work in flight and marks the run Cancelled. The decision between the two
 /// is a single conditional update, so it cannot race with a worker claiming the run.
 /// </summary>
-public sealed class RunControl(LotsDbContext db, TimeProvider clock)
+public sealed class RunControl(LotsDbContext db, TimeProvider clock, Profiles.ProfileRegistry? profiles = null)
 {
+    /// <summary>A cancelled run is finished too: mask its stored conversation if the profile asks for it (#90).</summary>
+    private async Task MaskAsync(Guid runId, CancellationToken ct)
+    {
+        if (profiles is null) return;
+        var run = await db.Runs.Include(r => r.Messages).SingleOrDefaultAsync(r => r.Id == runId, ct);
+        if (run is null || profiles.Find(run.Profile)?.Pii is not { All: true }) return;
+        Security.PiiMasking.MaskConversation(run, profiles.Find(run.Profile));
+        await db.SaveChangesAsync(ct);
+    }
+
     public static void MarkCancelled(RunRecord run)
     {
         run.Status = RunStatus.Cancelled;
@@ -39,7 +49,11 @@ public sealed class RunControl(LotsDbContext db, TimeProvider clock)
                     .SetProperty(r => r.SubjectTokenProtected, (string?)null)
                     .SetProperty(r => r.SubjectTokenExpiresAt, (DateTimeOffset?)null)
                     .SetProperty(r => r.UpdatedAt, now), ct);
-            if (stopped == 1) return CancelOutcome.Cancelled;
+            if (stopped == 1)
+            {
+                await MaskAsync(runId, ct);
+                return CancelOutcome.Cancelled;
+            }
 
             var requested = await db.Runs
                 .Where(r => r.Id == runId && Active.Contains(r.Status))
@@ -64,6 +78,7 @@ public sealed class RunControl(LotsDbContext db, TimeProvider clock)
             run.UpdatedAt = now;
         }
         await db.SaveChangesAsync(ct);
+        if (!held) await MaskAsync(runId, ct);
         return held ? CancelOutcome.Requested : CancelOutcome.Cancelled;
     }
 
@@ -78,6 +93,7 @@ public sealed class RunControl(LotsDbContext db, TimeProvider clock)
         MarkCancelled(run);
         run.UpdatedAt = clock.GetUtcNow();
         await db.SaveChangesAsync();
+        await MaskAsync(runId, default);
     }
 
     private static readonly RunStatus[] Active = [RunStatus.Pending, RunStatus.Running, RunStatus.WaitingForApproval];

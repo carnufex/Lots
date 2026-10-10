@@ -149,3 +149,27 @@ Models:
     local:   { Targets: [ { Endpoint: gpu, Model: qwen3.5 } ] }
   SensitiveAlias: local
 ```
+
+## Personal data in traces (#90)
+
+Opt in per profile:
+
+```yaml
+pii:
+  redact: [email, phone, personnummer, card, tokens]
+  scope: trace     # or: all
+```
+
+`scope: trace` masks what Lots keeps as a record while the run itself still works with the real data: tool results and arguments
+in the trace, model replies in the trace, and tool arguments in the audit log (masked before the row is sealed into the hash
+chain, so exports are masked too). The user still gets the answer they asked for. `scope: all` also masks the stored prompt,
+conversation and answer when the run ends (completed, failed or cancelled), so nothing personal stays in the database beyond the
+run.
+
+Recognised: e-mail addresses; phone numbers that start like one (`+`, `00` or a Swedish trunk `0`: `070-123 45 67`,
+`08-123 456 78`, `+46 70 123 45 67`); Swedish personal identity and coordination numbers in all common forms, checked with the
+Luhn digit so dates, build numbers and order numbers are not masked; payment card numbers (Luhn); credentials (as in Secrets).
+Masks are `[email]`, `[phone]`, `[personnummer]`, `[card]`, `[redacted]`.
+
+Logs are deployment-wide: `Privacy:RedactLogs` (for example `Privacy__RedactLogs__0=email`). The personal data export
+(`/me/export`) is the user's own data and is not masked.

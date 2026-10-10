@@ -110,6 +110,11 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<Lots.Shell.Core.Te
 Lots.Shell.Core.Security.SecretRedactor.RegisterEnvironment();
 Lots.Shell.Core.Security.SecretRedactor.RegisterConnectionString(builder.Configuration.GetConnectionString("Lots"));
 Lots.Shell.Core.Security.SecurityChecks.AddSecretRedaction(builder.Logging);
+// Personal data in log lines (#90): deployment-wide, e.g. Privacy:RedactLogs:0=email.
+Lots.Shell.Core.Security.PiiRedactor.LogKinds = (builder.Configuration.GetSection("Privacy:RedactLogs").Get<string[]>() ?? [])
+    .Select(k => Lots.Shell.Core.Security.PiiRedactor.TryParse(k, out var kind) ? kind
+        : throw new InvalidOperationException($"Privacy:RedactLogs: unknown kind '{k}' ({Lots.Shell.Core.Security.PiiRedactor.Choices})."))
+    .Distinct().ToList();
 
 var app = builder.Build();
 
