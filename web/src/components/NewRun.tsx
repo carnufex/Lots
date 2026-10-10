@@ -3,21 +3,7 @@ import type { Api, VoiceLanguage } from '../api'
 import type { ProfileInfo, VoiceConfig } from '../config'
 import MicButton from './MicButton'
 import VocabularyEditor from './VocabularyEditor'
-
-const LANGUAGE_KEY = 'lots.voice-language'
-
-/** Remembered choice, else the installation's default, else the browser language (a hint beats detecting it from a short clip). */
-function initialLanguage(configured: VoiceLanguage): VoiceLanguage {
-  try {
-    const saved = localStorage.getItem(LANGUAGE_KEY)
-    if (saved === 'sv' || saved === 'en' || saved === 'auto') return saved
-  } catch {
-    /* ignore */
-  }
-  if (configured !== 'auto') return configured
-  const l = navigator.language.toLowerCase()
-  return l.startsWith('sv') ? 'sv' : l.startsWith('en') ? 'en' : 'auto'
-}
+import { initialLanguage, saveLanguage } from '../voice/language'
 
 export default function NewRun({ api, profiles, voice }: { api: Api; profiles: ProfileInfo[]; voice: VoiceConfig }) {
   const [prompt, setPrompt] = useState('')
@@ -26,11 +12,7 @@ export default function NewRun({ api, profiles, voice }: { api: Api; profiles: P
   const [language, setLanguageState] = useState<VoiceLanguage>(() => initialLanguage(voice.defaultLanguage))
   const setLanguage = (l: VoiceLanguage) => {
     setLanguageState(l)
-    try {
-      localStorage.setItem(LANGUAGE_KEY, l)
-    } catch {
-      /* a per-viewer convenience only */
-    }
+    saveLanguage(l)
   }
   const [error, setError] = useState<string | null>(null)
 

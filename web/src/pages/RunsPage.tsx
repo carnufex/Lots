@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Api, RunSummary } from '../api'
 import type { ProfileInfo, VoiceConfig } from '../config'
 import NewRun from '../components/NewRun'
+import Conversation from '../components/Conversation'
 
 type Load = { state: 'loading' } | { state: 'error'; message: string } | { state: 'ok'; runs: RunSummary[] }
 
@@ -22,6 +23,7 @@ export default function RunsPage({ api, profiles, voice }: { api: Api; profiles:
   return (
     <section>
       <h1>Runs</h1>
+      {voice.enabled && <Conversation api={api} profiles={profiles} defaultLanguage={voice.defaultLanguage} />}
       <NewRun api={api} profiles={profiles} voice={voice} />
       {load.state === 'loading' && <p className="muted">Loading…</p>}
       {load.state === 'error' && (

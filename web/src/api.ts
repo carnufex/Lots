@@ -117,7 +117,7 @@ export function createApi(auth: Auth) {
     /** Dictation: audio in, text out. The text is only a draft for the user to review. */
     transcribe: (audio: Blob, language: VoiceLanguage) => {
       const form = new FormData()
-      form.append('Audio', audio, 'dictation.webm')
+      form.append('Audio', audio, audio.type.includes('wav') ? 'speech.wav' : 'dictation.webm')
       if (language !== 'auto') form.append('Language', language)
       return request<Transcription>('/voice/transcribe', { method: 'POST', body: form })
     },
@@ -145,8 +145,13 @@ export function createApi(auth: Auth) {
       q.set('limit', '200')
       return request<AuditEntry[]>(`/audit?${q}`)
     },
-    startRun: (prompt: string, profile: string) =>
-      request<{ id: string; status: RunStatus }>('/runs', { method: 'POST', body: JSON.stringify({ prompt, profile }) }),
+    startRun: (prompt: string, profile: string, options: { voice?: boolean; conversationId?: string } = {}) =>
+      request<{ id: string; status: RunStatus }>('/runs', { method: 'POST', body: JSON.stringify({ prompt, profile, ...options }) }),
+    /** A short fixed acknowledgement ("Jag kollar.") to play while the agent works; null when unavailable. */
+    ack: async (language: VoiceLanguage): Promise<Blob | null> => {
+      const res = await fetch(`/voice/ack?language=${language === 'auto' ? 'sv' : language}`, { headers: await auth.headers() })
+      return res.ok ? res.blob() : null
+    },
   }
 }
 

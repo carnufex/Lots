@@ -23,8 +23,11 @@ public sealed record ModelResponse(
     ModelUsage Usage,
     TimeSpan Latency);
 
-/// <summary>Per-call hints. <see cref="Fast"/>: answer without a long reasoning phase (voice needs the first words quickly).</summary>
-public sealed record ModelCallOptions(bool Fast = false);
+/// <summary>
+/// Per-call hints. <see cref="Fast"/>: answer without a long reasoning phase (voice needs the first words quickly).
+/// <see cref="ReasoningEffort"/>: an explicit effort ("none", "low", ...) that wins over <see cref="Fast"/>.
+/// </summary>
+public sealed record ModelCallOptions(bool Fast = false, string? ReasoningEffort = null);
 
 public interface IModelClient
 {

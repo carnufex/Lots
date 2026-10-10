@@ -1,2 +1,7 @@
 node_modules/
 fixtures/sv-intro.wav
+fixtures/conversation.wav
+fixtures/agent-long.wav
+fixtures/ack.wav
+out/
+fixtures/real-question.wav

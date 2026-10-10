@@ -25,6 +25,8 @@ public class ConversationRunnerTests
     {
         public List<IReadOnlyList<ChatMessage>> Requests { get; } = [];
         public List<bool> Fast { get; } = [];
+        public List<string?> Effort { get; } = [];
+        public Queue<ChatMessage>? Script { get; init; }
 
         public Task<ModelResponse> CompleteAsync(IReadOnlyList<ChatMessage> m, IReadOnlyList<ToolDefinition> t, CancellationToken ct) =>
             CompleteAsync(m, t, new ModelCallOptions(), ct);
@@ -33,7 +35,9 @@ public class ConversationRunnerTests
         {
             Requests.Add(m);
             Fast.Add(o.Fast);
-            return Task.FromResult(new ModelResponse(new ChatMessage("assistant", "svar"), "stop", new ModelUsage(1, 1), TimeSpan.FromMilliseconds(1)));
+            Effort.Add(o.ReasoningEffort);
+            var reply = Script is { Count: > 0 } ? Script.Dequeue() : new ChatMessage("assistant", "svar");
+            return Task.FromResult(new ModelResponse(reply, "stop", new ModelUsage(1, 1), TimeSpan.FromMilliseconds(1)));
         }
     }
 
@@ -114,6 +118,75 @@ public class ConversationRunnerTests
         Assert.DoesNotContain("by voice", model.Requests[1].First().Content);
     }
 
+    private sealed class OneTool : IToolSource
+    {
+        public int Calls { get; private set; }
+
+        public Task<IReadOnlyList<ToolDescriptor>> ListAsync(CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<ToolDescriptor>>([new ToolDescriptor("list_things", "lists", JsonDocument.Parse("{\"type\":\"object\"}").RootElement.Clone())]);
+
+        public Task<string> CallAsync(string name, string argumentsJson, CancellationToken ct)
+        {
+            Calls++;
+            return Task.FromResult("a, b, c");
+        }
+    }
+
+    private static AgentRunner RunnerWithTool(LotsDbContext db, IModelClient model, OneTool tool)
+    {
+        var registry = TestProfiles.Registry(("list_things", ToolRisk.Read));
+        return new AgentRunner(db, model, new ToolInvoker([tool], registry), registry, Options.Create(new AgentOptions()), TimeProvider.System);
+    }
+
+    [Fact]
+    public async Task A_voice_answer_that_skips_the_tools_gets_one_reminder_and_then_uses_them()
+    {
+        var db = NewDb();
+        var run = Run("hur många saker finns det?", "alice", null, 0, voice: true);
+        db.Runs.Add(run);
+        await db.SaveChangesAsync();
+        var model = new RecordingModel
+        {
+            Script = new Queue<ChatMessage>([
+                new ChatMessage("assistant", "Låt mig kolla."),                                   // promised, did nothing
+                new ChatMessage("assistant", null, [new ToolCall("c1", "list_things", "{}")]),    // after the reminder
+                new ChatMessage("assistant", "Det finns tre."),
+            ]),
+        };
+        var tool = new OneTool();
+
+        await RunnerWithTool(db, model, tool).ExecuteAsync(run.Id, default);
+
+        Assert.Equal(1, tool.Calls);
+        Assert.Equal("Det finns tre.", (await db.Runs.SingleAsync()).FinalAnswer);
+        Assert.Equal(3, model.Requests.Count);
+        Assert.Contains(model.Requests[1], m => m.Role == "user" && m.Content!.Contains("without using a tool"));
+        Assert.Equal(["low", "low", "none"], model.Effort); // defaults: a little thinking for the decision and the retry, none for summarising
+        Assert.Equal(3, model.Requests.Count); // the final answer after the tool result is NOT sent back for another reminder
+    }
+
+    [Fact]
+    public async Task The_reminder_is_sent_once_and_never_for_text_runs_or_when_a_tool_was_used()
+    {
+        var db = NewDb();
+        var stubborn = Run("hej", "alice", null, 0, voice: true);
+        var typed = Run("hej", "alice", null, 0);
+        db.Runs.AddRange(stubborn, typed);
+        await db.SaveChangesAsync();
+        var model = new RecordingModel { Script = new Queue<ChatMessage>([new("assistant", "första"), new("assistant", "andra"), new("assistant", "text")]) };
+        var tool = new OneTool();
+
+        await RunnerWithTool(db, model, tool).ExecuteAsync(stubborn.Id, default);
+        var calls = model.Requests.Count;
+        await RunnerWithTool(db, model, tool).ExecuteAsync(typed.Id, default);
+
+        Assert.Equal(2, calls);                                                    // one reminder, then it is accepted as plain conversation
+        Assert.Equal("andra", (await db.Runs.SingleAsync(r => r.Id == stubborn.Id)).FinalAnswer);
+        Assert.Equal(3, model.Requests.Count);                                     // the text run made a single call, no reminder
+        Assert.Equal("text", (await db.Runs.SingleAsync(r => r.Id == typed.Id)).FinalAnswer);
+        Assert.Equal(0, tool.Calls);
+    }
+
     [Fact]
     public async Task Fast_model_calls_turn_thinking_off_and_normal_calls_do_not()
     {
@@ -125,8 +198,11 @@ public class ConversationRunnerTests
         await client.CompleteAsync([new("user", "hi")], [], new ModelCallOptions(Fast: true), default);
         await client.CompleteAsync([new("user", "hi")], [], default);
 
+        await client.CompleteAsync([new("user", "hi")], [], new ModelCallOptions(Fast: true, ReasoningEffort: "low"), default);
+
         Assert.Contains("\"reasoning_effort\":\"none\"", bodies[0]);
         Assert.DoesNotContain("reasoning_effort", bodies[1]);
+        Assert.Contains("\"reasoning_effort\":\"low\"", bodies[2]); // an explicit effort wins over the fast default
     }
 
     private sealed class CapturingHandler(List<string> bodies) : HttpMessageHandler

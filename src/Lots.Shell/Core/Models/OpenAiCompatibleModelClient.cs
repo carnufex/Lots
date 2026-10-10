@@ -24,8 +24,9 @@ public sealed class OpenAiCompatibleModelClient(HttpClient http, IOptions<ModelO
             ["model"] = _options.Model,
             ["messages"] = new JsonArray(messages.Select(ToJson).ToArray()),
         };
-        if (callOptions.Fast && !string.IsNullOrEmpty(_options.FastReasoningEffort))
-            body["reasoning_effort"] = _options.FastReasoningEffort;
+        var effort = callOptions.ReasoningEffort ?? (callOptions.Fast ? _options.FastReasoningEffort : null);
+        if (!string.IsNullOrEmpty(effort))
+            body["reasoning_effort"] = effort;
         if (tools.Count > 0)
         {
             body["tools"] = new JsonArray(tools.Select(t => (JsonNode)new JsonObject
