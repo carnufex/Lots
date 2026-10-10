@@ -19,6 +19,7 @@ const STATUS: Record<AvatarState, string> = {
 const SENSITIVITY: Record<string, number> = { low: 0.7, normal: 1, high: 1.5 }
 const ACK_AFTER_MS = 900
 const POLL_MS = 350
+const GIVE_UP_MS = 60_000 // a turn that has not answered by now is stuck: say so instead of staying silent
 
 const newId = () => crypto.randomUUID()
 
@@ -118,13 +119,20 @@ export default function Conversation({
           })
         }, ACK_AFTER_MS)
 
+        const deadline = Date.now() + GIVE_UP_MS
         let detail = await api.getRun(run.id)
-        while (!isTerminal(detail.status) && mine === turn.current) {
+        while (!isTerminal(detail.status) && mine === turn.current && Date.now() < deadline) {
           await new Promise((r) => setTimeout(r, POLL_MS))
           detail = await api.getRun(run.id)
         }
         window.clearTimeout(ack)
         if (mine !== turn.current) return
+        if (!isTerminal(detail.status)) {
+          player.current.stop()
+          add({ who: 'agent', text: 'This is taking too long, so I stopped waiting. Try again in a moment.', runId: run.id, failed: true })
+          go('listening')
+          return
+        }
 
         if (detail.status === 'Failed' || !detail.finalAnswer) {
           add({ who: 'agent', text: detail.error ?? 'Something went wrong.', runId: run.id, failed: true })

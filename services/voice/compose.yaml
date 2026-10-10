@@ -11,6 +11,8 @@ services:
     image: lots-voice:local
     environment:
       VOICE_API_KEY: ${VOICE_API_KEY:?set VOICE_API_KEY}
+      VOICE_STT_COMPUTE: ${VOICE_STT_COMPUTE:-float16}   # int8_float16 saves about half the Whisper VRAM
+      PYTORCH_CUDA_ALLOC_CONF: expandable_segments:True
       VOICE_CHATTERBOX: ${VOICE_CHATTERBOX:-0}   # 1 = expressive voice (build with the same value)
       VOICE_DEFAULT_LANGUAGE: ${VOICE_DEFAULT_LANGUAGE:-sv}
     ports:

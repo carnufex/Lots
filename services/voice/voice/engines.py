@@ -272,6 +272,10 @@ class ChatterboxTts:
             with self._gpu:
                 self._prepare(model, voice, exaggeration)
                 wav = model.generate(sentence, language_id=language, exaggeration=exaggeration, cfg_weight=cfg)
+                # The GPU is shared with the language model: hand cached blocks back instead of hoarding them.
+                import torch
+
+                torch.cuda.empty_cache()
             yield np.asarray(wav.squeeze().cpu(), dtype=np.float32)
 
 
