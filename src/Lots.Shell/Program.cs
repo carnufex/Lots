@@ -88,12 +88,15 @@ builder.Services.AddOpenTelemetry()
     .WithMetrics(m =>
     {
         // #75: /metrics for Prometheus; OTLP as well when an endpoint is configured.
-        m.AddMeter(Lots.Shell.Core.Telemetry.LotsMetrics.MeterName).AddAspNetCoreInstrumentation().AddRuntimeInstrumentation().AddPrometheusExporter();
+        m.AddMeter(Lots.Shell.Core.Telemetry.LotsMetrics.MeterName, Lots.Shell.Core.Telemetry.LotsMetrics.MeterName + ".Dependencies").AddAspNetCoreInstrumentation().AddRuntimeInstrumentation().AddPrometheusExporter();
         if (!string.IsNullOrEmpty(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]))
             m.AddOtlpExporter();
     });
 builder.Services.AddSingleton<Lots.Shell.Core.Telemetry.QueueGauges>();
 builder.Services.AddHostedService<Lots.Shell.Core.Telemetry.QueueGaugeWorker>();
+builder.Services.AddHttpClient(nameof(Lots.Shell.Core.Telemetry.DependencyMonitor), h => h.Timeout = TimeSpan.FromSeconds(5));
+builder.Services.AddSingleton<Lots.Shell.Core.Telemetry.DependencyMonitor>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<Lots.Shell.Core.Telemetry.DependencyMonitor>()); // #82/#83
 
 var app = builder.Build();
 

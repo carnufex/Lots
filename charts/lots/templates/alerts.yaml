@@ -1,0 +1,66 @@
+{{- if .Values.metrics.alerts.enabled }}
+# Alert rules (#83) for the Prometheus Operator. Thresholds are values so each installation can tune them.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "lots.name" . }}
+  labels: {{- include "lots.labels" . | nindent 4 }}{{- with .Values.metrics.serviceMonitor.labels }}{{ toYaml . | nindent 4 }}{{- end }}
+spec:
+  groups:
+    - name: lots
+      rules:
+        - alert: LotsDown
+          expr: absent(up{job=~".*{{ include "lots.name" . }}.*"} == 1)
+          for: 5m
+          labels: { severity: critical }
+          annotations:
+            summary: No Lots shell is answering scrapes.
+        - alert: LotsDependencyDown
+          expr: max by (name, kind) (lots_dependency_up) == 0
+          for: 5m
+          labels: { severity: warning }
+          annotations:
+            summary: "Lots dependency {{`{{ $labels.name }}`}} ({{`{{ $labels.kind }}`}}) is down."
+        - alert: LotsDatabaseDown
+          expr: max(lots_dependency_up{kind="postgres"}) == 0
+          for: 2m
+          labels: { severity: critical }
+          annotations:
+            summary: Lots cannot reach its database.
+        - alert: LotsRunsFailing
+          expr: sum(rate(lots_runs_finished_total{status="Failed"}[15m])) / clamp_min(sum(rate(lots_runs_finished_total[15m])), 1e-9) > {{ .Values.metrics.alerts.failedRunRatio }}
+          for: 15m
+          labels: { severity: warning }
+          annotations:
+            summary: "More than a share of {{ .Values.metrics.alerts.failedRunRatio }} of Lots runs fail."
+        - alert: LotsStuckRuns
+          expr: max(lots_runs_stuck) > 0
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: Runs are marked running but no worker holds their lease.
+        - alert: LotsApprovalBacklog
+          expr: max(lots_approvals_oldest_pending_age_seconds) > {{ .Values.metrics.alerts.approvalAgeSeconds }}
+          for: 5m
+          labels: { severity: info }
+          annotations:
+            summary: An approval has been waiting longer than expected.
+        - alert: LotsNotificationsStuck
+          expr: max(lots_notifications_undelivered) > 20
+          for: 30m
+          labels: { severity: warning }
+          annotations:
+            summary: Approval notifications are not being delivered (webhook or SMTP).
+        - alert: LotsModelSlow
+          expr: histogram_quantile(0.95, sum by (le) (rate(lots_model_duration_seconds_bucket[10m]))) > {{ .Values.metrics.alerts.modelP95Seconds }}
+          for: 15m
+          labels: { severity: warning }
+          annotations:
+            summary: Model calls are slow (p95); a full GPU or a loaded model can cause it.
+        - alert: LotsVoiceGpuMemory
+          expr: max(lots_voice_gpu_free_bytes) < {{ .Values.metrics.alerts.gpuFreeBytes }}
+          for: 5m
+          labels: { severity: warning }
+          annotations:
+            summary: The voice GPU is nearly out of memory; heavy voices fall back to the fast one.
+{{- end }}

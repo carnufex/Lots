@@ -87,6 +87,13 @@ metrics:
     interval: 30s
     labels: {}            # e.g. release: kube-prometheus-stack
   grafanaDashboard: false
+  # PrometheusRule with the alerts of #83 (dependencies down, failing/stuck runs, approval backlog, slow model, GPU memory).
+  alerts:
+    enabled: false
+    failedRunRatio: 0.2
+    approvalAgeSeconds: 3600
+    modelP95Seconds: 30
+    gpuFreeBytes: 1073741824
 
 # Optional OTLP endpoint for GenAI traces.
 otlpEndpoint: ""

@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 ARGS=(--set database.existingSecret=db --set auth.oidc.authority=https://idp.example/ --set mcpHomelab.enabled=true
       --set ingress.enabled=true --set route.enabled=true --set gitops.enabled=true --set gitops.repo=https://git.example/cfg.git
       --set mcpToolpack.enabled=true --set mcpToolpack.kubernetesReadOnly=true
-      --set metrics.serviceMonitor.enabled=true --set metrics.grafanaDashboard=true)
+      --set metrics.serviceMonitor.enabled=true --set metrics.grafanaDashboard=true --set metrics.alerts.enabled=true)
 
 helm lint charts/lots "${ARGS[@]}" >/dev/null
 OUT="$(helm template t charts/lots "${ARGS[@]}")"
