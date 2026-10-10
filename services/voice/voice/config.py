@@ -56,6 +56,12 @@ class Settings:
     max_ref_bytes: int = 10 * 1024 * 1024
     ref_min_seconds: float = 3.0
     ref_max_seconds: float = 40.0
+    # GPU guard (#84): below this much free GPU memory the expressive voice is skipped for the fast one (Piper on the CPU).
+    min_free_vram_mb: int = 1200
+    # More expressive requests than this waiting for the GPU: the next ones use the fast voice instead of queueing.
+    max_expressive_queue: int = 2
+    # Unload Chatterbox after this many idle seconds to give its ~3.5 GB back (0 = keep it loaded).
+    chatterbox_idle_unload_s: int = 900
 
     @staticmethod
     def from_env(env: dict[str, str] | None = None) -> "Settings":
@@ -84,6 +90,9 @@ class Settings:
             chatterbox=e.get("VOICE_CHATTERBOX", "0") == "1",
             chatterbox_device=e.get("VOICE_CHATTERBOX_DEVICE", base.chatterbox_device),
             refs_dir=Path(e.get("VOICE_REFS_DIR", "refs")),
+            min_free_vram_mb=int(e.get("VOICE_MIN_FREE_VRAM_MB", base.min_free_vram_mb)),
+            max_expressive_queue=int(e.get("VOICE_MAX_EXPRESSIVE_QUEUE", base.max_expressive_queue)),
+            chatterbox_idle_unload_s=int(e.get("VOICE_CHATTERBOX_IDLE_UNLOAD_S", base.chatterbox_idle_unload_s)),
         )
 
     def validate(self) -> None:

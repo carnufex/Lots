@@ -15,6 +15,7 @@ from pydantic import BaseModel
 
 from .config import LANGUAGES, Settings
 from .engines import SttEngine, SynthOptions, TtsEngine
+from .gpu import GpuMonitor
 from .vocabulary import apply_vocabulary, parse_vocabulary
 from .wav import streaming_header, to_pcm16
 
@@ -31,7 +32,7 @@ class SpeechRequest(BaseModel):
     pace: float | None = None
 
 
-def create_app(settings: Settings, stt: SttEngine, tts: TtsEngine) -> FastAPI:
+def create_app(settings: Settings, stt: SttEngine, tts: TtsEngine, gpu: GpuMonitor | None = None) -> FastAPI:
     settings.validate()
     app = FastAPI(title="Lots voice service", version="0.1.0")
     gate = asyncio.Semaphore(settings.max_concurrency)
@@ -45,7 +46,15 @@ def create_app(settings: Settings, stt: SttEngine, tts: TtsEngine) -> FastAPI:
 
     @app.get("/health")
     def health() -> dict:
-        return {"status": "ok"}
+        body: dict = {"status": "ok"}
+        mem = gpu.memory() if gpu is not None else None
+        if mem is not None:
+            body["gpu"] = {"free_bytes": mem.free_bytes, "total_bytes": mem.total_bytes,
+                           "low": mem.free_bytes < settings.min_free_vram_mb * 1024 * 1024}
+        expressive = getattr(tts, "_expressive", None)
+        if expressive is not None:
+            body["expressive"] = {"loaded": expressive.loaded, "waiting": expressive.waiting}
+        return body
 
     @app.get("/v1/models", dependencies=[Depends(authorize)])
     def models() -> dict:
@@ -114,10 +123,12 @@ def create_app(settings: Settings, stt: SttEngine, tts: TtsEngine) -> FastAPI:
         speed = min(max(req.speed, 0.5), 2.0)
         options = SynthOptions(language=req.language, expressiveness=req.expressiveness, pace=req.pace)
         rate_of = getattr(tts, "sample_rate_of", None)
+        # GPU guard (#84): the expressive voice may be swapped for the fast one; the caller learns why.
+        voice, fallback = tts.resolve(req.voice, options) if hasattr(tts, "resolve") else (req.voice, None)
 
         async def body() -> AsyncIterator[bytes]:
             async with gate:
-                chunks = tts.synthesize(text, req.voice, speed, options)
+                chunks = tts.synthesize(text, voice, speed, options)
                 sentinel = object()
                 first = True
                 while True:
@@ -125,12 +136,13 @@ def create_app(settings: Settings, stt: SttEngine, tts: TtsEngine) -> FastAPI:
                     if chunk is sentinel:
                         break
                     if first and req.response_format == "wav":
-                        yield streaming_header(rate_of(req.voice) if rate_of else tts.sample_rate)
+                        yield streaming_header(rate_of(voice) if rate_of else tts.sample_rate)
                     first = False
                     yield to_pcm16(chunk)
 
         media = "audio/wav" if req.response_format == "wav" else "audio/L16"
-        return StreamingResponse(body(), media_type=media)
+        headers = {"X-Voice-Used": voice} | ({"X-Voice-Fallback": fallback} if fallback else {})
+        return StreamingResponse(body(), media_type=media, headers=headers)
 
     _VOICE_ID = re.compile(r"^[a-z0-9][a-z0-9-]{2,63}$")
 

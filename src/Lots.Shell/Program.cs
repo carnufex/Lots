@@ -88,7 +88,8 @@ builder.Services.AddOpenTelemetry()
     .WithMetrics(m =>
     {
         // #75: /metrics for Prometheus; OTLP as well when an endpoint is configured.
-        m.AddMeter(Lots.Shell.Core.Telemetry.LotsMetrics.MeterName, Lots.Shell.Core.Telemetry.LotsMetrics.MeterName + ".Dependencies").AddAspNetCoreInstrumentation().AddRuntimeInstrumentation().AddPrometheusExporter();
+        m.AddMeter(Lots.Shell.Core.Telemetry.LotsMetrics.MeterName, Lots.Shell.Core.Telemetry.LotsMetrics.MeterName + ".Dependencies",
+            Lots.Shell.Core.Telemetry.LotsMetrics.MeterName + ".Dependencies.Gpu").AddAspNetCoreInstrumentation().AddRuntimeInstrumentation().AddPrometheusExporter();
         if (!string.IsNullOrEmpty(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]))
             m.AddOtlpExporter();
     });

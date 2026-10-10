@@ -8,17 +8,19 @@ import uvicorn
 from .app import create_app
 from .config import Settings
 from .engines import ChatterboxTts, CompositeTts, PiperTts, WhisperStt
+from .gpu import GpuMonitor
 
 
 def build():
     settings = Settings.from_env()
     stt, tts = WhisperStt(settings), PiperTts(settings)
+    gpu = GpuMonitor()
     if settings.chatterbox:
-        tts = CompositeTts(ChatterboxTts(settings), tts)
+        tts = CompositeTts(ChatterboxTts(settings), tts, settings, gpu)
     if settings.preload:
         stt.warm_up()
         tts.warm_up()
-    return create_app(settings, stt, tts)
+    return create_app(settings, stt, tts, gpu)
 
 
 app = build() if os.environ.get("VOICE_BUILD_ON_IMPORT") == "1" else None

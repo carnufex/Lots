@@ -6,6 +6,7 @@ import os
 import re
 import site
 import threading
+import time
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -194,7 +195,56 @@ class ChatterboxTts:
         self._conds: dict[str, object] = {}
         self._gpu = threading.Lock()
         self._load = threading.Lock()
+        self._waiting = 0
+        self._waiting_lock = threading.Lock()
+        self._last_used = time.monotonic()
+        self._loading = False
         settings.refs_dir.mkdir(parents=True, exist_ok=True)
+        if settings.chatterbox_idle_unload_s > 0:
+            threading.Thread(target=self._unload_when_idle, daemon=True).start()
+
+    @property
+    def loaded(self) -> bool:
+        return self._model is not None
+
+    @property
+    def waiting(self) -> int:
+        return self._waiting
+
+    def load_in_background(self) -> None:
+        """Starts loading the model without blocking the caller (who is served by the fast voice meanwhile)."""
+        with self._load:
+            if self._model is not None or self._loading:
+                return
+            self._loading = True
+        threading.Thread(target=self._background_load, daemon=True).start()
+
+    def _background_load(self) -> None:
+        try:
+            self._load_model()
+        finally:
+            self._loading = False
+
+    def _unload_when_idle(self) -> None:
+        while True:
+            time.sleep(30)
+            if self._model is None or time.monotonic() - self._last_used < self._settings.chatterbox_idle_unload_s:
+                continue
+            with self._gpu, self._load:
+                if self._model is None or time.monotonic() - self._last_used < self._settings.chatterbox_idle_unload_s:
+                    continue
+                self._model = None
+                self._default_conds = None
+                self._conds.clear()
+                try:
+                    import gc
+
+                    import torch
+
+                    gc.collect()
+                    torch.cuda.empty_cache()
+                except Exception:
+                    pass
 
     def _path(self, voice: str) -> Path:
         return self._settings.refs_dir / f"{'default' if voice == self.DEFAULT else voice}.wav"
@@ -269,23 +319,63 @@ class ChatterboxTts:
         cfg = 0.4 if o.pace is None else min(max(o.pace, 0.0), 1.0)
         model = self._load_model()
         for sentence in split_sentences(text):
-            with self._gpu:
+            with self._waiting_lock:
+                self._waiting += 1
+            try:
+                self._gpu.acquire()
+            finally:
+                with self._waiting_lock:
+                    self._waiting -= 1
+            try:
+                self._last_used = time.monotonic()
                 self._prepare(model, voice, exaggeration)
                 wav = model.generate(sentence, language_id=language, exaggeration=exaggeration, cfg_weight=cfg)
                 # The GPU is shared with the language model: hand cached blocks back instead of hoarding them.
                 import torch
 
                 torch.cuda.empty_cache()
+            finally:
+                self._gpu.release()
             yield np.asarray(wav.squeeze().cpu(), dtype=np.float32)
 
 
 class CompositeTts:
-    """Chatterbox for its voices, Piper for the rest."""
+    """
+    Chatterbox for its voices, Piper for the rest, with a GPU guard (#84): an expressive request is served by the fast voice of the
+    same language when free GPU memory is below the threshold, when too many expressive requests already wait for the GPU, or while
+    Chatterbox is still loading. `last_fallback` tells the caller why (the API returns it as X-Voice-Fallback).
+    """
 
-    def __init__(self, expressive: ChatterboxTts, fast: PiperTts) -> None:
+    def __init__(self, expressive: ChatterboxTts, fast: PiperTts, settings: Settings | None = None, gpu=None) -> None:
         self._expressive = expressive
         self._fast = fast
+        self._settings = settings or Settings()
+        self._gpu = gpu
         self.sample_rate = fast.sample_rate
+
+    def fallback_reason(self, voice: str) -> str | None:
+        """Why an expressive voice would not be used now, or None."""
+        if not self._is_expressive(voice):
+            return None
+        if self._gpu is not None and (mem := self._gpu.memory()) is not None and mem.free_bytes < self._settings.min_free_vram_mb * 1024 * 1024:
+            # Loaded already: its memory is in use and does not need to be found again.
+            if not self._expressive.loaded:
+                return "vram"
+        if self._expressive.waiting >= self._settings.max_expressive_queue:
+            return "busy"
+        if not self._expressive.loaded:
+            self._expressive.load_in_background()
+            return "loading"
+        return None
+
+    def fast_voice_for(self, language: str | None) -> str:
+        lang = language if language in LANGUAGES_SUPPORTED else "sv"
+        return next((v for v, l in self._fast.voices().items() if l == lang), next(iter(self._fast.voices())))
+
+    def resolve(self, voice: str, options: SynthOptions | None) -> tuple[str, str | None]:
+        """The voice to use for this request and the fallback reason, if any."""
+        reason = self.fallback_reason(voice)
+        return (self.fast_voice_for((options or SynthOptions()).language), reason) if reason else (voice, None)
 
     def _is_expressive(self, voice: str) -> bool:
         return voice in self._expressive.voices()

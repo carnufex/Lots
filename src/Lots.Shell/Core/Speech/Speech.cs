@@ -12,6 +12,9 @@ public sealed class SpeechAudio(Stream content, string contentType, HttpResponse
 {
     public Stream Content { get; } = content;
     public string ContentType { get; } = contentType;
+
+    /// <summary>Why the provider used its fast voice instead of the one asked for (vram, busy, loading), if it did (#84).</summary>
+    public string? Fallback { get; init; }
     public void Dispose()
     {
         Content.Dispose();

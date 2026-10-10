@@ -193,6 +193,7 @@ public sealed class SpeakRunEndpoint(
             db.VoiceUsage.Add(usage);
             await db.SaveChangesAsync(CancellationToken.None);
             var store = HttpContext.RequestServices.GetRequiredService<IAudioStore>();
+            if (audio.Fallback is not null) HttpContext.Response.Headers["X-Voice-Fallback"] = audio.Fallback; // the UI says why the voice sounds different
             var timed = new FirstByteStream(audio.Content, sw, run.ConversationId is not null && store.Enabled ? new MemoryStream() : null);
             await Send.StreamAsync(timed, contentType: audio.ContentType, cancellation: ct);
             if (run.ConversationId is { } conv && timed.Copied is { } spoken)
@@ -202,7 +203,8 @@ public sealed class SpeakRunEndpoint(
             span?.AddEvent(new ActivityEvent("first_audio", DateTimeOffset.UtcNow - TimeSpan.FromMilliseconds(usage.DurationMs.Value - usage.LatencyMs)));
             span?.SetTag("lots.speech.first_audio_ms", usage.LatencyMs);
             await db.SaveChangesAsync(CancellationToken.None);
-            Lots.Shell.Core.Telemetry.LotsMetrics.SpeechRequests.Add(1, new("direction", "tts"), new("outcome", "ok"));
+            Lots.Shell.Core.Telemetry.LotsMetrics.SpeechRequests.Add(1, new("direction", "tts"), new("outcome", audio.Fallback is null ? "ok" : "fallback-" + audio.Fallback));
+            if (audio.Fallback is not null) span?.SetTag("lots.speech.fallback", audio.Fallback);
             Lots.Shell.Core.Telemetry.LotsMetrics.SpeechLatency.Record(usage.LatencyMs / 1000.0, new KeyValuePair<string, object?>("direction", "tts"));
         }
         catch (SpeechUnavailableException)
@@ -400,4 +402,16 @@ public sealed class AcknowledgementCache
         var made = await create();
         return _items.GetOrAdd(key, made);
     }
+}
+
+public sealed record VoiceStatusDto(bool Enabled, bool GpuLow, long? GpuFreeBytes, long? GpuTotalBytes, bool? ExpressiveLoaded, int ExpressiveWaiting);
+
+/// <summary>Whether the expressive voice is available right now (#84), so the UI can say why answers use the fast voice.</summary>
+public sealed class VoiceStatusEndpoint(IOptions<SpeechOptions> options) : EndpointWithoutRequest<VoiceStatusDto>
+{
+    public override void Configure() => Get("/voice/status");
+
+    public override Task HandleAsync(CancellationToken ct) => Send.OkAsync(new VoiceStatusDto(options.Value.Enabled,
+        Lots.Shell.Core.Telemetry.VoiceGpu.Low, Lots.Shell.Core.Telemetry.VoiceGpu.FreeBytes, Lots.Shell.Core.Telemetry.VoiceGpu.TotalBytes,
+        Lots.Shell.Core.Telemetry.VoiceGpu.ExpressiveLoaded, Lots.Shell.Core.Telemetry.VoiceGpu.ExpressiveWaiting), ct);
 }

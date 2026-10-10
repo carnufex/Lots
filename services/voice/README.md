@@ -29,3 +29,25 @@ Container (needs the NVIDIA runtime): `docker compose up -d` (see `compose.yaml`
 ## Tests
 
 `pip install -e ".[test]" && pytest` runs the API layer against fake engines (no GPU or models needed).
+
+## GPU memory budget and guard (#84)
+
+The voice service shares the GPU with the language model (Ollama). Measured on the RTX 4070 Ti SUPER (16 GB):
+
+| Component | VRAM |
+|---|---|
+| Ollama, qwen3.5 (9B, Q4) with an 8k context | ~7-8 GB |
+| Whisper medium (Swedish, `int8_float16`) + small (English, language id) | ~1.5 GB |
+| Chatterbox Multilingual (expressive voice) | ~3.5 GB |
+| Piper | 0 (CPU) |
+
+That leaves little room for anything else on the card; on 2026-10-10 another application filled the rest and the model stalled.
+The guard keeps the expressive voice from making it worse:
+
+- `VOICE_MIN_FREE_VRAM_MB` (1200): if Chatterbox is not loaded and less memory than this is free, answers use the fast voice of
+  the same language instead of loading it.
+- `VOICE_MAX_EXPRESSIVE_QUEUE` (2): with this many expressive requests already waiting for the GPU, the next ones use the fast voice.
+- While Chatterbox loads (about a minute, in the background) answers use the fast voice instead of waiting.
+- `VOICE_CHATTERBOX_IDLE_UNLOAD_S` (900): Chatterbox is unloaded after this long without use and gives its memory back.
+- Every fallback is reported in the `X-Voice-Fallback` response header (`vram`, `busy`, `loading`); `GET /health` reports free and
+  total GPU memory (`gpu`) and whether the expressive voice is loaded. The shell exports `lots_voice_gpu_free_bytes` and alerts on it.

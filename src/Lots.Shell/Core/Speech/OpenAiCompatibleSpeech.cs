@@ -115,7 +115,10 @@ public sealed class OpenAiCompatibleSpeech(HttpClient http, IOptions<SpeechOptio
             if (!response.IsSuccessStatusCode)
                 throw new SpeechUnavailableException($"Text-to-speech provider returned {(int)response.StatusCode}.");
             var contentType = response.Content.Headers.ContentType?.MediaType ?? "audio/wav";
-            return new SpeechAudio(await response.Content.ReadAsStreamAsync(ct), contentType, response);
+            return new SpeechAudio(await response.Content.ReadAsStreamAsync(ct), contentType, response)
+            {
+                Fallback = response.Headers.TryGetValues("X-Voice-Fallback", out var why) ? why.FirstOrDefault() : null,
+            };
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
         {

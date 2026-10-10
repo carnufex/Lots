@@ -60,6 +60,9 @@ public sealed class DependencyMonitor(IServiceScopeFactory scopes, IHttpClientFa
                 var root = new Uri(speech.Value.BaseUrl.TrimEnd('/') + "/");
                 using var res = await http.CreateClient(nameof(DependencyMonitor)).GetAsync(new Uri(root, "../health"), ct);
                 res.EnsureSuccessStatusCode();
+                // GPU memory of the card voice shares with the model (#84): a gauge for the alert and the Voice page.
+                using var doc = System.Text.Json.JsonDocument.Parse(await res.Content.ReadAsStringAsync(ct));
+                VoiceGpu.Update(doc.RootElement);
             }));
 
         foreach (var s in await scope.ServiceProvider.GetRequiredService<ToolInvoker>().ServerStatusAsync(ct))
@@ -84,6 +87,38 @@ public sealed class DependencyMonitor(IServiceScopeFactory scopes, IHttpClientFa
         catch (Exception ex)
         {
             return new DependencyStatus(name, kind, false, required, sw.ElapsedMilliseconds, ex is TimeoutException or OperationCanceledException ? "timed out" : ex.Message, clock.GetUtcNow());
+        }
+    }
+}
+
+/// <summary>The voice service's GPU state as last reported (#84): free/total memory and whether the expressive voice is loaded.</summary>
+public static class VoiceGpu
+{
+    public static long? FreeBytes { get; private set; }
+    public static long? TotalBytes { get; private set; }
+    public static bool Low { get; private set; }
+    public static bool? ExpressiveLoaded { get; private set; }
+    public static int ExpressiveWaiting { get; private set; }
+
+    static VoiceGpu()
+    {
+        var meter = new System.Diagnostics.Metrics.Meter(LotsMetrics.MeterName + ".Dependencies.Gpu");
+        meter.CreateObservableGauge("lots.voice.gpu.free", () => FreeBytes is { } f ? [new System.Diagnostics.Metrics.Measurement<long>(f)] : Array.Empty<System.Diagnostics.Metrics.Measurement<long>>(),
+            "bytes", "Free memory on the voice service's GPU");
+    }
+
+    public static void Update(System.Text.Json.JsonElement health)
+    {
+        if (health.TryGetProperty("gpu", out var g))
+        {
+            FreeBytes = g.GetProperty("free_bytes").GetInt64();
+            TotalBytes = g.GetProperty("total_bytes").GetInt64();
+            Low = g.TryGetProperty("low", out var low) && low.GetBoolean();
+        }
+        if (health.TryGetProperty("expressive", out var e))
+        {
+            ExpressiveLoaded = e.GetProperty("loaded").GetBoolean();
+            ExpressiveWaiting = e.GetProperty("waiting").GetInt32();
         }
     }
 }

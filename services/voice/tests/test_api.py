@@ -214,3 +214,70 @@ def test_register_rejects_bad_ids_short_clips_and_missing_key(client):
     assert c.put("/v1/voices/Bad_Id", headers=h, files=files).status_code == 400
     assert c.put("/v1/voices/u-abc", headers=h, files={"audio": ("c.wav", b"short", "audio/wav")}).status_code == 400
     assert c.put("/v1/voices/u-abc", files=files).status_code == 401
+
+
+class FakeExpressive:
+    def __init__(self, loaded=True, waiting=0):
+        self.loaded = loaded
+        self.waiting = waiting
+        self.load_requested = False
+
+    def voices(self):
+        return {"cb-default": "*"}
+
+    def load_in_background(self):
+        self.load_requested = True
+
+
+class FakeFast:
+    sample_rate = 22050
+
+    def voices(self):
+        return {"sv-nst": "sv", "en-lessac": "en"}
+
+
+class FakeGpu:
+    def __init__(self, free_mb):
+        self.free_mb = free_mb
+
+    def memory(self):
+        from voice.gpu import GpuMemory
+
+        return GpuMemory(self.free_mb * 1024 * 1024, 16 * 1024 * 1024 * 1024)
+
+
+def composite(expressive, free_mb=8000):
+    from voice.engines import CompositeTts, SynthOptions
+
+    return CompositeTts(expressive, FakeFast(), Settings(min_free_vram_mb=1200, max_expressive_queue=2), FakeGpu(free_mb)), SynthOptions
+
+
+def test_expressive_voice_is_used_when_the_gpu_has_room():
+    tts, Options = composite(FakeExpressive())
+    assert tts.resolve("cb-default", Options(language="en")) == ("cb-default", None)
+
+
+def test_low_vram_before_loading_falls_back_to_the_fast_voice_of_the_language():
+    tts, Options = composite(FakeExpressive(loaded=False), free_mb=500)
+    assert tts.resolve("cb-default", Options(language="en")) == ("en-lessac", "vram")
+
+
+def test_a_full_queue_and_a_cold_model_fall_back_and_loading_starts_in_the_background():
+    busy, Options = composite(FakeExpressive(waiting=2))
+    assert busy.resolve("cb-default", Options(language="sv")) == ("sv-nst", "busy")
+    cold_engine = FakeExpressive(loaded=False)
+    cold, _ = composite(cold_engine)
+    assert cold.resolve("cb-default", Options(language="sv")) == ("sv-nst", "loading")
+    assert cold_engine.load_requested
+
+
+def test_fast_voices_are_never_swapped():
+    tts, Options = composite(FakeExpressive(loaded=False), free_mb=10)
+    assert tts.resolve("sv-nst", Options(language="sv")) == ("sv-nst", None)
+
+
+def test_health_reports_gpu_memory(parts):
+    settings, stt, tts = parts
+    client = TestClient(create_app(settings, stt, tts, FakeGpu(800)))
+    body = client.get("/health").json()
+    assert body["gpu"]["low"] is True and body["gpu"]["free_bytes"] == 800 * 1024 * 1024

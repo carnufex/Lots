@@ -81,6 +81,7 @@ export default function VoicePage({ api, voice }: { api: Api; voice: VoiceConfig
   return (
     <div className="voicepage">
       <h1>Voice and personality</h1>
+      <GpuStatus api={api} />
 
       <section className="card">
         <h2>Personality</h2>
@@ -385,5 +386,23 @@ function OwnVoice({
         </>
       )}
     </section>
+  )
+}
+
+/** The voice GPU right now (#84): when it is busy or nearly full, answers use the fast voice for a while. */
+function GpuStatus({ api }: { api: Api }) {
+  const [s, setS] = useState<{ enabled: boolean; gpuLow: boolean; gpuFreeBytes: number | null; gpuTotalBytes: number | null; expressiveLoaded: boolean | null; expressiveWaiting: number } | null>(null)
+  useEffect(() => {
+    api.raw<NonNullable<typeof s>>('/voice/status').then(setS).catch(() => setS(null))
+  }, [api])
+  if (!s?.enabled || s.gpuFreeBytes == null) return null
+  const gb = (b: number) => (b / 1024 ** 3).toFixed(1)
+  return (
+    <p className={s.gpuLow ? 'warn small' : 'muted small'}>
+      Voice GPU: {gb(s.gpuFreeBytes)} of {gb(s.gpuTotalBytes ?? 0)} GB free
+      {s.expressiveLoaded === false && ' · expressive voice not loaded (answers start with the fast voice)'}
+      {s.gpuLow && ' · nearly full: answers may use the fast voice'}
+      {s.expressiveWaiting > 0 && ` · ${s.expressiveWaiting} waiting`}
+    </p>
   )
 }

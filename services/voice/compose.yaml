@@ -25,7 +25,7 @@ services:
           devices:
             - driver: nvidia
               count: 1
-              capabilities: [gpu]
+              capabilities: [gpu, compute, utility]   # utility: nvidia-smi for the GPU guard (#84)
     restart: unless-stopped
 
 volumes:
