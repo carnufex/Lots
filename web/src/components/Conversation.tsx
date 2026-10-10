@@ -9,7 +9,7 @@ import Avatar, { type AvatarState } from './Avatar'
 type Message = { who: 'you' | 'agent'; text: string; runId?: string; failed?: boolean }
 
 const STATUS: Record<AvatarState, string> = {
-  off: 'Microphone off',
+  off: 'Not in a conversation',
   listening: 'Listening…',
   hearing: 'Hearing you…',
   thinking: 'Thinking…',
@@ -23,7 +23,7 @@ const POLL_MS = 350
 const newId = () => crypto.randomUUID()
 
 /**
- * Hands-free conversation: microphone on, talk, the agent answers aloud, talk over it and it stops. Each spoken turn is an
+ * Hands-free conversation: start, talk, talk, the agent answers aloud, talk over it and it stops. Each spoken turn is an
  * ordinary run (so it is audited and visible in the run list) that remembers the earlier turns of the conversation.
  * Voice is only a channel: approvals and everything else still happen with explicit clicks (ADR 0013).
  */
@@ -42,6 +42,7 @@ export default function Conversation({
   const [language, setLanguageState] = useState<VoiceLanguage>(() => initialLanguage(defaultLanguage))
   const [profile, setProfile] = useState(profiles[0]?.name ?? '')
   const [sensitivity, setSensitivity] = useState('normal')
+  const [muted, setMuted] = useState(false)
 
   const stateRef = useRef<AvatarState>('off')
   const mic = useRef<MicSession | null>(null)
@@ -147,8 +148,11 @@ export default function Conversation({
     [api, go, speakNow],
   )
 
-  const turnOn = async () => {
+  const start = async () => {
     setError(null)
+    setMuted(false)
+    conversationId.current = newId() // every call is its own conversation (and its own history entry)
+    setMessages([])
     player.current.prepare() // inside the click: lets the browser play audio later without another gesture
     try {
       mic.current = await MicSession.start(
@@ -175,14 +179,27 @@ export default function Conversation({
     }
   }
 
-  const turnOff = useCallback(() => {
+  /** Ends the conversation: stops listening and talking. The transcript stays on screen until you start the next one. */
+  const end = useCallback(() => {
     turn.current++
     mic.current?.stop()
     mic.current = null
     player.current.stop()
     inputLevel.current = 0
+    setMuted(false)
     go('off')
   }, [go])
+
+  /** Mute only silences you: the conversation, and any answer the agent is giving or preparing, carry on. */
+  const toggleMute = () => {
+    const next = !muted
+    setMuted(next)
+    mic.current?.setMuted(next)
+    if (next) {
+      inputLevel.current = 0
+      if (stateRef.current === 'hearing') go('listening') // what you were saying is dropped
+    }
+  }
 
   useEffect(() => {
     mic.current?.setSensitivity(SENSITIVITY[sensitivity])
@@ -198,18 +215,31 @@ export default function Conversation({
   )
 
   const on = state !== 'off'
+  const idleMuted = muted && (state === 'listening' || state === 'hearing')
+  const statusText = idleMuted ? 'Muted: the agent cannot hear you' : STATUS[state]
 
   return (
-    <section className={`talk ${state}`} aria-label="Conversation">
+    <section className={`talk ${state} ${muted ? 'ismuted' : ''}`} aria-label="Conversation">
       <div className="talkhead">
-        <Avatar state={state} level={level} />
+        <Avatar state={idleMuted ? 'off' : state} level={level} />
         <div className="talkside">
           <div className="talkstate" role="status" aria-live="polite" data-testid="conversation-state" data-state={state}>
-            {STATUS[state]}
+            {statusText}
           </div>
-          <button type="button" className={`btn mictoggle ${on ? 'on' : ''}`} aria-pressed={on} onClick={() => (on ? turnOff() : void turnOn())}>
-            {on ? 'Microphone on' : 'Microphone off'}
-          </button>
+          {on ? (
+            <div className="row callbuttons">
+              <button type="button" className={`btn mutetoggle ${muted ? 'muted' : ''}`} aria-pressed={muted} onClick={toggleMute}>
+                {muted ? 'Unmute' : 'Mute'}
+              </button>
+              <button type="button" className="btn endcall" onClick={end}>
+                End conversation
+              </button>
+            </div>
+          ) : (
+            <button type="button" className="btn startcall" onClick={() => void start()}>
+              Start conversation
+            </button>
+          )}
           <div className="row talkopts">
             <select
               aria-label="Conversation language"
@@ -238,17 +268,6 @@ export default function Conversation({
                 ))}
               </select>
             )}
-            <button
-              type="button"
-              className="btn"
-              onClick={() => {
-                conversationId.current = newId()
-                setMessages([])
-              }}
-              disabled={messages.length === 0}
-            >
-              New conversation
-            </button>
           </div>
           <p className="muted small">Headphones work best: the agent then never hears itself.</p>
           {error && (

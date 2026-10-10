@@ -747,16 +747,26 @@ input.wide {
   color: var(--accent);
 }
 
-.mictoggle {
-  align-self: flex-start;
-  padding: 7px 16px;
-}
-
-.mictoggle.on {
+.startcall {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--accent-ink);
   font-weight: 600;
+}
+.callbuttons {
+  gap: 0.5rem;
+}
+.mutetoggle.muted {
+  background: #7f1d1d33;
+  border-color: #b91c1c;
+}
+.endcall {
+  background: #b91c1c;
+  border-color: transparent;
+  color: #fff;
+}
+.talk.ismuted .talkstate {
+  color: #fca5a5;
 }
 
 .talkopts {

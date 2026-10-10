@@ -58,6 +58,7 @@ export class MicSession {
   private floor = 0.004
   private playback = false
   private sensitivity = 1
+  private muted = false
   private cb: MicCallbacks
 
   private constructor(ctx: AudioContext, stream: MediaStream, node: AudioWorkletNode, source: MediaStreamAudioSourceNode, cb: MicCallbacks) {
@@ -98,6 +99,26 @@ export class MicSession {
     this.playback = active
   }
 
+  /**
+   * Mute: the microphone track is silenced and whatever was being said is dropped, but the session stays open (no new
+   * permission prompt, no reconnect) so unmuting is instant.
+   */
+  setMuted(muted: boolean) {
+    if (muted === this.muted) return
+    this.muted = muted
+    this.stream.getAudioTracks().forEach((t) => (t.enabled = !muted))
+    if (muted) {
+      const wasSpeaking = this.speaking
+      this.utterance = []
+      this.preroll = []
+      this.speaking = false
+      this.above = 0
+      this.silentMs = 0
+      this.cb.onLevel(0)
+      if (wasSpeaking) this.cb.onAbort?.()
+    }
+  }
+
   stop() {
     this.node.port.onmessage = null
     this.source.disconnect()
@@ -112,6 +133,7 @@ export class MicSession {
   }
 
   private frame(samples: Float32Array) {
+    if (this.muted) return
     let sum = 0
     for (let i = 0; i < samples.length; i++) sum += samples[i] * samples[i]
     const rms = Math.sqrt(sum / samples.length)

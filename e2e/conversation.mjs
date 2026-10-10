@@ -46,11 +46,12 @@ await page.addInitScript(() => {
 
 await page.goto(`${base}/#/runs`)
 const state = () => page.getByTestId('conversation-state').getAttribute('data-state')
-ok((await state()) === 'off', 'starts with the microphone off')
+ok((await state()) === 'off', 'starts outside a conversation')
+ok(await page.getByRole('button', { name: 'Mute' }).count() === 0, 'no mute button before the conversation starts')
 
-await page.getByRole('button', { name: 'Microphone off' }).click()
+await page.getByRole('button', { name: 'Start conversation' }).click()
 await page.waitForFunction(() => document.querySelector('[data-testid="conversation-state"]')?.dataset.state === 'listening', null, { timeout: 5000 })
-ok(true, 'microphone on: listening')
+ok(true, 'conversation started: listening')
 await page.screenshot({ path: path.resolve(here, 'out/1-listening.png'), clip: await page.locator('.talk').boundingBox() })
 
 const waitFor = (s, timeout = 20000) => page.waitForFunction((x) => window.__log.some((e) => e.s === x), s, { timeout })
@@ -75,9 +76,20 @@ ok(lines.some((l) => l.includes('fråga 1')) && lines.some((l) => l.includes('fr
 ok(calls.transcribe === 2 && calls.runs === 2, `two turns sent (transcribe=${calls.transcribe}, runs=${calls.runs})`)
 ok(calls.convIds.size === 1 && !calls.convIds.has(undefined) && calls.voiceFlags.every(Boolean), 'turns share one conversation id and are marked as voice runs')
 
-await page.getByRole('button', { name: 'Microphone on' }).click()
+// Mute is only a mute: the agent keeps talking and the conversation stays open.
+const mute = page.getByRole('button', { name: 'Mute' })
+await mute.click()
+ok((await page.getByRole('button', { name: 'Unmute' }).getAttribute('aria-pressed')) === 'true', 'mute silences the microphone (button becomes Unmute)')
+await page.waitForTimeout(500)
+ok((await state()) !== 'off', 'muting does not end the conversation')
+ok(await page.getByRole('button', { name: 'End conversation' }).isVisible(), 'a separate End conversation button is shown')
+await page.getByRole('button', { name: 'Unmute' }).click()
+ok(await page.getByRole('button', { name: 'Mute' }).isVisible(), 'unmute restores the microphone')
+
+await page.getByRole('button', { name: 'End conversation' }).click()
 await page.waitForFunction(() => document.querySelector('[data-testid="conversation-state"]')?.dataset.state === 'off', null, { timeout: 5000 })
-ok(true, 'microphone off stops everything')
+ok(true, 'End conversation stops everything')
+ok(await page.getByRole('button', { name: 'Start conversation' }).isVisible(), 'you can start a new conversation afterwards')
 console.log('states:', (await page.evaluate(() => window.__log.map((e) => `${e.s}@${e.t}`))).join(' → '))
 await browser.close()
 process.exit(failed ? 1 : 0)

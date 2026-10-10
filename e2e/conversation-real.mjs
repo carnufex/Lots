@@ -13,7 +13,7 @@ await page.addInitScript(() => {
   new MutationObserver(() => { const s = document.querySelector('[data-testid="conversation-state"]')?.getAttribute('data-state'); if (s && window.__log.at(-1)?.s !== s) window.__log.push({ s, t: Math.round(performance.now() - t0) }) }).observe(document, { subtree: true, attributes: true, childList: true })
 })
 await page.goto(`${base}/#/runs`)
-await page.getByRole('button', { name: 'Microphone off' }).click()
+await page.getByRole('button', { name: 'Start conversation' }).click()
 await page.waitForFunction(() => window.__log.some((e) => e.s === 'speaking'), null, { timeout: 90000 })
 await page.waitForTimeout(1500)
 const log = await page.evaluate(() => window.__log)
