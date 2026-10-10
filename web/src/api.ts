@@ -49,10 +49,15 @@ export interface Approval {
   arguments: string | null
   requestedBy: string
   requestedAt: string
-  status: 'Pending' | 'Approved' | 'Denied'
+  status: 'Pending' | 'Approved' | 'Denied' | 'Expired'
   decidedBy: string | null
   decidedAt: string | null
   comment: string | null
+  risk: string | null
+  requiredApprovals: number
+  approvedBy: string[]
+  expiresAt: string | null
+  commentRequired: boolean
 }
 
 export interface AuditEntry {

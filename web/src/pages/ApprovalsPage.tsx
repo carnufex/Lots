@@ -88,11 +88,22 @@ function ApprovalCard({ approval, api, onDecided }: { approval: Approval; api: A
         </span>
         <a href={`#/runs/${approval.runId}`}>View run</a>
       </div>
+      <p className="small muted">
+        {approval.risk && <span className={`decision ${approval.risk === 'Destructive' ? 'Denied' : 'ApprovalRequested'}`}>{approval.risk}</span>}
+        {approval.requiredApprovals > 1 && (
+          <span>
+            {' '}
+            · two approvers needed{approval.approvedBy.length > 0 ? `, approved so far by ${approval.approvedBy.join(', ')}` : ''}
+          </span>
+        )}
+        {approval.expiresAt && <span> · expires {new Date(approval.expiresAt).toLocaleString()} (then refused)</span>}
+      </p>
       {approval.arguments && <pre>{pretty(approval.arguments)}</pre>}
       <div className="row">
         <input
           className="wide"
-          placeholder="Comment (optional)"
+          placeholder={approval.commentRequired ? 'Reason (required)' : 'Comment (optional)'}
+          required={approval.commentRequired}
           aria-label="Comment"
           value={comment}
           onChange={(e) => setComment(e.target.value)}
@@ -102,10 +113,10 @@ function ApprovalCard({ approval, api, onDecided }: { approval: Approval; api: A
             {error}
           </span>
         )}
-        <button className="btn" disabled={busy} onClick={() => void decide('deny')}>
+        <button className="btn" disabled={busy || (approval.commentRequired && !comment.trim())} onClick={() => void decide('deny')}>
           Deny
         </button>
-        <button className="btn primary" disabled={busy} onClick={() => void decide('approve')}>
+        <button className="btn primary" disabled={busy || (approval.commentRequired && !comment.trim())} onClick={() => void decide('approve')}>
           Approve
         </button>
       </div>

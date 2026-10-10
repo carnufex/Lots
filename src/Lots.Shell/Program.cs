@@ -41,6 +41,12 @@ builder.Services.AddScoped<RunLeases>();
 builder.Services.AddScoped<RunControl>();
 builder.Services.AddKnowledge(builder.Configuration);
 builder.Services.AddScoped<Lots.Shell.Core.Config.ConfigService>();
+builder.Services.Configure<Lots.Shell.Core.Notifications.NotificationOptions>(builder.Configuration.GetSection(Lots.Shell.Core.Notifications.NotificationOptions.Section));
+builder.Services.AddHttpClient(nameof(Lots.Shell.Core.Notifications.NotificationWorker), h => h.Timeout = TimeSpan.FromSeconds(15));
+builder.Services.AddSingleton<Lots.Shell.Core.Notifications.NotificationWorker>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<Lots.Shell.Core.Notifications.NotificationWorker>());
+builder.Services.AddSingleton<Lots.Shell.Core.Notifications.ApprovalExpiryWorker>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<Lots.Shell.Core.Notifications.ApprovalExpiryWorker>());
 builder.Services.AddHostedService<Lots.Shell.Core.Config.ConfigSyncWorker>(); // profiles applied through the admin API, on every replica
 builder.Services.Configure<Lots.Shell.Core.Config.GitOpsOptions>(builder.Configuration.GetSection(Lots.Shell.Core.Config.GitOpsOptions.Section));
 builder.Services.AddSingleton<Lots.Shell.Core.Config.GitOpsStatus>();

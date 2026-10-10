@@ -283,11 +283,22 @@ public sealed class AgentRunner(
                 var approval = await db.Approvals.SingleOrDefaultAsync(a => a.RunId == run.Id && a.ToolCallId == call.Id, ct);
                 if (approval is null)
                 {
-                    db.Approvals.Add(new ApprovalRecord
+                    var profile = profiles.Find(run.Profile);
+                    var risk = profile?.Tools.FirstOrDefault(t => t.Name == call.Name)?.Risk ?? ToolRisk.Write;
+                    var rules = profile?.ApprovalRules ?? ApprovalRules.Default;
+                    var now = clock.GetUtcNow();
+                    var request = new ApprovalRecord
                     {
                         Id = Guid.NewGuid(), RunId = run.Id, ToolCallId = call.Id, ToolName = call.Name,
-                        ArgumentsJson = call.ArgumentsJson, RequestedBy = principal.UserId, RequestedAt = clock.GetUtcNow(),
-                    });
+                        ArgumentsJson = call.ArgumentsJson, RequestedBy = principal.UserId, RequestedAt = now,
+                        Risk = risk.ToString(), RequiredApprovals = rules.RequiredApprovals(risk), ExpiresAt = now.AddHours(rules.ExpireAfterHours),
+                    };
+                    db.Approvals.Add(request);
+                    Notifications.Outbox.Add(db, Notifications.NotificationEvents.ApprovalRequested, new
+                    {
+                        approvalId = request.Id, runId = run.Id, tool = call.Name, risk = request.Risk, profile = run.Profile,
+                        requestedBy = principal.UserId, requiredApprovals = request.RequiredApprovals, expiresAt = request.ExpiresAt,
+                    }, now);
                     run.Status = RunStatus.WaitingForApproval;
                     Audit(run, principal, call, AuditDecision.ApprovalRequested, policy.Reason, null, null);
                     await SaveAsync(run);
@@ -300,7 +311,12 @@ public sealed class AgentRunner(
                     return true;
                 }
                 approver = approval.DecidedBy;
-                if (approval.Status == ApprovalStatus.Denied)
+                if (approval.Status == ApprovalStatus.Expired)
+                {
+                    audit = AuditDecision.ApprovalDenied;
+                    result = $"Error: the request to run '{call.Name}' expired without a decision.";
+                }
+                else if (approval.Status == ApprovalStatus.Denied)
                 {
                     audit = AuditDecision.ApprovalDenied;
                     result = $"Error: the request to run '{call.Name}' was denied by {approval.DecidedBy}" + (string.IsNullOrWhiteSpace(approval.Comment) ? "." : $": {approval.Comment}");

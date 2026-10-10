@@ -12,6 +12,7 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
     public DbSet<VoiceUsageRecord> VoiceUsage => Set<VoiceUsageRecord>();
     public DbSet<KnowledgeConflictRecord> KnowledgeConflicts => Set<KnowledgeConflictRecord>();
     public DbSet<ConfigResourceRecord> ConfigResources => Set<ConfigResourceRecord>();
+    public DbSet<NotificationRecord> Notifications => Set<NotificationRecord>();
     public DbSet<ConfigVersionRecord> ConfigVersions => Set<ConfigVersionRecord>();
     public DbSet<ConflictVoteRecord> ConflictVotes => Set<ConflictVoteRecord>();
     public DbSet<UserSettingsRecord> UserSettings => Set<UserSettingsRecord>();
@@ -54,6 +55,17 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
             e.Property(x => x.ToolCallId).HasMaxLength(256).IsRequired();
             e.Property(x => x.RequestedBy).HasMaxLength(256).IsRequired();
             e.Property(x => x.DecidedBy).HasMaxLength(256);
+            e.Property(x => x.ApprovedBy).HasMaxLength(1024);
+            e.Property(x => x.Risk).HasMaxLength(16);
+            e.HasIndex(x => new { x.Status, x.ExpiresAt });
+        });
+
+        modelBuilder.Entity<NotificationRecord>(e =>
+        {
+            e.ToTable("notification_outbox");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.SentAt, x.NextAttemptAt });
+            e.Property(x => x.Event).HasMaxLength(64).IsRequired();
         });
 
         modelBuilder.Entity<ConfigResourceRecord>(e =>
@@ -223,7 +235,7 @@ public sealed class RunStepRecord
     public DateTimeOffset CreatedAt { get; set; }
 }
 
-public enum ApprovalStatus { Pending, Approved, Denied }
+public enum ApprovalStatus { Pending, Approved, Denied, Expired }
 
 /// <summary>A tool call that policy let through only with approval. The run waits until it is decided.</summary>
 public sealed class ApprovalRecord
@@ -239,6 +251,27 @@ public sealed class ApprovalRecord
     public string? DecidedBy { get; set; }
     public DateTimeOffset? DecidedAt { get; set; }
     public string? Comment { get; set; }
+    /// <summary>Distinct approvers needed (2 for two-person risk classes, #74); the requester never counts.</summary>
+    public int RequiredApprovals { get; set; } = 1;
+    /// <summary>Approvers so far (comma separated) while more are needed.</summary>
+    public string ApprovedBy { get; set; } = "";
+    /// <summary>Undecided after this, the request expires and counts as refused.</summary>
+    public DateTimeOffset? ExpiresAt { get; set; }
+    public string? Risk { get; set; }
+}
+
+/// <summary>Outbox of notifications (#74): written with the change that causes them, delivered with retries by NotificationWorker.</summary>
+public sealed class NotificationRecord
+{
+    public Guid Id { get; set; }
+    public required string Event { get; set; }
+    /// <summary>JSON payload: no tool arguments or results, only what an approver needs to find the request.</summary>
+    public required string PayloadJson { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public int Attempts { get; set; }
+    public DateTimeOffset? NextAttemptAt { get; set; }
+    public DateTimeOffset? SentAt { get; set; }
+    public string? LastError { get; set; }
 }
 
 public enum AuditDecision { Allowed, Denied, ApprovalRequested, ApprovalGranted, ApprovalRefused, ApprovalDenied }

@@ -66,7 +66,23 @@ public sealed record Profile(
     IReadOnlyList<ProfileRole> Roles,
     string? Model = null,
     bool DetectConflicts = false,
-    IReadOnlyList<PolicyTest>? PolicyTests = null);
+    IReadOnlyList<PolicyTest>? PolicyTests = null,
+    ApprovalRules? Approvals = null)
+{
+    public ApprovalRules ApprovalRules => Approvals ?? ApprovalRules.Default;
+}
+
+/// <summary>
+/// How approvals work in a profile (#74): undecided requests expire (and count as refused) after <see cref="ExpireAfterHours"/>;
+/// risk classes in <see cref="TwoPerson"/> need two different approvers, neither of them the requester; classes in
+/// <see cref="RequireComment"/> need a reason with every decision.
+/// </summary>
+public sealed record ApprovalRules(int ExpireAfterHours, IReadOnlyList<ToolRisk> TwoPerson, IReadOnlyList<ToolRisk> RequireComment)
+{
+    public static readonly ApprovalRules Default = new(24, [ToolRisk.Destructive], [ToolRisk.Destructive]);
+
+    public int RequiredApprovals(ToolRisk risk) => TwoPerson.Contains(risk) ? 2 : 1;
+}
 
 /// <summary>
 /// A policy test as code (#70): with these roles, calling this tool must be allowed, need approval or be denied. Run on apply and by
@@ -165,8 +181,18 @@ public static class ProfileParser
 
         if (errors.Count > 0) throw new ProfileException(errors);
 
+        ApprovalRules? approvalRules = null;
+        if (doc.Approvals is { } ar)
+        {
+            if (ar.ExpireAfterHours is < 1 or > 24 * 30) Err("approvals.expireAfterHours must be between 1 and 720");
+            approvalRules = new ApprovalRules(ar.ExpireAfterHours ?? ApprovalRules.Default.ExpireAfterHours,
+                ar.TwoPerson is null ? ApprovalRules.Default.TwoPerson : ParseRisks(ar.TwoPerson, "approvals.twoPerson", Err),
+                ar.RequireComment is null ? ApprovalRules.Default.RequireComment : ParseRisks(ar.RequireComment, "approvals.requireComment", Err));
+            if (errors.Count > 0) throw new ProfileException(errors);
+        }
+
         var profile = new Profile(doc.Name!, doc.Version, doc.Description ?? "", doc.Instructions?.Trim() ?? "", servers, tools, roles,
-            string.IsNullOrWhiteSpace(doc.Model) ? null : doc.Model.Trim(), doc.DetectConflicts, tests);
+            string.IsNullOrWhiteSpace(doc.Model) ? null : doc.Model.Trim(), doc.DetectConflicts, tests, approvalRules);
         var failures = Policy.PolicyTests.Run(profile).Where(r => !r.Passed).Select(r => $"{source}: policy test failed: {r.Description}").ToList();
         if (failures.Count > 0) throw new ProfileException(failures);
         return profile;
@@ -232,6 +258,7 @@ public static class ProfileParser
         /// <summary>Check retrieved passages for contradictions and let users vote (#48). Off unless enabled.</summary>
         public bool DetectConflicts { get; set; }
         public List<PolicyTestDoc>? PolicyTests { get; set; }
+        public ApprovalsDoc? Approvals { get; set; }
         public List<ServerDoc>? Servers { get; set; }
         public List<ToolDoc>? Tools { get; set; }
         public List<RoleDoc>? Roles { get; set; }
@@ -258,6 +285,13 @@ public static class ProfileParser
         public string? Audience { get; set; }
     }
     private sealed class ToolDoc { public string? Name { get; set; } public string? Risk { get; set; } }
+
+    private sealed class ApprovalsDoc
+    {
+        public int? ExpireAfterHours { get; set; }
+        public List<string>? TwoPerson { get; set; }
+        public List<string>? RequireComment { get; set; }
+    }
 
     private sealed class PolicyTestDoc
     {

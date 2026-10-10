@@ -1,6 +1,7 @@
 using FastEndpoints;
 using Lots.Shell.Core.Policy;
 using Lots.Shell.Core.Profiles;
+using Lots.Shell.Core.Tools;
 using Lots.Shell.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,13 +9,27 @@ namespace Lots.Shell.Features.Approvals;
 
 public sealed record ApprovalDto(
     Guid Id, Guid RunId, string Tool, string? Arguments, string RequestedBy, DateTimeOffset RequestedAt,
-    string Status, string? DecidedBy, DateTimeOffset? DecidedAt, string? Comment);
+    string Status, string? DecidedBy, DateTimeOffset? DecidedAt, string? Comment,
+    string? Risk = null, int RequiredApprovals = 1, IReadOnlyList<string>? ApprovedBy = null, DateTimeOffset? ExpiresAt = null, bool CommentRequired = false);
 
 internal static class ApprovalMapping
 {
-    public static ApprovalDto ToDto(ApprovalRecord a) => new(
+    public static List<string> Approvers(ApprovalRecord a) => a.ApprovedBy.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
+
+    public static bool CommentRequired(ApprovalRecord a, Profile? p) =>
+        p is not null && Enum.TryParse<ToolRisk>(a.Risk, out var risk) && p.ApprovalRules.RequireComment.Contains(risk);
+
+    public static ApprovalDto ToDto(ApprovalRecord a, Profile? p = null) => new(
         a.Id, a.RunId, a.ToolName, a.ArgumentsJson, a.RequestedBy, a.RequestedAt,
-        a.Status.ToString(), a.DecidedBy, a.DecidedAt, a.Comment);
+        a.Status.ToString(), a.DecidedBy, a.DecidedAt, a.Comment, a.Risk, a.RequiredApprovals, Approvers(a), a.ExpiresAt, CommentRequired(a, p));
+
+    /// <summary>
+    /// Whether this person may decide this request now: an approving role, and for two-person requests neither the requester nor
+    /// someone who already approved it.
+    /// </summary>
+    public static bool MayDecide(ApprovalRecord a, Profile p, Principal me) =>
+        PolicyEngine.CanApprove(me, p, a.ToolName)
+        && !(a.RequiredApprovals > 1 && (a.RequestedBy == me.UserId || Approvers(a).Contains(me.UserId)));
 }
 
 public sealed class ListApprovalsEndpoint(LotsDbContext db, ProfileRegistry profiles, ICurrentPrincipal who)
@@ -37,8 +52,8 @@ public sealed class ListApprovalsEndpoint(LotsDbContext db, ProfileRegistry prof
             .ToListAsync(ct);
 
         var visible = pending
-            .Where(x => profiles.Find(x.Profile) is { } p && PolicyEngine.CanApprove(me, p, x.Approval.ToolName))
-            .Select(x => ApprovalMapping.ToDto(x.Approval))
+            .Where(x => profiles.Find(x.Profile) is { } p && ApprovalMapping.MayDecide(x.Approval, p, me))
+            .Select(x => ApprovalMapping.ToDto(x.Approval, profiles.Find(x.Profile)))
             .ToList();
 
         await Send.OkAsync(visible, ct);
@@ -67,6 +82,20 @@ public abstract class DecideEndpoint(LotsDbContext db, ProfileRegistry profiles,
             await Send.ForbiddenAsync(ct);
             return;
         }
+        if (!ApprovalMapping.MayDecide(approval, profile, me))
+        {
+            AddError(approval.RequestedBy == me.UserId
+                ? "This request needs two approvers other than the requester."
+                : "You already approved this request; it needs a second, different approver.");
+            await Send.ErrorsAsync(403, ct);
+            return;
+        }
+        if (ApprovalMapping.CommentRequired(approval, profile) && string.IsNullOrWhiteSpace(req.Comment))
+        {
+            AddError(x => x.Comment!, $"A reason is required for {approval.Risk} tools.");
+            await Send.ErrorsAsync(cancellation: ct);
+            return;
+        }
 
         if (run.Status == RunStatus.Cancelled)
         {
@@ -83,10 +112,23 @@ public abstract class DecideEndpoint(LotsDbContext db, ProfileRegistry profiles,
         }
 
         var now = clock.GetUtcNow();
-        approval.Status = outcome;
-        approval.DecidedBy = me.UserId;
-        approval.DecidedAt = now;
-        approval.Comment = req.Comment;
+        // Two-person requests: the first approval is recorded; the request is approved when the required number is reached.
+        var approvers = ApprovalMapping.Approvers(approval);
+        if (outcome == ApprovalStatus.Approved) approvers.Add(me.UserId);
+        var complete = outcome == ApprovalStatus.Denied || approvers.Count >= approval.RequiredApprovals;
+        approval.ApprovedBy = string.Join(',', approvers);
+        if (complete)
+        {
+            approval.Status = outcome;
+            approval.DecidedBy = string.Join(", ", outcome == ApprovalStatus.Approved ? approvers : [me.UserId]);
+            approval.DecidedAt = now;
+            approval.Comment = req.Comment;
+            Lots.Shell.Core.Notifications.Outbox.Add(db, Lots.Shell.Core.Notifications.NotificationEvents.ApprovalDecided, new
+            {
+                approvalId = approval.Id, runId = run.Id, tool = approval.ToolName, requestedBy = approval.RequestedBy,
+                outcome = outcome == ApprovalStatus.Approved ? "approved" : "denied", decidedBy = approval.DecidedBy,
+            }, now);
+        }
 
         db.AuditLog.Add(new AuditRecord
         {
@@ -97,11 +139,11 @@ public abstract class DecideEndpoint(LotsDbContext db, ProfileRegistry profiles,
         });
 
         // The worker picks the run up again and continues right after the paused tool call.
-        if (run.Status == RunStatus.WaitingForApproval) run.Status = RunStatus.Pending;
+        if (complete && run.Status == RunStatus.WaitingForApproval) run.Status = RunStatus.Pending;
         run.UpdatedAt = now;
 
         await db.SaveChangesAsync(ct);
-        await Send.OkAsync(ApprovalMapping.ToDto(approval), ct);
+        await Send.OkAsync(ApprovalMapping.ToDto(approval, profile), ct);
     }
 }
 
