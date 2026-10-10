@@ -260,6 +260,12 @@ function Detail({ api, id }: { api: Api; id: string }) {
             <span className="who">{t('Agent')}</span> {it.answer ?? it.error ?? '…'}{' '}
             {audio.filter((a) => a.kind === 'agent' && a.runId === it.runId).map((a) => <AudioClip key={a.id} api={api} id={a.id} label="spoken answer" />)}
           </p>
+          {it.rating != null && (
+            <p className="small muted">
+              {it.rating > 0 ? '👍 ' + t('You rated this answer good') : '👎 ' + t('You rated this answer bad')}
+              {it.feedbackComment && <>: <q>{it.feedbackComment}</q></>}
+            </p>
+          )}
         </div>
       ))}
     </section>

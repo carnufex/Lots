@@ -84,6 +84,20 @@ dotnet run --project src/Lots.Evals -- --mode calibrate --judge-url http://ollam
 
 The report (`evals/report-calibration.md`) gives agreement, Cohen's kappa and how often the judge was too lenient or too strict. Until a judge
 model reaches the agreement floor, treat `judge` as a signal and gate on the deterministic checks only. Add labels from real answers as
-users rate them (#121).
+users rate them: `GET /feedback/labels` (see below).
 
 Other modes: `--mode retrieval` (knowledge search, #57) and `--mode injection` (red-team, ADR 0017).
+
+## From user feedback to eval cases
+
+Users rate any answer with thumbs up or down and an optional comment, in the chat or on the run page. Their rating shows in History.
+Reviewers (`Feedback:ReviewRoles`, default `admin`) work through the queue on the **Feedback** page (`GET /feedback?state=open&rating=down`).
+They either resolve an item with a note, or turn it into an eval case: the run's question, edited to remove personal data, plus the
+expected behaviour (tools, facts, forbidden tools, refusal, judge criteria).
+
+- `GET /feedback/eval-cases?profile=homelab` returns the cases as a dataset file. Save it under `evals/` and run it like any other dataset.
+  Its version is the number of cases, so a new case does not read as a regression.
+- `GET /feedback/labels` returns the human verdicts on cases with judge criteria, in the calibration label format.
+
+Feedback is part of the user's data export and is erased with the user. It is also deleted with its run under retention.
+

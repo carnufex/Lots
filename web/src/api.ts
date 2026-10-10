@@ -297,6 +297,48 @@ export interface ConversationTurn {
   /** Regenerated or edited: replaced by a later turn (#95). */
   superseded?: boolean
   attachments?: { id: string; name: string; kind: string }[] | null
+  /** The user's own rating of this answer (#121): 1 good, -1 bad. */
+  rating?: number | null
+  feedbackComment?: string | null
+}
+
+/** A user's rating of an answer (#121). */
+export interface Feedback {
+  id: string
+  runId: string
+  rating: number
+  comment: string | null
+  updatedAt: string
+  state: 'Open' | 'Resolved' | 'Converted'
+}
+
+export interface FeedbackCase {
+  id: string
+  question: string
+  profile?: string
+  expectedTools?: string[]
+  expectedFacts?: string[]
+  forbiddenTools?: string[]
+  expectRefusal?: boolean
+  judge?: string
+}
+
+export interface FeedbackItem {
+  id: string
+  runId: string
+  user: string
+  profile: string
+  rating: number
+  comment: string | null
+  prompt: string
+  answer: string | null
+  toolsCalled: string[]
+  createdAt: string
+  state: Feedback['state']
+  reviewedBy: string | null
+  reviewedAt: string | null
+  reviewNote: string | null
+  case: FeedbackCase | null
 }
 
 export interface ConversationDetail {
@@ -421,6 +463,24 @@ export function createApi(auth: Auth) {
       if (!res.ok) throw new ApiError(res.status, `${res.status} ${res.statusText}`)
       return res.blob()
     },
+    myFeedback: (runId: string) =>
+      request<Feedback>(`/runs/${runId}/feedback`).catch((e) => {
+        if (e instanceof ApiError && e.status === 404) return null
+        throw e
+      }),
+    rate: (runId: string, rating: 1 | -1, comment?: string) =>
+      request<Feedback>(`/runs/${runId}/feedback`, { method: 'PUT', body: JSON.stringify({ rating, comment: comment?.trim() || null }) }),
+    unrate: (runId: string) => request<void>(`/runs/${runId}/feedback`, { method: 'DELETE' }),
+    feedbackQueue: (f: { state?: string; rating?: string; profile?: string } = {}) => {
+      const q = new URLSearchParams(Object.entries(f).filter(([, v]) => v) as [string, string][])
+      return request<{ items: FeedbackItem[]; open: number; down: number; up: number }>(`/feedback?${q}`)
+    },
+    resolveFeedback: (id: string, note?: string) =>
+      request<Feedback>(`/feedback/${id}/resolve`, { method: 'POST', body: JSON.stringify({ note: note?.trim() || null }) }),
+    feedbackToCase: (id: string, body: Omit<FeedbackCase, 'id' | 'profile'>) =>
+      request<FeedbackCase>(`/feedback/${id}/eval-case`, { method: 'POST', body: JSON.stringify(body) }),
+    feedbackExport: (kind: 'eval-cases' | 'labels', profile?: string) =>
+      request<unknown>(`/feedback/${kind}${profile ? `?profile=${encodeURIComponent(profile)}` : ''}`),
     listApprovals: () => request<Approval[]>('/approvals'),
     decide: (id: string, outcome: 'approve' | 'deny', comment: string) =>
       request<Approval>(`/approvals/${id}/${outcome}`, { method: 'POST', body: JSON.stringify({ comment: comment || null }) }),

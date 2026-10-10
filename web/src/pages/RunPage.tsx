@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { isTerminal, type Api, type RunDetail, type Step } from '../api'
 import type { VoiceConfig } from '../config'
 import SpeakButton from '../components/SpeakButton'
+import Feedback from '../components/Feedback'
 import Citations from '../components/Citations'
 import ToolResult from '../components/ToolResult'
 import { ConflictVote, conflictIds } from '../components/ConflictVote'
@@ -152,6 +153,11 @@ function Detail({ run, api, voice, reconnecting, traceUrl }: { run: RunDetail; a
             <ConflictVote key={id} api={api} id={id} />
           ))}
           {voice.enabled && run.finalAnswer && <SpeakButton api={api} runId={run.id} />}
+          {run.finalAnswer && (
+            <p className="turn-actions">
+              <Feedback api={api} runId={run.id} load />
+            </p>
+          )}
         </>
       )}
       {run.status === 'Failed' && (

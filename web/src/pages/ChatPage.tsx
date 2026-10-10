@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import Feedback from '../components/Feedback'
 import { type Api, type ConversationDetail, type ConversationSummary, type ConversationTurn } from '../api'
 import type { ProfileInfo } from '../config'
 import Markdown from '../components/Markdown'
@@ -166,6 +167,7 @@ export default function ChatPage({ api, profiles, id }: { api: Api; profiles: Pr
                   )}
                   {(turn.status === 'Failed' || turn.status === 'Cancelled') && <p className="error small">{turn.error ?? turn.status}</p>}
                   <div className="turn-actions">
+                    {turn.answer && <Feedback api={api} runId={turn.runId} rating={turn.rating} comment={turn.feedbackComment} />}
                     {turn.answer && (
                       <button type="button" className="btn ghost small" onClick={() => void copy(turn.answer!, t('Answer'))}>
                         {t('Copy')}

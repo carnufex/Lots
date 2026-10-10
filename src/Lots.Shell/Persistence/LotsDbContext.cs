@@ -29,6 +29,7 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
     public DbSet<AttachmentRecord> Attachments => Set<AttachmentRecord>();
     public DbSet<ChannelEventRecord> ChannelEvents => Set<ChannelEventRecord>();
     public DbSet<MemoryRecord> Memories => Set<MemoryRecord>();
+    public DbSet<FeedbackRecord> Feedback => Set<FeedbackRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -184,6 +185,21 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
             e.Property(x => x.Text).HasMaxLength(1000);
             e.Property(x => x.Source).HasMaxLength(16);
             e.Property(x => x.Profile).HasMaxLength(128);
+        });
+
+        modelBuilder.Entity<FeedbackRecord>(e =>
+        {
+            e.ToTable("feedback");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.RunId, x.UserId }).IsUnique(); // one rating per user per answer
+            e.HasIndex(x => new { x.State, x.CreatedAt });
+            e.Property(x => x.UserId).HasMaxLength(256).IsRequired();
+            e.Property(x => x.Comment).HasMaxLength(2000);
+            e.Property(x => x.ReviewedBy).HasMaxLength(256);
+            e.Property(x => x.ReviewNote).HasMaxLength(2000);
+            e.Property(x => x.State).HasConversion<string>().HasMaxLength(16);
+            // Feedback goes with its run (retention, erasure).
+            e.HasOne<RunRecord>().WithMany().HasForeignKey(x => x.RunId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<ChannelEventRecord>(e =>
@@ -670,6 +686,29 @@ public sealed class MemoryRecord
     public string? Profile { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? ConfirmedAt { get; set; }
+}
+
+public enum FeedbackState { Open, Resolved, Converted }
+
+/// <summary>
+/// A user's rating of an answer (#121): thumbs up (+1) or down (-1) and an optional comment. Reviewers resolve it or turn it into an
+/// eval case (<see cref="CaseJson"/>, the expected behaviour they wrote), so a bad answer becomes a regression test.
+/// </summary>
+public sealed class FeedbackRecord
+{
+    public Guid Id { get; set; }
+    public Guid RunId { get; set; }
+    public required string UserId { get; set; }
+    public int Rating { get; set; }
+    public string? Comment { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+    public FeedbackState State { get; set; } = FeedbackState.Open;
+    public string? ReviewedBy { get; set; }
+    public DateTimeOffset? ReviewedAt { get; set; }
+    public string? ReviewNote { get; set; }
+    /// <summary>The eval case made from this feedback, as JSON in the dataset format (docs/evals.md).</summary>
+    public string? CaseJson { get; set; }
 }
 
 /// <summary>A channel event (Slack event id, mail message id) that has been handled (#107): retries and duplicates are dropped.</summary>

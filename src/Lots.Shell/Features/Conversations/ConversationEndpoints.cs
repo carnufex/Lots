@@ -11,7 +11,7 @@ public sealed record TimelineEvent(string Kind, string Name, long StartMs, long 
 public sealed record TurnDto(
     Guid RunId, string Prompt, string? Answer, string Status, string? Error, DateTimeOffset StartedAt, long DurationMs,
     IReadOnlyList<TimelineEvent> Events, bool Voice = false, Guid? RetryOf = null, bool Superseded = false,
-    IReadOnlyList<Core.Attachments.AttachmentRef>? Attachments = null);
+    IReadOnlyList<Core.Attachments.AttachmentRef>? Attachments = null, int? Rating = null, string? FeedbackComment = null);
 
 public sealed record StageTotals(long SttMs, long LlmMs, long ToolMs, long TtsMs, long OtherMs);
 
@@ -39,11 +39,15 @@ public static class ConversationViews
         var speech = await db.VoiceUsage.AsNoTracking()
             .Where(u => u.ConversationId != null && ids.Contains(u.ConversationId.Value) && u.Outcome == "ok").ToListAsync(ct);
         var summaries = await db.Conversations.AsNoTracking().Where(c => ids.Contains(c.Id)).ToDictionaryAsync(c => c.Id, ct);
+        // The run owner's own rating of each answer (#121), shown in the chat and in History.
+        var runIds = loaded.Select(r => r.Id).ToList();
+        var feedback = (await db.Feedback.AsNoTracking().Where(f => runIds.Contains(f.RunId)).ToListAsync(ct))
+            .Where(f => loaded.Any(r => r.Id == f.RunId && r.UserId == f.UserId)).ToDictionary(f => f.RunId);
 
         return loaded.Where(r => r.ConversationId != null).GroupBy(r => r.ConversationId!.Value)
             .Select(g =>
             {
-                var detail = Build(g.Key, g.OrderBy(r => r.CreatedAt).ToList(), speech.Where(u => u.ConversationId == g.Key).ToList());
+                var detail = Build(g.Key, g.OrderBy(r => r.CreatedAt).ToList(), speech.Where(u => u.ConversationId == g.Key).ToList(), feedback);
                 // A generated title and summary (#80) replace the first prompt as the title once they exist.
                 return summaries.TryGetValue(g.Key, out var s) && !string.IsNullOrEmpty(s.Title)
                     ? detail with { Conversation = detail.Conversation with { Title = s.Title, Summary = s.Summary } }
@@ -52,7 +56,7 @@ public static class ConversationViews
             .OrderByDescending(c => c.Conversation.StartedAt).ToList();
     }
 
-    private static ConversationDetail Build(Guid id, List<RunRecord> runs, List<VoiceUsageRecord> speech)
+    private static ConversationDetail Build(Guid id, List<RunRecord> runs, List<VoiceUsageRecord> speech, IReadOnlyDictionary<Guid, FeedbackRecord> feedback)
     {
         // Dictation happens before its run exists, so each Stt call is attached to the first run that starts after it.
         var stt = speech.Where(u => u.Direction == "Stt").OrderBy(u => u.At).ToList();
@@ -84,7 +88,8 @@ public static class ConversationViews
             turns.Add(new TurnDto(run.Id, run.Prompt, run.FinalAnswer, run.Status.ToString(), run.Error, run.CreatedAt, end - begin,
                 events.OrderBy(e => e.StartMs).ToList(), run.Voice, run.RetryOf, runs.Any(r => r.RetryOf == run.Id),
                 run.AttachmentsJson is null ? null : System.Text.Json.JsonSerializer.Deserialize<List<Core.Attachments.AttachmentRef>>(run.AttachmentsJson,
-                    new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web))));
+                    new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)),
+                feedback.GetValueOrDefault(run.Id)?.Rating, feedback.GetValueOrDefault(run.Id)?.Comment));
         }
 
         var all = turns.SelectMany(t => t.Events).ToList();

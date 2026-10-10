@@ -1555,3 +1555,88 @@ p.summary {
 .memory-list li input {
   flex: 1;
 }
+
+/* Feedback (#121) */
+.feedback-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 900px;
+}
+
+.feedback {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.thumb {
+  filter: grayscale(1);
+  opacity: 0.7;
+}
+
+.thumb.on,
+.thumb:hover {
+  filter: none;
+  opacity: 1;
+}
+
+.thumb.on {
+  background: var(--surface-2);
+}
+
+.feedback-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-basis: 100%;
+  max-width: 560px;
+}
+
+.feedback-form textarea {
+  width: 100%;
+}
+
+.feedback-answer {
+  border-left: 2px solid var(--border);
+  padding-left: 12px;
+  margin: 8px 0;
+}
+
+.feedback-comment {
+  margin: 8px 0;
+  padding: 6px 12px;
+  border-left: 2px solid var(--warn);
+  color: var(--text);
+}
+
+.casebox {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 640px;
+  margin-top: 10px;
+}
+
+.casebox label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.casebox label.inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.casebox input:not([type='checkbox']),
+.casebox textarea {
+  width: 100%;
+}

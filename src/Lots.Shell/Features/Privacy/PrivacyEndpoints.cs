@@ -127,6 +127,7 @@ public sealed class ExportMyDataEndpoint(LotsDbContext db, IAudioStore audio, IK
             personalKnowledge = personal,
             speechUsage = await db.VoiceUsage.AsNoTracking().Where(v => v.UserId == me).ToListAsync(ct),
             memories = await db.Memories.AsNoTracking().Where(m => m.UserId == me).ToListAsync(ct),
+            feedback = await db.Feedback.AsNoTracking().Where(f => f.UserId == me).ToListAsync(ct),
         };
 
         using var zip = new MemoryStream();
@@ -236,6 +237,9 @@ public static class DataDeletion
         d["memories"] = memories.Count;
         var files = await db.Attachments.Where(a => a.UserId == user).ToListAsync(ct);
         db.Attachments.RemoveRange(files);
+        var ratings = await db.Feedback.Where(f => f.UserId == user).ToListAsync(ct); // also on runs of others
+        db.Feedback.RemoveRange(ratings);
+        d["feedback"] = ratings.Count;
         d["attachments"] = files.Count;
         await db.SaveChangesAsync(ct);
         foreach (var s in (await knowledge.ListSourcesAsync(ct)).Where(s => s.Owner == user && s.Readers.Count == 1 && s.Readers[0] == "user:" + user))
