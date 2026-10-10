@@ -8,11 +8,12 @@ import ApprovalsPage from './pages/ApprovalsPage'
 import AuditPage from './pages/AuditPage'
 import VoicePage from './pages/VoicePage'
 import HistoryPage from './pages/HistoryPage'
+import IntegrationsPage, { INTEGRATION_TABS, type IntegrationTab } from './pages/IntegrationsPage'
 import PlaceholderPage from './pages/Placeholder'
 import { PLANNED } from './planned'
 import { Icon, type IconName } from './components/Icon'
 
-type Route = { name: 'runs' } | { name: 'run'; id: string } | { name: 'approvals' } | { name: 'audit' } | { name: 'voice' } | { name: 'history'; id?: string } | { name: 'planned'; slug: string }
+type Route = { name: 'runs' } | { name: 'run'; id: string } | { name: 'approvals' } | { name: 'audit' } | { name: 'voice' } | { name: 'history'; id?: string } | { name: 'integrations'; tab: IntegrationTab } | { name: 'planned'; slug: string }
 
 type NavItem = { href: string; label: string; icon: IconName; active: (r: Route) => boolean }
 
@@ -28,11 +29,12 @@ const planned = (slug: string): NavItem => {
 }
 
 const historyNav: NavItem = { href: '#/history', label: 'History', icon: 'transcribe', active: (r) => r.name === 'history' }
+const integrationsNav: NavItem = { href: '#/integrations', label: 'Integrations', icon: 'tools', active: (r) => r.name === 'integrations' }
 const voiceNav: NavItem = { href: '#/voice', label: 'Voice', icon: 'voice', active: (r) => r.name === 'voice' }
 
 const NAV: { title: string; items: NavItem[] }[] = [
   { title: 'Work', items: [nav('runs', 'Runs', 'runs'), historyNav, nav('approvals', 'Approvals', 'approvals'), nav('audit', 'Audit', 'audit')] },
-  { title: 'Capabilities', items: ['knowledge', 'tools', 'mcp'].map(planned).concat([voiceNav], ['transcription', 'models'].map(planned)) },
+  { title: 'Capabilities', items: [planned('knowledge'), integrationsNav, voiceNav, planned('transcription'), planned('models')] },
   { title: 'Administration', items: ['profiles', 'policy', 'identity'].map(planned) },
 ]
 
@@ -41,6 +43,8 @@ function useHashRoute(): Route {
     const r = window.location.hash.replace(/^#\/?/, '')
     if (r === 'approvals' || r === 'audit' || r === 'voice') return { name: r }
     if (r === 'history') return { name: 'history' }
+    const it = /^integrations(?:\/([a-z-]+))?$/.exec(r)
+    if (it) return { name: 'integrations', tab: INTEGRATION_TABS.find((t) => t.slug === it[1])?.slug ?? 'tool-calls' }
     const h = /^history\/([0-9a-f-]{36})$/i.exec(r)
     if (h) return { name: 'history', id: h[1] }
     if (PLANNED.some((p) => p.slug === r)) return { name: 'planned', slug: r }
@@ -150,6 +154,7 @@ function Shell({ config, auth, session }: { config: ClientConfig; auth: Auth; se
           {route.name === 'approvals' && <ApprovalsPage api={api} />}
           {route.name === 'audit' && <AuditPage api={api} />}
           {route.name === 'history' && <HistoryPage api={api} id={route.id} />}
+          {route.name === 'integrations' && <IntegrationsPage tab={route.tab} />}
           {route.name === 'voice' && <VoicePage api={api} voice={config.voice} />}
           {route.name === 'planned' && <PlaceholderPage item={PLANNED.find((p) => p.slug === route.slug)!} />}
         </main>
