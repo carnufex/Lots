@@ -33,7 +33,7 @@ public sealed record ModelResponse(
 /// <see cref="Alias"/>: which configured model alias to use (default when null or unknown).
 /// </summary>
 public sealed record ModelCallOptions(bool Fast = false, string? ReasoningEffort = null, string? Alias = null,
-    Policy.DataClass Data = Policy.DataClass.Public);
+    Policy.DataClass Data = Policy.DataClass.Public, Action<string>? OnText = null);
 
 public interface IModelClient
 {

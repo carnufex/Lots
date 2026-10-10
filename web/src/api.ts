@@ -289,6 +289,10 @@ export interface ConversationTurn {
   startedAt: string
   durationMs: number
   events: TimelineEvent[]
+  voice?: boolean
+  retryOf?: string | null
+  /** Regenerated or edited: replaced by a later turn (#95). */
+  superseded?: boolean
 }
 
 export interface ConversationDetail {
@@ -452,6 +456,36 @@ export function createApi(auth: Auth) {
     voteConflict: (id: string, option: string) => request<Conflict>(`/knowledge/conflicts/${id}/vote`, { method: 'POST', body: JSON.stringify({ option }) }),
     resolveConflict: (id: string, option: string) => request<void>(`/knowledge/conflicts/${id}/resolve`, { method: 'POST', body: JSON.stringify({ option }) }),
     chunk: (id: string) => request<KnowledgeHit>(`/knowledge/chunks/${encodeURIComponent(id)}`),
+    regenerateRun: (id: string, prompt?: string) =>
+      request<{ id: string; status: RunStatus }>(`/runs/${id}/regenerate`, { method: 'POST', body: JSON.stringify(prompt ? { prompt } : {}) }),
+    /**
+     * Live run events (#95) via fetch (EventSource cannot send the Authorization header). Calls onPartial with the answer written
+     * so far, onChanged when status or steps change; resolves when the run is done or the stream ends.
+     */
+    streamRun: async (id: string, handlers: { onPartial?: (text: string) => void; onChanged?: () => void }, signal?: AbortSignal) => {
+      const res = await fetch(`/runs/${id}/events`, { headers: await auth.headers(), signal })
+      if (!res.ok || !res.body) throw new ApiError(res.status, `events ${res.status}`)
+      const reader = res.body.pipeThrough(new TextDecoderStream()).getReader()
+      let buffer = ''
+      for (;;) {
+        const { value, done } = await reader.read()
+        if (done) return
+        buffer += value
+        let cut: number
+        while ((cut = buffer.indexOf('\n\n')) >= 0) {
+          const block = buffer.slice(0, cut)
+          buffer = buffer.slice(cut + 2)
+          const event = /^event: (.*)$/m.exec(block)?.[1]
+          const data = /^data: (.*)$/m.exec(block)?.[1]
+          if (event === 'partial' && data) handlers.onPartial?.((JSON.parse(data) as { text: string }).text)
+          else if (event === 'changed') handlers.onChanged?.()
+          else if (event === 'done') {
+            handlers.onChanged?.()
+            return
+          }
+        }
+      }
+    },
     startRun: (prompt: string, profile: string, options: { voice?: boolean; conversationId?: string } = {}) =>
       request<{ id: string; status: RunStatus }>('/runs', { method: 'POST', body: JSON.stringify({ prompt, profile, ...options }) }),
     /** A short fixed acknowledgement ("Jag kollar.") to play while the agent works; null when unavailable. */

@@ -42,6 +42,11 @@ const PATHS = {
       <path d="M12 6h16l8 8v8M12 6v34h12"/><path d="M28 6v8h8M18 20h10M18 27h6"/><circle cx="34" cy="34" r="7" stroke="#2DD4BF"/><path d="M39.5 39.5 44 44" stroke="#2DD4BF"/>
     </>
   ),
+  chat: (
+    <>
+      <path d="M8 12a4 4 0 0 1 4-4h24a4 4 0 0 1 4 4v16a4 4 0 0 1-4 4H20l-8 7v-7h0a4 4 0 0 1-4-4z"/><path d="M16 18h16M16 24h10" stroke="#2DD4BF"/>
+    </>
+  ),
   runs: (
     <>
       <circle cx="24" cy="24" r="17"/><path d="M20 16.5v15l12-7.5z" stroke="#2DD4BF"/>

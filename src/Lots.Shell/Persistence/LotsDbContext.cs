@@ -285,6 +285,8 @@ public sealed class RunRecord
     /// need an approval even where the role would allow them directly.
     /// </summary>
     public bool Tainted { get; set; }
+    /// <summary>The answer the model is writing right now (#95), for readers on other replicas; null between model calls.</summary>
+    public string? Partial { get; set; }
     /// <summary>The highest data class the run has read (#89). Model calls go only to endpoints cleared for it.</summary>
     public Lots.Shell.Core.Policy.DataClass Sensitivity { get; set; }
     /// <summary>OpenTelemetry trace of the run's first execution (#76): resumed executions link to it.</summary>

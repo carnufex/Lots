@@ -1132,6 +1132,90 @@
         ]
       }
     },
+    "/runs/{id}/events": {
+      "get": {
+        "tags": [
+          "Runs"
+        ],
+        "operationId": "LotsShellFeaturesRunsRunEventsEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/runs/{id}/regenerate": {
+      "post": {
+        "tags": [
+          "Runs"
+        ],
+        "operationId": "LotsShellFeaturesRunsRegenerateRunEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "RegenerateRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegenerateRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartRunResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/me/export": {
       "get": {
         "tags": [
@@ -4315,6 +4399,16 @@
         "type": "object",
         "additionalProperties": false
       },
+      "RegenerateRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
       "DeletionReport": {
         "type": "object",
         "additionalProperties": false,
@@ -5424,6 +5518,17 @@
             "items": {
               "$ref": "#/components/schemas/TimelineEvent"
             }
+          },
+          "voice": {
+            "type": "boolean"
+          },
+          "retryOf": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "superseded": {
+            "type": "boolean"
           }
         }
       },

@@ -154,6 +154,9 @@ public sealed class RoutingModelClient(ModelCatalog catalog, IHttpClientFactory 
         var aliasName = route.Alias;
         var alias = catalog.Aliases[aliasName];
         Exception? last = null;
+        // Once a streamed reply has started, another endpoint must not start it again: no fallback after the first token.
+        var started = false;
+        if (options.OnText is { } forward) options = options with { OnText = t => { started = true; forward(t); } };
         foreach (var target in route.Targets)
         {
             var client = new OpenAiCompatibleModelClient(httpFactory.CreateClient(HttpClientName(target.Endpoint)),
@@ -163,7 +166,7 @@ public sealed class RoutingModelClient(ModelCatalog catalog, IHttpClientFactory 
                 var response = await client.CompleteAsync(messages, tools, options, ct);
                 return response with { Model = target.Model, Endpoint = target.Endpoint, Rerouted = route.Rerouted };
             }
-            catch (Exception ex) when (Retriable(ex, ct))
+            catch (Exception ex) when (!started && Retriable(ex, ct))
             {
                 last = ex;
                 logger.LogWarning("Model endpoint {Endpoint} ({Model}) failed for alias {Alias}: {Error}; trying the next one",

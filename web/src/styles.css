@@ -1250,3 +1250,138 @@ pre.log .warn {
 p.summary {
   max-width: 70ch;
 }
+
+/* Chat (#95) */
+.chat {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 20px;
+  min-height: calc(100vh - 120px);
+}
+
+.chat-list {
+  border-right: 1px solid var(--border);
+  padding-right: 16px;
+  overflow-y: auto;
+}
+
+.chat-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+}
+
+.chat-list li {
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  border-radius: var(--radius);
+}
+
+.chat-list li.active {
+  background: var(--surface-2);
+}
+
+.chat-list li a {
+  color: var(--text);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.chat-thread {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding-bottom: 16px;
+}
+
+.turn-user {
+  align-self: flex-end;
+  max-width: 80%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+}
+
+.turn-user p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.turn-agent {
+  margin-top: 10px;
+  max-width: 100%;
+}
+
+.turn-actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0.75;
+}
+
+.turn-actions:hover,
+.turn-actions:focus-within {
+  opacity: 1;
+}
+
+.chat-input {
+  position: sticky;
+  bottom: 0;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.chat-input textarea,
+.editbox textarea {
+  width: 100%;
+  resize: vertical;
+}
+
+.md p,
+.md ul,
+.md ol {
+  margin: 0 0 10px;
+}
+
+.md pre.code {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.md code {
+  font-family: var(--mono);
+  font-size: 0.92em;
+}
+
+@media (max-width: 720px) {
+  .chat {
+    grid-template-columns: 1fr;
+  }
+
+  .chat-list {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+    padding: 0 0 12px;
+    max-height: 30vh;
+  }
+
+  .turn-user {
+    max-width: 100%;
+  }
+}

@@ -65,6 +65,7 @@ builder.Services.AddScoped<ToolInvoker>();
 builder.Services.AddScoped<AgentRunner>();
 builder.Services.AddScoped<RunLeases>();
 builder.Services.AddScoped<RunControl>();
+builder.Services.AddSingleton<RunStreams>(); // streamed answers (#95)
 builder.Services.AddKnowledge(builder.Configuration);
 builder.Services.AddSingleton<Lots.Shell.Features.Usage.PriceTable>();
 builder.Services.AddSingleton<Lots.Shell.Core.Speech.IAudioStore, Lots.Shell.Core.Speech.FileAudioStore>();

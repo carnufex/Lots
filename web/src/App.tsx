@@ -3,6 +3,7 @@ import { createApi, type Api } from './api'
 import { createAuth, readDevIdentity, writeDevIdentity, type Auth, type Session } from './auth'
 import { loadConfig, type ClientConfig } from './config'
 import RunsPage from './pages/RunsPage'
+import ChatPage from './pages/ChatPage'
 import RunPage from './pages/RunPage'
 import ApprovalsPage from './pages/ApprovalsPage'
 import AuditPage from './pages/AuditPage'
@@ -19,7 +20,7 @@ import UsagePage from './pages/UsagePage'
 import { PLANNED } from './planned'
 import { Icon, type IconName } from './components/Icon'
 
-type Route = { name: 'runs' } | { name: 'run'; id: string } | { name: 'approvals' } | { name: 'audit' } | { name: 'voice' } | { name: 'knowledge' } | { name: 'profiles' } | { name: 'policy' } | { name: 'models' } | { name: 'identity' } | { name: 'usage' } | { name: 'history'; id?: string } | { name: 'integrations'; tab: IntegrationTab } | { name: 'planned'; slug: string }
+type Route = { name: 'chat'; id?: string } | { name: 'runs' } | { name: 'run'; id: string } | { name: 'approvals' } | { name: 'audit' } | { name: 'voice' } | { name: 'knowledge' } | { name: 'profiles' } | { name: 'policy' } | { name: 'models' } | { name: 'identity' } | { name: 'usage' } | { name: 'history'; id?: string } | { name: 'integrations'; tab: IntegrationTab } | { name: 'planned'; slug: string }
 
 type NavItem = { href: string; label: string; icon: IconName; active: (r: Route) => boolean }
 
@@ -34,6 +35,7 @@ const planned = (slug: string): NavItem => {
   return { href: `#/${slug}`, label: p.label, icon: p.icon, active: (r) => r.name === 'planned' && r.slug === slug }
 }
 
+const chatNav: NavItem = { href: '#/chat', label: 'Chat', icon: 'chat', active: (r) => r.name === 'chat' }
 const historyNav: NavItem = { href: '#/history', label: 'History', icon: 'transcribe', active: (r) => r.name === 'history' }
 const integrationsNav: NavItem = { href: '#/integrations', label: 'Integrations', icon: 'tools', active: (r) => r.name === 'integrations' }
 const voiceNav: NavItem = { href: '#/voice', label: 'Voice', icon: 'voice', active: (r) => r.name === 'voice' }
@@ -46,7 +48,7 @@ const page = (name: 'profiles' | 'policy' | 'models' | 'identity' | 'usage', lab
 })
 
 const NAV: { title: string; items: NavItem[] }[] = [
-  { title: 'Work', items: [nav('runs', 'Runs', 'runs'), historyNav, nav('approvals', 'Approvals', 'approvals'), nav('audit', 'Audit', 'audit'), page('usage', 'Usage', 'models')] },
+  { title: 'Work', items: [chatNav, nav('runs', 'Runs', 'runs'), historyNav, nav('approvals', 'Approvals', 'approvals'), nav('audit', 'Audit', 'audit'), page('usage', 'Usage', 'models')] },
   { title: 'Capabilities', items: [knowledgeNav, integrationsNav, voiceNav, planned('transcription'), page('models', 'Models', 'models')] },
   { title: 'Administration', items: [page('profiles', 'Profiles', 'profiles'), page('policy', 'Policy', 'policy'), page('identity', 'Identity', 'identity')] },
 ]
@@ -57,6 +59,9 @@ function useHashRoute(): Route {
     if (r === 'approvals' || r === 'audit' || r === 'voice' || r === 'knowledge' || r === 'profiles' || r === 'policy' || r === 'models' || r === 'identity' || r === 'usage')
       return { name: r }
     if (r === 'history') return { name: 'history' }
+    if (r === 'chat') return { name: 'chat' }
+    const c = /^chat\/([0-9a-f-]{36})$/i.exec(r)
+    if (c) return { name: 'chat', id: c[1] }
     const it = /^integrations(?:\/([a-z-]+))?$/.exec(r)
     if (it) return { name: 'integrations', tab: INTEGRATION_TABS.find((t) => t.slug === it[1])?.slug ?? 'tool-calls' }
     const h = /^history\/([0-9a-f-]{36})$/i.exec(r)
@@ -163,6 +168,7 @@ function Shell({ config, auth, session }: { config: ClientConfig; auth: Auth; se
           </div>
         </header>
         <main>
+          {route.name === 'chat' && <ChatPage key={route.id ?? 'new'} api={api} profiles={config.profiles} id={route.id} />}
           {route.name === 'runs' && <RunsPage api={api} profiles={config.profiles} voice={config.voice} />}
           {route.name === 'run' && <RunPage api={api} id={route.id} voice={config.voice} traceUrl={config.traceUrl} />}
           {route.name === 'approvals' && <ApprovalsPage api={api} />}

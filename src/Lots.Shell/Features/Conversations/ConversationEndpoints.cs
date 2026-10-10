@@ -10,7 +10,7 @@ public sealed record TimelineEvent(string Kind, string Name, long StartMs, long 
 
 public sealed record TurnDto(
     Guid RunId, string Prompt, string? Answer, string Status, string? Error, DateTimeOffset StartedAt, long DurationMs,
-    IReadOnlyList<TimelineEvent> Events);
+    IReadOnlyList<TimelineEvent> Events, bool Voice = false, Guid? RetryOf = null, bool Superseded = false);
 
 public sealed record StageTotals(long SttMs, long LlmMs, long ToolMs, long TtsMs, long OtherMs);
 
@@ -79,8 +79,9 @@ public static class ConversationViews
 
             var end = events.Count == 0 ? Rel(run.UpdatedAt) : Math.Max(Rel(run.UpdatedAt), events.Max(e => e.StartMs + e.DurationMs));
             var begin = events.Count == 0 ? Rel(run.CreatedAt) : Math.Min(Rel(run.CreatedAt), events.Min(e => e.StartMs));
+            // Superseded: the turn was regenerated or edited (#95); the chat shows only its successor.
             turns.Add(new TurnDto(run.Id, run.Prompt, run.FinalAnswer, run.Status.ToString(), run.Error, run.CreatedAt, end - begin,
-                events.OrderBy(e => e.StartMs).ToList()));
+                events.OrderBy(e => e.StartMs).ToList(), run.Voice, run.RetryOf, runs.Any(r => r.RetryOf == run.Id)));
         }
 
         var all = turns.SelectMany(t => t.Events).ToList();

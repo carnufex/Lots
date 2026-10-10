@@ -31,6 +31,9 @@ public sealed class AgentOptions
     /// <summary>After tool output that looked like an injected instruction, write and destructive calls of the run need an approval (#85).</summary>
     public bool EscalateAfterInjection { get; set; } = true;
 
+    /// <summary>Stream answers token by token to the UI (#95). Off for endpoints that do not support <c>stream: true</c>.</summary>
+    public bool StreamTokens { get; set; } = true;
+
     /// <summary>
     /// Rough budget (characters) for the conversation sent to the model. When exceeded, the oldest tool results
     /// are replaced by a placeholder in the request (the stored conversation and trace are untouched).
@@ -79,7 +82,8 @@ public sealed class AgentRunner(
     IOptions<ModelOptions>? modelOptions = null,
     SubjectTokenVault? vault = null,
     ModelCatalog? catalog = null,
-    Quotas.QuotaService? quotas = null)
+    Quotas.QuotaService? quotas = null,
+    RunStreams? streams = null)
 {
     public static readonly ActivitySource Telemetry = new("Lots.Shell");
     private const int MaxTraceResultChars = 2000;
@@ -192,6 +196,11 @@ public sealed class AgentRunner(
                 }
 
                 var callOptions = CallOptions(run, modelCalls);
+                if (streams is not null && _options.StreamTokens)
+                {
+                    var streamedRun = run.Id;
+                    callOptions = callOptions with { OnText = delta => streams.Publish(streamedRun, delta) };
+                }
                 var modelName = catalog?.PrimaryModel(callOptions.Alias) ?? modelOptions?.Value.Model ?? "";
                 using var activity = Telemetry.StartActivity($"chat {modelName}", ActivityKind.Client);
                 activity?.SetTag("gen_ai.operation.name", "chat");
@@ -213,6 +222,10 @@ public sealed class AgentRunner(
                 {
                     LotsMetrics.ModelCalls.Add(1, new("model", modelName), new("endpoint", ""), new("outcome", "error"));
                     throw;
+                }
+                finally
+                {
+                    if (streams is not null) await streams.ClearAsync(run.Id); // the finished message (or none) replaces the partial text
                 }
                 activity?.SetTag("gen_ai.response.model", response.Model);
                 if (response.Rerouted is { } why)
@@ -285,7 +298,9 @@ public sealed class AgentRunner(
         if (run.ConversationId is not { } conversation) return [];
         var turns = await db.Runs.AsNoTracking()
             .Where(r => r.ConversationId == conversation && r.UserId == run.UserId && r.Id != run.Id
-                        && r.Status == RunStatus.Completed && r.FinalAnswer != null)
+                        && r.Status == RunStatus.Completed && r.FinalAnswer != null
+                        // A turn that was regenerated or edited is replaced by its successor (#95).
+                        && !db.Runs.Any(x => x.RetryOf == r.Id))
             .OrderByDescending(r => r.CreatedAt)
             .Take(_options.ConversationTurns)
             .Select(r => new { r.Prompt, r.FinalAnswer, r.CreatedAt })

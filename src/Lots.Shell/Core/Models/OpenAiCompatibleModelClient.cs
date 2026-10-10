@@ -42,6 +42,7 @@ public sealed class OpenAiCompatibleModelClient(HttpClient http, IOptions<ModelO
         }
 
         var sw = Stopwatch.StartNew();
+        if (callOptions.OnText is { } onText) return await StreamAsync(body, onText, sw, ct);
         using var response = await http.PostAsJsonAsync("chat/completions", body, ct);
         var text = await response.Content.ReadAsStringAsync(ct);
         sw.Stop();
@@ -71,6 +72,71 @@ public sealed class OpenAiCompatibleModelClient(HttpClient http, IOptions<ModelO
                 usage?["completion_tokens"]?.GetValue<int>() ?? 0),
             sw.Elapsed,
             _options.Model);
+    }
+
+    /// <summary>
+    /// Streams the reply (#95): content deltas go to <paramref name="onText"/> as they arrive; tool calls, which arrive in pieces,
+    /// are assembled by index. The result is the same response a non-streaming call returns.
+    /// </summary>
+    private async Task<ModelResponse> StreamAsync(JsonObject body, Action<string> onText, Stopwatch sw, CancellationToken ct)
+    {
+        body["stream"] = true;
+        body["stream_options"] = new JsonObject { ["include_usage"] = true };
+        using var request = new HttpRequestMessage(HttpMethod.Post, "chat/completions") { Content = JsonContent.Create(body) };
+        using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync(ct);
+            throw new HttpRequestException($"Model endpoint returned {(int)response.StatusCode}: {Truncate(error, 500)}", null, response.StatusCode);
+        }
+
+        var content = new System.Text.StringBuilder();
+        var reasoning = new System.Text.StringBuilder();
+        var calls = new SortedDictionary<int, (string? Id, string? Name, System.Text.StringBuilder Args)>();
+        string? finish = null;
+        int prompt = 0, completion = 0;
+        await using var stream = await response.Content.ReadAsStreamAsync(ct);
+        using var reader = new StreamReader(stream);
+        while (await reader.ReadLineAsync(ct) is { } line)
+        {
+            if (!line.StartsWith("data:", StringComparison.Ordinal)) continue;
+            var data = line[5..].Trim();
+            if (data == "[DONE]") break;
+            var chunk = JsonNode.Parse(data)!;
+            if (chunk["usage"] is JsonObject u)
+            {
+                prompt = u["prompt_tokens"]?.GetValue<int>() ?? prompt;
+                completion = u["completion_tokens"]?.GetValue<int>() ?? completion;
+            }
+            if (chunk["choices"] is not JsonArray { Count: > 0 } choices) continue;
+            var choice = choices[0]!;
+            finish = choice["finish_reason"]?.GetValue<string>() ?? finish;
+            if (choice["delta"] is not JsonObject delta) continue;
+            if ((delta["reasoning"] ?? delta["reasoning_content"])?.GetValue<string>() is { Length: > 0 } r) reasoning.Append(r);
+            if (delta["content"]?.GetValue<string>() is { Length: > 0 } text)
+            {
+                content.Append(text);
+                onText(text);
+            }
+            if (delta["tool_calls"] is JsonArray parts)
+                foreach (var part in parts)
+                {
+                    var index = part!["index"]?.GetValue<int>() ?? calls.Count;
+                    var current = calls.TryGetValue(index, out var c) ? c : (null, null, new System.Text.StringBuilder());
+                    var id = part["id"]?.GetValue<string>() ?? current.Id;
+                    var name = part["function"]?["name"]?.GetValue<string>() ?? current.Name;
+                    current.Args.Append(part["function"]?["arguments"]?.GetValue<string>());
+                    calls[index] = (id, name, current.Args);
+                }
+        }
+        sw.Stop();
+
+        var toolCalls = calls.Values.Where(c => c.Name is not null)
+            .Select((c, i) => new ToolCall(c.Id ?? $"call_{i}", c.Name!, c.Args.Length == 0 ? "{}" : c.Args.ToString())).ToList();
+        return new ModelResponse(
+            new ChatMessage("assistant", content.Length == 0 ? null : content.ToString(), toolCalls.Count > 0 ? toolCalls : null,
+                Reasoning: reasoning.Length == 0 ? null : reasoning.ToString()),
+            finish, new ModelUsage(prompt, completion), sw.Elapsed, _options.Model);
     }
 
     private static JsonNode ToJson(ChatMessage m)
