@@ -44,7 +44,8 @@ await page.addInitScript(() => {
   }).observe(document, { subtree: true, attributes: true, childList: true })
 })
 
-await page.goto(`${base}/#/runs`)
+await page.goto(`${base}/#/chat`)
+await page.getByRole('button', { name: 'Voice mode' }).click() // voice is a mode of the chat (#152)
 const state = () => page.getByTestId('conversation-state').getAttribute('data-state')
 ok((await state()) === 'off', 'starts outside a conversation')
 ok(await page.getByRole('button', { name: 'Mute' }).count() === 0, 'no mute button before the conversation starts')
@@ -86,10 +87,14 @@ ok(await page.getByRole('button', { name: 'End conversation' }).isVisible(), 'a 
 await page.getByRole('button', { name: 'Unmute' }).click()
 ok(await page.getByRole('button', { name: 'Mute' }).isVisible(), 'unmute restores the microphone')
 
+const states = await page.evaluate(() => window.__log.map((e) => `${e.s}@${e.t}`))
 await page.getByRole('button', { name: 'End conversation' }).click()
-await page.waitForFunction(() => document.querySelector('[data-testid="conversation-state"]')?.dataset.state === 'off', null, { timeout: 5000 })
-ok(true, 'End conversation stops everything')
-ok(await page.getByRole('button', { name: 'Start conversation' }).isVisible(), 'you can start a new conversation afterwards')
-console.log('states:', (await page.evaluate(() => window.__log.map((e) => `${e.s}@${e.t}`))).join(' → '))
+// In Chat (#152) ending a new spoken conversation opens its thread: the voice turns are ordinary chat turns.
+await page.waitForURL(/#\/chat\/[0-9a-f-]{36}$/, { timeout: 5000 })
+ok(true, 'End conversation stops everything and opens the conversation in Chat')
+ok(page.url().endsWith(`#/chat/${[...calls.convIds][0]}`), 'the chat opened is the conversation the spoken turns belong to')
+await page.getByRole('button', { name: 'Voice mode' }).click()
+ok(await page.getByRole('button', { name: 'Start conversation' }).isVisible(), 'you can talk again in the same conversation')
+console.log('states:', states.join(' → '))
 await browser.close()
 process.exit(failed ? 1 : 0)

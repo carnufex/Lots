@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import AudioClip from '../components/AudioClip'
 import { ApiError, type Api, type ConversationDetail, type ConversationList, type ConversationSummary, type StageTotals, type TimelineEvent } from '../api'
 import { t } from '../i18n'
+import { RunsList } from './RunsPage'
 
 const KINDS = [
   { kind: 'stt', label: t('Speech to text'), key: 'sttMs' },
@@ -37,8 +38,53 @@ function StageBar({ stages }: { stages: StageTotals }) {
   )
 }
 
-export default function HistoryPage({ api, id }: { api: Api; id?: string }) {
-  return id ? <Detail api={api} id={id} /> : <List api={api} />
+export const HISTORY_TABS = [
+  { slug: 'conversations', label: t('Conversations') },
+  { slug: 'timing', label: t('Timing') },
+  { slug: 'runs', label: t('Runs') },
+] as const
+
+export type HistoryTab = (typeof HISTORY_TABS)[number]['slug']
+
+/** History (#152): past conversations, where their time went, and every run (scheduled and API runs included). */
+export default function HistoryPage({ api, id, tab = 'conversations' }: { api: Api; id?: string; tab?: HistoryTab }) {
+  if (id) return <Detail api={api} id={id} />
+  return (
+    <section>
+      <h1>{t('History')}</h1>
+      <div className="tabs" role="tablist" aria-label={t('History')}>
+        {HISTORY_TABS.map((it) => (
+          <a key={it.slug} href={it.slug === 'runs' ? '#/runs' : `#/history/${it.slug}`} role="tab" aria-selected={it.slug === tab} className={it.slug === tab ? 'tab active' : 'tab'}>
+            {it.label}
+          </a>
+        ))}
+      </div>
+      {tab === 'conversations' && <List api={api} />}
+      {tab === 'timing' && <Timing api={api} />}
+      {tab === 'runs' && <RunsList api={api} />}
+    </section>
+  )
+}
+
+/** Where the time goes across the caller's conversations (#46), per stage and per day. */
+function Timing({ api }: { api: Api }) {
+  const [data, setData] = useState<ConversationList | null>(null)
+  useEffect(() => {
+    api.listConversations({ q: '', status: '', profile: '', from: '' }).then(setData).catch(() => setData(null))
+  }, [api])
+  return (
+    <>
+      {data && data.count > 0 ? (
+        <div className="card">
+          <h2>{t('Where the time goes ({n} conversations)', { n: data.count })}</h2>
+          <StageBar stages={data.stages} />
+        </div>
+      ) : (
+        <p className="muted">{t('No conversations yet.')}</p>
+      )}
+      <DailyChart api={api} />
+    </>
+  )
 }
 
 /** Per day: how many turns and where their time went (stacked bars). */
@@ -87,16 +133,8 @@ function List({ api }: { api: Api }) {
   }, [api, applied])
 
   return (
-    <section>
-      <h1>{t('Conversation history')}</h1>
+    <>
       <p className="muted small">{t('Voice conversations are recorded (both sides) and the audio is kept for 30 days; you can delete it any time.')}</p>
-      {data && data.count > 0 && (
-        <div className="card">
-          <h2>{t('Where the time goes ({n} conversations)', { n: data.count })}</h2>
-          <StageBar stages={data.stages} />
-        </div>
-      )}
-      <DailyChart api={api} />
       <form
         className="filters"
         onSubmit={(e) => {
@@ -130,7 +168,7 @@ function List({ api }: { api: Api }) {
         </button>
       </form>
       {error && <p className="error">{error}</p>}
-      {data && data.count === 0 && <p className="muted">{t('No conversations yet. Start one from the Runs page.')}</p>}
+      {data && data.count === 0 && <p className="muted">{t('No conversations yet.')} <a href="#/chat">{t('Start a chat')}</a></p>}
       {data && data.count > 0 && (
         <table>
           <thead>
@@ -152,7 +190,7 @@ function List({ api }: { api: Api }) {
           </tbody>
         </table>
       )}
-    </section>
+    </>
   )
 }
 

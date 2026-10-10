@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import type { Api, RunSummary } from '../api'
-import type { ProfileInfo, VoiceConfig } from '../config'
-import NewRun from '../components/NewRun'
-import Conversation from '../components/Conversation'
 import { fmt, statusText, t } from '../i18n'
 
 type Load = { state: 'loading' } | { state: 'error'; message: string } | { state: 'ok'; runs: RunSummary[] }
 
-export default function RunsPage({ api, profiles, voice }: { api: Api; profiles: ProfileInfo[]; voice: VoiceConfig }) {
+/**
+ * Runs (#152): every execution of the agent loop the caller may see, including scheduled, API and webhook runs. A tab of History;
+ * conversations are started from Chat.
+ */
+export function RunsList({ api }: { api: Api }) {
   const [load, setLoad] = useState<Load>({ state: 'loading' })
 
   useEffect(() => {
@@ -22,10 +23,8 @@ export default function RunsPage({ api, profiles, voice }: { api: Api; profiles:
   }, [api])
 
   return (
-    <section>
-      <h1>{t('Runs')}</h1>
-      {voice.enabled && <Conversation api={api} profiles={profiles} defaultLanguage={voice.defaultLanguage} />}
-      <NewRun api={api} profiles={profiles} voice={voice} />
+    <>
+      <p className="muted small">{t('A run is one execution of the agent: a chat turn, a scheduled job, an API or webhook call. Conversations are made of runs.')}</p>
       {load.state === 'loading' && <p className="muted">{t('Loading…')}</p>}
       {load.state === 'error' && (
         <p role="alert" className="error">
@@ -35,7 +34,9 @@ export default function RunsPage({ api, profiles, voice }: { api: Api; profiles:
       {load.state === 'ok' && load.runs.length === 0 && (
         <div className="empty">
           <p>{t('No runs yet.')}</p>
-          <p className="muted">{t('Runs you start will show up here with their status.')}</p>
+          <p className="muted">
+            {t('Runs show up here with their status.')} <a href="#/chat">{t('Start a chat')}</a>
+          </p>
         </div>
       )}
       {load.state === 'ok' && load.runs.length > 0 && (
@@ -66,6 +67,6 @@ export default function RunsPage({ api, profiles, voice }: { api: Api; profiles:
           </tbody>
         </table>
       )}
-    </section>
+    </>
   )
 }

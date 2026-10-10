@@ -1841,3 +1841,19 @@ p.summary {
   background: var(--surface-2);
   border-radius: var(--radius);
 }
+
+/* Chat keeps its composer in view (#152): the list and the thread scroll, the page does not. */
+@media (min-width: 721px) {
+  .chat {
+    height: calc(100vh - 120px);
+    min-height: 420px;
+  }
+  .chat-list,
+  .chat-main {
+    min-height: 0;
+  }
+  .chat-thread {
+    overflow-y: auto;
+    min-height: 0;
+  }
+}

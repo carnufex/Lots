@@ -3,13 +3,12 @@ import { createApi, type Api, type Capabilities } from './api'
 import { createAuth, type Auth, type Session } from './auth'
 import { DevIdentity, PreviewBanner, ViewAs } from './components/RolePreview'
 import { loadConfig, type ClientConfig } from './config'
-import RunsPage from './pages/RunsPage'
 import ChatPage from './pages/ChatPage'
 import RunPage from './pages/RunPage'
 import ApprovalsPage from './pages/ApprovalsPage'
 import AuditPage from './pages/AuditPage'
 import VoicePage, { VOICE_TABS, type VoiceTab } from './pages/VoicePage'
-import HistoryPage from './pages/HistoryPage'
+import HistoryPage, { HISTORY_TABS, type HistoryTab } from './pages/HistoryPage'
 import IntegrationsPage, { INTEGRATION_TABS, type IntegrationTab } from './pages/IntegrationsPage'
 import PlaceholderPage from './pages/Placeholder'
 import KnowledgePage from './pages/KnowledgePage'
@@ -28,7 +27,7 @@ import { Icon, type IconName } from './components/Icon'
 import { language, setLanguage, t, type UiLanguage } from './i18n'
 import { saveLanguage } from './voice/language'
 
-type Route = { name: 'chat'; id?: string } | { name: 'runs' } | { name: 'run'; id: string } | { name: 'approvals' } | { name: 'audit' } | { name: 'voice'; tab: VoiceTab } | { name: 'knowledge' } | { name: 'profiles' } | { name: 'policy' } | { name: 'models' } | { name: 'identity' } | { name: 'usage' } | { name: 'feedback' } | { name: 'insights' } | { name: 'history'; id?: string } | { name: 'integrations'; tab: IntegrationTab } | { name: 'account'; tab: AccountTab } | { name: 'planned'; slug: string }
+type Route = { name: 'chat'; id?: string } | { name: 'run'; id: string } | { name: 'approvals' } | { name: 'audit' } | { name: 'voice'; tab: VoiceTab } | { name: 'knowledge' } | { name: 'profiles' } | { name: 'policy' } | { name: 'models' } | { name: 'identity' } | { name: 'usage' } | { name: 'feedback' } | { name: 'insights' } | { name: 'history'; id?: string; tab: HistoryTab } | { name: 'integrations'; tab: IntegrationTab } | { name: 'account'; tab: AccountTab } | { name: 'planned'; slug: string }
 
 type NavItem = { href: string; label: string; icon: IconName; active: (r: Route) => boolean }
 
@@ -41,11 +40,11 @@ function pageOf(r: Route): string {
 
 const pageOfHref = (href: string) => href.replace(/^#\//, '').split('/')[0]
 
-const nav = (name: 'runs' | 'approvals' | 'audit', label: string, icon: IconName): NavItem => ({
+const nav = (name: 'approvals' | 'audit', label: string, icon: IconName): NavItem => ({
   href: `#/${name}`,
   label,
   icon,
-  active: (r) => r.name === name || (name === 'runs' && r.name === 'run'),
+  active: (r) => r.name === name,
 })
 const planned = (slug: string): NavItem => {
   const p = PLANNED.find((x) => x.slug === slug)!
@@ -53,7 +52,7 @@ const planned = (slug: string): NavItem => {
 }
 
 const chatNav: NavItem = { href: '#/chat', label: 'Chat', icon: 'chat', active: (r) => r.name === 'chat' }
-const historyNav: NavItem = { href: '#/history', label: 'History', icon: 'transcribe', active: (r) => r.name === 'history' }
+const historyNav: NavItem = { href: '#/history', label: 'History', icon: 'transcribe', active: (r) => r.name === 'history' || r.name === 'run' }
 const integrationsNav: NavItem = { href: '#/integrations', label: 'Integrations', icon: 'tools', active: (r) => r.name === 'integrations' }
 const voiceNav: NavItem = { href: '#/voice', label: 'Voice', icon: 'voice', active: (r) => r.name === 'voice' }
 const knowledgeNav: NavItem = { href: '#/knowledge', label: 'Knowledge', icon: 'rag', active: (r) => r.name === 'knowledge' }
@@ -65,7 +64,9 @@ const page = (name: 'profiles' | 'policy' | 'models' | 'identity' | 'usage' | 'f
 })
 
 const NAV: { title: string; items: NavItem[] }[] = [
-  { title: 'Work', items: [chatNav, nav('runs', 'Runs', 'runs'), historyNav, nav('approvals', 'Approvals', 'approvals'), nav('audit', 'Audit', 'audit'), page('usage', 'Usage', 'models')] },
+  // #152: Chat is home; runs are a tab of History. Audit and Usage are oversight, not daily work.
+  { title: 'Work', items: [chatNav, historyNav, nav('approvals', 'Approvals', 'approvals')] },
+  { title: 'Oversight', items: [nav('audit', 'Audit', 'audit'), page('usage', 'Usage', 'models')] },
   { title: 'Capabilities', items: [knowledgeNav, integrationsNav, voiceNav, planned('transcription'), page('models', 'Models', 'models')] },
   { title: 'Administration', items: [page('profiles', 'Profiles', 'profiles'), page('policy', 'Policy', 'policy'), page('identity', 'Identity', 'identity'), page('feedback', 'Feedback', 'approvals'), page('insights', 'Insights', 'insights')] },
 ]
@@ -75,7 +76,11 @@ function useHashRoute(): Route {
     const r = window.location.hash.replace(/^#\/?/, '').split('?')[0] // a page may carry its own query (e.g. ?connected=)
     if (r === 'approvals' || r === 'audit' || r === 'knowledge' || r === 'profiles' || r === 'policy' || r === 'models' || r === 'identity' || r === 'usage' || r === 'feedback' || r === 'insights')
       return { name: r }
-    if (r === 'history') return { name: 'history' }
+    if (r === 'history') return { name: 'history', tab: 'conversations' }
+    // Old bookmarks of the runs list land on History > Runs.
+    if (r === 'runs') return { name: 'history', tab: 'runs' }
+    const ht = /^history\/([a-z]+)$/.exec(r)
+    if (ht && HISTORY_TABS.some((x) => x.slug === ht[1])) return { name: 'history', tab: ht[1] as HistoryTab }
     if (r === 'chat') return { name: 'chat' }
     const c = /^chat\/([0-9a-f-]{36})$/i.exec(r)
     if (c) return { name: 'chat', id: c[1] }
@@ -86,10 +91,10 @@ function useHashRoute(): Route {
     const ac = /^account(?:\/([a-z-]+))?$/.exec(r)
     if (ac) return { name: 'account', tab: ACCOUNT_TABS.find((tab) => tab.slug === ac[1])?.slug ?? 'overview' }
     const h = /^history\/([0-9a-f-]{36})$/i.exec(r)
-    if (h) return { name: 'history', id: h[1] }
+    if (h) return { name: 'history', id: h[1], tab: 'conversations' }
     if (PLANNED.some((p) => p.slug === r)) return { name: 'planned', slug: r }
     const m = /^runs\/([0-9a-f-]{36})$/i.exec(r)
-    return m ? { name: 'run', id: m[1] } : { name: 'runs' }
+    return m ? { name: 'run', id: m[1] } : { name: 'chat' }
   }
   const [route, setRoute] = useState<Route>(read)
   useEffect(() => {
@@ -208,12 +213,11 @@ function Shell({ config, auth, session }: { config: ClientConfig; auth: Auth; se
         {caps?.preview && <PreviewBanner preview={caps.preview} />}
         <main id="main" tabIndex={-1}>
           {caps !== null && !may(pageOf(route)) ? <NoAccess /> : <>
-          {route.name === 'chat' && <ChatPage key={route.id ?? 'new'} api={api} profiles={config.profiles} id={route.id} />}
-          {route.name === 'runs' && <RunsPage api={api} profiles={config.profiles} voice={config.voice} />}
+          {route.name === 'chat' && <ChatPage key={route.id ?? 'new'} api={api} profiles={config.profiles} id={route.id} voice={config.voice} />}
           {route.name === 'run' && <RunPage api={api} id={route.id} voice={config.voice} traceUrl={config.traceUrl} />}
           {route.name === 'approvals' && <ApprovalsPage api={api} />}
           {route.name === 'audit' && <AuditPage api={api} />}
-          {route.name === 'history' && <HistoryPage api={api} id={route.id} />}
+          {route.name === 'history' && <HistoryPage api={api} id={route.id} tab={route.tab} />}
           {route.name === 'integrations' && <IntegrationsPage api={api} tab={route.tab} />}
           {route.name === 'voice' && <VoicePage api={api} voice={config.voice} tab={route.tab} admin={caps?.admin ?? false} />}
           {route.name === 'knowledge' && <KnowledgePage api={api} />}

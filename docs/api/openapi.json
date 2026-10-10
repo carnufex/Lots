@@ -6134,6 +6134,11 @@
           "reasoningEffort": {
             "type": "string",
             "nullable": true
+          },
+          "conversationId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
           }
         }
       },

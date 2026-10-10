@@ -86,6 +86,11 @@ function Detail({ run, api, voice, reconnecting, traceUrl }: { run: RunDetail; a
       <h1 className="runtitle">{run.prompt}</h1>
       <div className="meta">
         <span className={`status ${run.status}`}>{statusText(run.status)}</span>
+        {run.conversationId && (
+          <a className="small" href={`#/chat/${run.conversationId}`}>
+            {t('Open the conversation')}
+          </a>
+        )}
         {live && <span className="muted">{t(run.waiting ? WAITING[run.waiting] : 'working…')}</span>}
         {reconnecting && <span className="warn">{t('connection problem, retrying…')}</span>}
         <span className="muted mono">{t('{steps} steps · {tokens} tokens', { steps: run.steps.length, tokens: fmt.number(tokens) })}</span>

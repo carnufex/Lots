@@ -15,7 +15,7 @@ const ok = (c, m) => { console.log(`${c ? 'ok  ' : 'FAIL'} ${m}`); if (!c) proce
 
 // Start from an empty list (dev auth maps every browser to the same user unless identity headers are enabled).
 await fetch(`${base}/voice/vocabulary`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ words: [] }) })
-await page.goto(`${base}/#/runs`)
+await page.goto(`${base}/#/chat`)
 ok((await page.locator('summary', { hasText: 'Vocabulary' }).count()) === 0, 'the composer has no second vocabulary editor')
 await page.getByRole('link', { name: 'Add it to your vocabulary' }).click()
 await page.getByLabel('Add words').waitFor()
@@ -39,8 +39,8 @@ await page.getByRole('button', { name: 'Stop', exact: true }).click()
 await page.locator('.dictated').waitFor({ timeout: 30000 })
 ok(/Christopher/.test(await page.locator('.dictated').innerText()), 'test dictation shows the corrected transcript')
 
-// Dictation in the run composer uses the words exactly as before.
-await page.goto(`${base}/#/runs`)
+// Dictation in the chat composer uses the words exactly as before.
+await page.goto(`${base}/#/chat`)
 await page.getByLabel('Speech language').selectOption({ label: 'Svenska' })
 await page.getByRole('button', { name: 'Dictate', exact: true }).click()
 await page.waitForTimeout(6500)

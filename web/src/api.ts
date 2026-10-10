@@ -46,6 +46,8 @@ export interface RunDetail {
   /** Sub-agents (#103): the run that delegated to this one, and the runs this one delegated to. */
   parentRunId?: string | null
   subRuns?: string[] | null
+  /** The chat this run is a turn of (#152); null for scheduled, API and webhook runs. */
+  conversationId?: string | null
 }
 
 export const isTerminal = (s: RunStatus) => s === 'Completed' || s === 'Failed' || s === 'Cancelled'

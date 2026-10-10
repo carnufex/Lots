@@ -34,10 +34,22 @@ export default function Conversation({
   api,
   profiles,
   defaultLanguage,
+  conversationId: joinId,
+  onTurn,
+  onEnd,
+  showTranscript = true,
 }: {
   api: Api
   profiles: ProfileInfo[]
   defaultLanguage: VoiceLanguage
+  /** Chat (#152): speak inside this conversation instead of starting a new one. */
+  conversationId?: string
+  /** A spoken turn has its answer (the chat reloads its thread). */
+  onTurn?: (conversationId: string) => void
+  /** The conversation was ended; turns tells whether anything was said. */
+  onEnd?: (conversationId: string, turns: number) => void
+  /** Chat shows the turns in its own thread, so the transcript here is optional. */
+  showTranscript?: boolean
 }) {
   const [state, setState] = useState<AvatarState>('off')
   const [messages, setMessages] = useState<Message[]>([])
@@ -51,7 +63,7 @@ export default function Conversation({
   const mic = useRef<MicSession | null>(null)
   const player = useRef(new Player())
   const turn = useRef(0) // a newer turn (or microphone off) cancels the one in flight
-  const conversationId = useRef(newId())
+  const conversationId = useRef<string>(newId())
   const inputLevel = useRef(0)
   const level = useRef(0)
   const languageRef = useRef(language)
@@ -61,6 +73,11 @@ export default function Conversation({
     profileRef.current = profile
   }, [language, profile])
   const log = useRef<HTMLOListElement>(null)
+  const turns = useRef(0)
+  const hooks = useRef({ onTurn, onEnd })
+  useEffect(() => {
+    hooks.current = { onTurn, onEnd }
+  }, [onTurn, onEnd])
 
   const go = useCallback((s: AvatarState) => {
     stateRef.current = s
@@ -143,6 +160,8 @@ export default function Conversation({
           return
         }
         add({ who: 'agent', text: detail.finalAnswer, runId: run.id })
+        turns.current++
+        hooks.current.onTurn?.(conversationId.current)
         const audio = await api.speak(run.id, 'auto')
         player.current.stop() // the acknowledgement, if it is still playing
         await speakNow(audio, mine)
@@ -162,7 +181,9 @@ export default function Conversation({
   const start = async () => {
     setError(null)
     setMuted(false)
-    conversationId.current = newId() // every call is its own conversation (and its own history entry)
+    // Every call is its own conversation (and its own history entry), unless the chat asks to continue one.
+    conversationId.current = joinId ?? newId()
+    turns.current = 0
     setMessages([])
     player.current.prepare() // inside the click: lets the browser play audio later without another gesture
     try {
@@ -199,6 +220,7 @@ export default function Conversation({
     inputLevel.current = 0
     setMuted(false)
     go('off')
+    hooks.current.onEnd?.(conversationId.current, turns.current)
   }, [go])
 
   /** Mute only silences you: the conversation, and any answer the agent is giving or preparing, carry on. */
@@ -291,7 +313,7 @@ export default function Conversation({
           )}
         </div>
       </div>
-      {messages.length > 0 && (
+      {showTranscript && messages.length > 0 && (
         <ol className="transcript" ref={log} aria-label={t('Conversation so far')}>
           {messages.map((m, i) => (
             <li key={i} className={`line ${m.who} ${m.failed ? 'failed' : ''}`}>

@@ -19,7 +19,7 @@ page.on('console', (m) => m.type() === 'error' && problems.push('console: ' + m.
 page.on('pageerror', (e) => problems.push('pageerror: ' + e.message))
 page.on('response', (r) => r.url().includes('/voice/') && console.log(`  ${r.request().method()} ${new URL(r.url()).pathname} -> ${r.status()}`))
 
-await page.goto(`${base}/#/runs`)
+await page.goto(`${base}/#/chat`)
 await page.getByLabel('Speech language').selectOption({ label: language })
 const prompt = page.locator('textarea')
 

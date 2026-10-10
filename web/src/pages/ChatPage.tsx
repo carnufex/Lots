@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Feedback from '../components/Feedback'
 import { type Api, type ConversationDetail, type ConversationSummary, type ConversationTurn } from '../api'
-import type { ProfileInfo } from '../config'
+import type { ProfileInfo, VoiceConfig } from '../config'
+import Conversation from '../components/Conversation'
+import MicButton from '../components/MicButton'
+import { initialLanguage, saveLanguage } from '../voice/language'
+import type { VoiceLanguage } from '../api'
 import Markdown from '../components/Markdown'
 import { AttachmentList, AttachPicker, type UploadedAttachment } from '../components/Attachments'
 import { fmt, t } from '../i18n'
@@ -13,7 +17,10 @@ const ACTIVE = ['Pending', 'Running', 'WaitingForApproval']
  * Chat (#95): conversations as threads, answers streamed as they are written, stop, regenerate, edit the last question, copy and
  * share. Text and voice turns share one history (the same conversation ids as conversation mode).
  */
-export default function ChatPage({ api, profiles, id }: { api: Api; profiles: ProfileInfo[]; id?: string }) {
+export default function ChatPage({ api, profiles, id, voice }: { api: Api; profiles: ProfileInfo[]; id?: string; voice?: VoiceConfig }) {
+  // Voice is a mode of a conversation (#152): hands-free talking and dictation both happen here, in the same thread.
+  const [talking, setTalking] = useState(false)
+  const [speech, setSpeech] = useState<VoiceLanguage>(() => initialLanguage(voice?.defaultLanguage ?? 'auto'))
   const [list, setList] = useState<ConversationSummary[]>([])
   const [detail, setDetail] = useState<ConversationDetail | null>(null)
   const [live, setLive] = useState<{ runId: string; partial: string } | null>(null)
@@ -78,6 +85,10 @@ export default function ChatPage({ api, profiles, id }: { api: Api; profiles: Pr
   }, [detail, live?.partial])
 
   const turns = detail?.turns.filter((x) => !x.superseded) ?? []
+  const endTalk = (conversationId: string, spoken: number) => {
+    setTalking(false)
+    if (!id && spoken > 0) window.location.hash = `#/chat/${conversationId}` // the new conversation's thread
+  }
   const last = turns.at(-1)
   const busy = live !== null
 
@@ -134,6 +145,20 @@ export default function ChatPage({ api, profiles, id }: { api: Api; profiles: Pr
       </aside>
 
       <div className="chat-main">
+        {talking && voice?.enabled && (
+          <Conversation
+            api={api}
+            profiles={profiles.filter((p) => p.name === profile)}
+            defaultLanguage={voice.defaultLanguage}
+            conversationId={id}
+            showTranscript={!id}
+            onTurn={() => {
+              void loadDetail()
+              loadList()
+            }}
+            onEnd={endTalk}
+          />
+        )}
         <div className="chat-thread" aria-live="polite">
           {turns.length === 0 && !live && <p className="muted">{t("Ask anything your profile's tools can answer. Earlier turns are part of the context.")}</p>}
           {turns.map((turn) => {
@@ -236,6 +261,20 @@ export default function ChatPage({ api, profiles, id }: { api: Api; profiles: Pr
             )}
             <AttachPicker api={api} files={files} onChange={setFiles} disabled={busy} />
             <span className="grow" />
+            {voice?.enabled && (
+              <>
+                <select aria-label={t('Speech language')} value={speech} onChange={(e) => { const l = e.target.value as VoiceLanguage; setSpeech(l); saveLanguage(l) }}>
+                  <option value="auto">{t('Auto')}</option>
+                  <option value="sv">Svenska</option>
+                  <option value="en">English</option>
+                </select>
+                <MicButton api={api} language={speech} onText={(text) => setPrompt((p) => (p.trim() ? `${p.trim()} ${text}` : text))} />
+                <button type="button" className={talking ? 'btn active' : 'btn'} aria-pressed={talking} onClick={() => setTalking((v) => !v)}
+                  title={t('Talk hands-free: the agent answers aloud and you can interrupt it')}>
+                  {talking ? t('Hide voice') : t('Voice mode')}
+                </button>
+              </>
+            )}
             {note && <span className="muted small">{note}</span>}
             {error && (
               <span role="alert" className="error small">
@@ -252,6 +291,11 @@ export default function ChatPage({ api, profiles, id }: { api: Api; profiles: Pr
               </button>
             )}
           </div>
+          {voice?.enabled && (
+            <p className="small muted">
+              {t('Dictation misspells a name?')} <a href="#/voice/vocabulary">{t('Add it to your vocabulary')}</a>
+            </p>
+          )}
         </form>
       </div>
     </section>

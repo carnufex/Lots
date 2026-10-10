@@ -9,6 +9,20 @@ all create runs.
 
 A run is fixed to its **user**, the user's **roles** at the moment the run started, and a **profile**.
 
+## Conversations
+
+A **conversation** is what a person calls "a chat": an ordered set of turns, and every turn is a run that shares the
+conversation's id. Earlier turns are part of the context of the next one. Runs that do not come from a person talking (scheduled
+jobs, webhooks, API calls, sub-agents) have no conversation.
+
+In the web UI this is one model:
+
+- **Chat** is where conversations happen, typed or spoken. Voice is a *mode* of a conversation: dictation fills the message box,
+  and voice mode talks hands-free with the avatar, in the same thread.
+- **History** lists past conversations (search and filters), shows where their time went (**Timing**), and has a **Runs** tab
+  with every run you may see, scheduled and API runs included.
+- A run's own page (`#/runs/<id>`) shows its steps, policy decisions and trace, and links back to its conversation.
+
 ## Profiles
 
 A **profile** is a domain: the tools the agent may use there and the rules for them. It is a YAML resource:
