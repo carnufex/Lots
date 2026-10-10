@@ -20,12 +20,15 @@ import IdentityPage from './pages/IdentityPage'
 import UsagePage from './pages/UsagePage'
 import FeedbackPage from './pages/FeedbackPage'
 import InsightsPage from './pages/InsightsPage'
+import AccountPage, { ACCOUNT_TABS, type AccountTab } from './pages/AccountPage'
+import { current as currentPrefs, save as savePrefs, sync as syncPreferences } from './preferences'
+import { setTheme, theme, type Theme } from './theme'
 import { PLANNED } from './planned'
 import { Icon, type IconName } from './components/Icon'
 import { language, setLanguage, t, type UiLanguage } from './i18n'
 import { saveLanguage } from './voice/language'
 
-type Route = { name: 'chat'; id?: string } | { name: 'runs' } | { name: 'run'; id: string } | { name: 'approvals' } | { name: 'audit' } | { name: 'voice' } | { name: 'knowledge' } | { name: 'profiles' } | { name: 'policy' } | { name: 'models' } | { name: 'identity' } | { name: 'usage' } | { name: 'feedback' } | { name: 'insights' } | { name: 'history'; id?: string } | { name: 'integrations'; tab: IntegrationTab } | { name: 'planned'; slug: string }
+type Route = { name: 'chat'; id?: string } | { name: 'runs' } | { name: 'run'; id: string } | { name: 'approvals' } | { name: 'audit' } | { name: 'voice' } | { name: 'knowledge' } | { name: 'profiles' } | { name: 'policy' } | { name: 'models' } | { name: 'identity' } | { name: 'usage' } | { name: 'feedback' } | { name: 'insights' } | { name: 'history'; id?: string } | { name: 'integrations'; tab: IntegrationTab } | { name: 'account'; tab: AccountTab } | { name: 'planned'; slug: string }
 
 type NavItem = { href: string; label: string; icon: IconName; active: (r: Route) => boolean }
 
@@ -78,6 +81,8 @@ function useHashRoute(): Route {
     if (c) return { name: 'chat', id: c[1] }
     const it = /^integrations(?:\/([a-z-]+))?$/.exec(r)
     if (it) return { name: 'integrations', tab: INTEGRATION_TABS.find((tab) => tab.slug === it[1])?.slug ?? 'tool-calls' }
+    const ac = /^account(?:\/([a-z-]+))?$/.exec(r)
+    if (ac) return { name: 'account', tab: ACCOUNT_TABS.find((tab) => tab.slug === ac[1])?.slug ?? 'overview' }
     const h = /^history\/([0-9a-f-]{36})$/i.exec(r)
     if (h) return { name: 'history', id: h[1] }
     if (PLANNED.some((p) => p.slug === r)) return { name: 'planned', slug: r }
@@ -149,6 +154,10 @@ function Shell({ config, auth, session }: { config: ClientConfig; auth: Auth; se
   useEffect(() => {
     api.capabilities().then(setCaps).catch(() => setCaps(null))
   }, [api, session.user, session.roles.join(',')])
+  // Preferences follow the user across devices (#155); a different UI language needs one reload.
+  useEffect(() => {
+    syncPreferences(api).then((reload) => reload && window.location.reload()).catch(() => undefined)
+  }, [api, session.user])
   const may = (page: string) => caps === null ? Capabilities_EVERYONE.includes(page) : caps.pages.includes(page)
   const nav = NAV.map((g) => ({ ...g, items: g.items.filter((n) => may(pageOfHref(n.href))) })).filter((g) => g.items.length > 0)
   // Phones (#113): the navigation folds into a menu; it closes when a page is chosen.
@@ -189,20 +198,9 @@ function Shell({ config, auth, session }: { config: ClientConfig; auth: Auth; se
         <header className="topbar">
           <span className="muted">{config.profiles.map((p) => p.name).join(' · ')}</span>
           <div className="who">
-            <LanguageSwitch />
             {auth.mode === 'dev' && <DevIdentity knownRoles={config.devRoles ?? []} />}
             {caps?.canPreview && !caps.preview && <ViewAs api={api} caps={caps} />}
-            <span className="user">{session.user}</span>
-            {(caps?.roles ?? session.roles).map((r) => (
-              <span key={r} className="chip">
-                {r}
-              </span>
-            ))}
-            {auth.mode === 'oidc' && (
-              <button className="btn" onClick={() => void auth.logout()}>
-                {t('Sign out')}
-              </button>
-            )}
+            <UserMenu api={api} auth={auth} user={session.user} roles={caps?.roles ?? session.roles} />
           </div>
         </header>
         {caps?.preview && <PreviewBanner preview={caps.preview} />}
@@ -221,9 +219,10 @@ function Shell({ config, auth, session }: { config: ClientConfig; auth: Auth; se
           {route.name === 'policy' && <PolicyPage api={api} />}
           {route.name === 'models' && <ModelsPage api={api} />}
           {route.name === 'identity' && <IdentityPage api={api} />}
-          {route.name === 'usage' && <UsagePage api={api} profiles={config.profiles} />}
+          {route.name === 'usage' && <UsagePage api={api} />}
           {route.name === 'feedback' && <FeedbackPage api={api} />}
           {route.name === 'insights' && <InsightsPage api={api} traceUrl={config.traceUrl} />}
+          {route.name === 'account' && <AccountPage api={api} tab={route.tab} user={session.user} caps={caps} profiles={config.profiles} />}
           {route.name === 'planned' && <PlaceholderPage item={PLANNED.find((p) => p.slug === route.slug)!} />}
           </>}
         </main>
@@ -233,27 +232,69 @@ function Shell({ config, auth, session }: { config: ClientConfig; auth: Auth; se
 }
 
 /**
- * UI language (#111). The spoken-language default follows it, so dictation and the agent's voice match what the user reads; a
- * language picked explicitly for voice later is kept.
+ * The user menu (#155): the account page, theme (applied at once) and UI language (#111; the spoken-language default follows it, so
+ * dictation and the agent's voice match what the user reads), and signing out.
  */
-function LanguageSwitch() {
-  const change = (l: UiLanguage) => {
+function UserMenu({ api, auth, user, roles }: { api: Api; auth: Auth; user: string; roles: string[] }) {
+  const [th, setTh] = useState<Theme>(theme)
+  const persist = (patch: { theme?: Theme; language?: UiLanguage }) => {
+    savePrefs(api, { ...currentPrefs(), ...patch }).catch(() => undefined)
+  }
+  const changeTheme = (next: Theme) => {
+    setTh(next)
+    setTheme(next)
+    persist({ theme: next })
+  }
+  const changeLanguage = (l: UiLanguage) => {
     setLanguage(l)
     saveLanguage(l)
+    persist({ language: l })
     window.location.reload() // every string and date is rendered again in the new language
   }
   return (
-    <select className="lang" aria-label={t('Language')} value={language()} onChange={(e) => change(e.target.value as UiLanguage)}>
-      <option value="en">English</option>
-      <option value="sv">Svenska</option>
-    </select>
+    <details className="viewas usermenu">
+      <summary className="btn">
+        <span className="user">{user}</span>
+        {roles.map((r) => (
+          <span key={r} className="chip">
+            {r}
+          </span>
+        ))}
+      </summary>
+      <div className="viewas-panel card" role="menu">
+        <a href="#/account/overview" role="menuitem" onClick={(e) => (e.currentTarget.closest('details') as HTMLDetailsElement | null)?.removeAttribute('open')}>
+          {t('Account')}
+        </a>
+        <label>
+          {t('Theme')}
+          <select value={th} onChange={(e) => changeTheme(e.target.value as Theme)}>
+            <option value="system">{t('System')}</option>
+            <option value="light">{t('Light')}</option>
+            <option value="dark">{t('Dark')}</option>
+          </select>
+        </label>
+        <label>
+          {t('Language')}
+          <select className="lang" value={language()} onChange={(e) => changeLanguage(e.target.value as UiLanguage)}>
+            <option value="en">English</option>
+            <option value="sv">Svenska</option>
+          </select>
+        </label>
+        {auth.mode === 'oidc' && (
+          <button className="btn" onClick={() => void auth.logout()}>
+            {t('Sign out')}
+          </button>
+        )}
+      </div>
+    </details>
   )
 }
 
 function Brand({ large = false }: { large?: boolean }) {
   return (
     <div className={large ? 'brand large' : 'brand'}>
-      <img src="/lots-logo.svg" alt="Lots" />
+      <img className="logo-dark" src="/lots-logo.svg" alt="Lots" />
+      <img className="logo-light" src="/lots-logo-light.svg" alt="Lots" />
     </div>
   )
 }
@@ -263,7 +304,7 @@ function Centered({ children }: { children: React.ReactNode }) {
 }
 
 /** Pages everyone has, shown while capabilities are loading so the menu does not flash admin entries. */
-const Capabilities_EVERYONE = ['chat', 'history', 'runs', 'usage', 'voice', 'knowledge', 'integrations', 'transcription']
+const Capabilities_EVERYONE = ['account', 'chat', 'history', 'runs', 'usage', 'voice', 'knowledge', 'integrations', 'transcription']
 
 /** A page the caller may not use (#157): explained, not a broken page or a raw 403. */
 function NoAccess() {

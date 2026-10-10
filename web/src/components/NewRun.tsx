@@ -6,11 +6,12 @@ import VocabularyEditor from './VocabularyEditor'
 import { initialLanguage, saveLanguage } from '../voice/language'
 import { AttachPicker, type UploadedAttachment } from './Attachments'
 import { t } from '../i18n'
+import { defaultContext } from '../preferences'
 
 export default function NewRun({ api, profiles, voice }: { api: Api; profiles: ProfileInfo[]; voice: VoiceConfig }) {
   const [prompt, setPrompt] = useState('')
   const [files, setFiles] = useState<UploadedAttachment[]>([])
-  const [profile, setProfile] = useState(profiles[0]?.name ?? '')
+  const [profile, setProfile] = useState(() => defaultContext(profiles))
   const [busy, setBusy] = useState(false)
   const [language, setLanguageState] = useState<VoiceLanguage>(() => initialLanguage(voice.defaultLanguage))
   const setLanguage = (l: VoiceLanguage) => {

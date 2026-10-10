@@ -5,6 +5,7 @@ import type { ProfileInfo } from '../config'
 import Markdown from '../components/Markdown'
 import { AttachmentList, AttachPicker, type UploadedAttachment } from '../components/Attachments'
 import { fmt, t } from '../i18n'
+import { defaultContext } from '../preferences'
 
 const ACTIVE = ['Pending', 'Running', 'WaitingForApproval']
 
@@ -18,7 +19,7 @@ export default function ChatPage({ api, profiles, id }: { api: Api; profiles: Pr
   const [live, setLive] = useState<{ runId: string; partial: string } | null>(null)
   const [prompt, setPrompt] = useState('')
   const [files, setFiles] = useState<UploadedAttachment[]>([])
-  const [profile, setProfile] = useState(profiles[0]?.name ?? '')
+  const [profile, setProfile] = useState(() => defaultContext(profiles))
   const [editing, setEditing] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [note, setNote] = useState<string | null>(null)

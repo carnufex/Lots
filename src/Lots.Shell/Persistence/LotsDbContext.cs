@@ -850,5 +850,10 @@ public sealed class UserSettingsRecord
     /// <summary>Out of office until then (#136): approval notifications for this user go to <see cref="DelegateTo"/>.</summary>
     public DateTimeOffset? AwayUntil { get; set; }
     public string? DelegateTo { get; set; }
+    /// <summary>Account preferences (#155) that follow the user across devices; null = the browser's own default.</summary>
+    public string? Theme { get; set; }
+    public string? UiLanguage { get; set; }
+    public string? DefaultContext { get; set; }
+    public bool? AutoSpeak { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }

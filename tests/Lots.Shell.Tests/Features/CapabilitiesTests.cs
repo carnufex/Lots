@@ -41,7 +41,7 @@ public class CapabilitiesTests : IClassFixture<WebApplicationFactory<Program>>
     /// <summary>One endpoint that the page cannot work without.</summary>
     public static readonly Dictionary<string, string> PageEndpoint = new()
     {
-        ["chat"] = "/conversations", ["history"] = "/conversations", ["runs"] = "/runs", ["usage"] = "/usage", ["voice"] = "/me/settings",
+        ["account"] = "/me/preferences", ["chat"] = "/conversations", ["history"] = "/conversations", ["runs"] = "/runs", ["usage"] = "/usage", ["voice"] = "/me/settings",
         ["knowledge"] = "/knowledge", ["integrations"] = "/tool-calls", ["audit"] = "/audit", ["models"] = "/models",
         ["profiles"] = "/admin/v1/resources", ["policy"] = "/admin/v1/resources", ["identity"] = "/admin/v1/identity",
         ["feedback"] = "/feedback", ["insights"] = "/insights/outcomes",

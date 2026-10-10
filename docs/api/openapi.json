@@ -579,6 +579,73 @@
         ]
       }
     },
+    "/me/preferences": {
+      "get": {
+        "tags": [
+          "Me"
+        ],
+        "operationId": "LotsShellFeaturesSettingsGetPreferencesEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreferencesDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Me"
+        ],
+        "operationId": "LotsShellFeaturesSettingsSetPreferencesEndpoint",
+        "requestBody": {
+          "x-name": "PreferencesDto",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreferencesDto"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreferencesDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/me/settings": {
       "get": {
         "tags": [
@@ -5621,6 +5688,26 @@
       "ToolCallQuery": {
         "type": "object",
         "additionalProperties": false
+      },
+      "PreferencesDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "theme": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string",
+            "nullable": true
+          },
+          "defaultContext": {
+            "type": "string",
+            "nullable": true
+          },
+          "autoSpeak": {
+            "type": "boolean"
+          }
+        }
       },
       "SettingsDto": {
         "type": "object",

@@ -6,6 +6,7 @@ import { Player } from '../voice/player'
 import { initialLanguage, saveLanguage } from '../voice/language'
 import Avatar, { type AvatarState } from './Avatar'
 import { t } from '../i18n'
+import { defaultContext } from '../preferences'
 
 type Message = { who: 'you' | 'agent'; text: string; runId?: string; failed?: boolean }
 
@@ -42,7 +43,7 @@ export default function Conversation({
   const [messages, setMessages] = useState<Message[]>([])
   const [error, setError] = useState<string | null>(null)
   const [language, setLanguageState] = useState<VoiceLanguage>(() => initialLanguage(defaultLanguage))
-  const [profile, setProfile] = useState(profiles[0]?.name ?? '')
+  const [profile, setProfile] = useState(() => defaultContext(profiles))
   const [sensitivity, setSensitivity] = useState('normal')
   const [muted, setMuted] = useState(false)
 

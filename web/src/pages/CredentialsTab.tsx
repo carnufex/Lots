@@ -16,8 +16,10 @@ interface Credential {
 const when = (s: string | null | undefined) => (s ? fmt.dateTime(s) : '–')
 
 /** Credentials (#62): secret references and live status (admins), and the caller's own connected accounts. Values are never shown. */
-export default function CredentialsTab({ api }: { api: Api }) {
-  const [list, setList] = useState<Credential[] | null>(null)
+export default function CredentialsTab({ api, mineOnly = false }: { api: Api; mineOnly?: boolean }) {
+  const [all, setList] = useState<Credential[] | null>(null)
+  // On the Account page (#155): only the integrations where the user connects their own account.
+  const list = mineOnly ? (all?.filter((c) => c.userConnected) ?? null) : all
   const [error, setError] = useState<string | null>(null)
   const params = new URLSearchParams(window.location.hash.split('?')[1] ?? '')
   const load = useCallback(() => {
@@ -38,13 +40,13 @@ export default function CredentialsTab({ api }: { api: Api }) {
       {params.get('connected') && <p className="small">Connected your account for {params.get('connected')}.</p>}
       {params.get('error') && <p className="error small">Connecting failed: {params.get('error')}</p>}
       {error && <p className="error">{error}</p>}
-      <p className="muted small">
+      {!mineOnly && <p className="muted small">
         Profiles reference secrets by name (an environment variable or <span className="mono">{t('file:/path')}</span> for mounted Kubernetes, Vault or Bitwarden secrets; files
         are re-read, so rotation needs no restart). Values are never stored or shown here.
-      </p>
+      </p>}
       {list && list.length === 0 && (
         <div className="empty">
-          <p>{t('No credentials to show.')}</p>
+          <p>{mineOnly ? t('No integration asks you to connect your own account.') : t('No credentials to show.')}</p>
         </div>
       )}
       {list && list.length > 0 && (

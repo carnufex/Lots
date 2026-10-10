@@ -1,6 +1,7 @@
 // Phone layout and accessibility checks (#113) in a real Chromium at 375x812: no sideways scrolling, the navigation is reachable,
 // every control has an accessible name, keyboard focus is visible. Screenshots go to out/mobile-*.png for review.
 // Usage: node mobile.mjs        (needs the web UI served on :8088, dev auth with header identities)
+//        LOTS_THEME=light node mobile.mjs   runs the same checks in the light theme (#155)
 import { chromium } from 'playwright'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -13,12 +14,16 @@ fs.mkdirSync(out, { recursive: true })
 
 const browser = await chromium.launch()
 const context = await browser.newContext({ viewport: { width: 375, height: 812 }, hasTouch: true, deviceScaleFactor: 2 })
-await context.addInitScript(() => localStorage.setItem('lots.dev-identity', JSON.stringify({ user: 'claude-test-mobile', roles: 'operator,admin' })))
+const theme = process.env.LOTS_THEME ?? 'dark'
+await context.addInitScript((th) => {
+  localStorage.setItem('lots.dev-identity', JSON.stringify({ user: 'claude-test-mobile', roles: 'operator,admin' }))
+  localStorage.setItem('lots.theme', th)
+}, theme)
 const page = await context.newPage()
 let failed = false
 const ok = (c, m) => { console.log(`${c ? 'ok  ' : 'FAIL'} ${m}`); if (!c) failed = true }
 
-for (const route of ['chat', 'runs', 'approvals', 'history', 'usage', 'voice', 'knowledge', 'integrations', 'audit', 'profiles', 'insights', 'feedback']) {
+for (const route of ['account', 'account/settings', 'chat', 'runs', 'approvals', 'history', 'usage', 'voice', 'knowledge', 'integrations', 'audit', 'profiles', 'insights', 'feedback']) {
   await page.goto(`${base}/#/${route}`)
   await page.waitForTimeout(900)
   const m = await page.evaluate(() => ({

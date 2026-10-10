@@ -1,8 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { ProfileInfo } from '../config'
 import type { Api } from '../api'
-import MyData from '../components/MyData'
-import ApiTokens from '../components/ApiTokens'
 import { t, fmt } from '../i18n'
 
 interface UsageRow {
@@ -79,7 +76,7 @@ function QuotaCard({ api }: { api: Api }) {
 }
 
 /** Usage (#77): tokens, cost, latency and failures over time or per model, profile or user. */
-export default function UsagePage({ api, profiles = [] }: { api: Api; profiles?: ProfileInfo[] }) {
+export default function UsagePage({ api }: { api: Api }) {
   const [groupBy, setGroupBy] = useState<string>('day')
   const [days, setDays] = useState(30)
   const [report, setReport] = useState<UsageReport | null>(null)
@@ -100,8 +97,9 @@ export default function UsagePage({ api, profiles = [] }: { api: Api; profiles?:
     <section>
       <h1>{t('Usage')}</h1>
       <QuotaCard api={api} />
-      <MyData api={api} profiles={profiles} />
-      <ApiTokens api={api} />
+      <p className="small muted">
+        {t('Your data, API tokens and memory are on your')} <a href="#/account/data">{t('Account')}</a>.
+      </p>
       <div className="filters">
         <label>
           {t('Group')}
