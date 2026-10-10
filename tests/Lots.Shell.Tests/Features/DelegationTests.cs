@@ -153,7 +153,8 @@ public class DelegationTests
         using var scope = DelegationContext.Enter(live);
         var user = new Principal("alice", ["operator"]);
 
-        Assert.Equal("Bearer exchanged-for-alice", await invoker.InvokeAsync(new ToolCall("1", "who_am_i", "{}"), user, "p", default));
+        // Works while the subject token is valid; the exchanged token it echoes is masked in the result (#87).
+        Assert.Equal("Bearer [redacted]", await invoker.InvokeAsync(new ToolCall("1", "who_am_i", "{}"), user, "p", default));
 
         using var expired = DelegationContext.Enter(Ctx("alice", clock, expires: clock.GetUtcNow().AddMinutes(-1)));
         var result = await invoker.InvokeAsync(new ToolCall("2", "who_am_i", "{}"), user, "p", default);

@@ -62,6 +62,7 @@ public sealed class BackendTokenProvider(
             using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
             _token = doc.RootElement.GetProperty("access_token").GetString()
                      ?? throw new InvalidOperationException("Token endpoint returned no access_token.");
+            Security.SecretRedactor.RegisterToken(_token);
             var lifetime = doc.RootElement.TryGetProperty("expires_in", out var e) && e.TryGetInt32(out var s) ? s : 300;
             _expires = clock.GetUtcNow().AddSeconds(lifetime);
             if (server is not null) status?.Fetched(server, clock.GetUtcNow(), _expires);

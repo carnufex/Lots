@@ -12,17 +12,23 @@ public static class SecretReference
     public static string Resolve(string reference, Func<string, string?>? env = null)
     {
         env ??= Environment.GetEnvironmentVariable;
+        string value;
         if (reference.StartsWith("file:", StringComparison.Ordinal))
         {
             var path = reference[5..];
-            return File.Exists(path) && File.ReadAllText(path).Trim() is { Length: > 0 } v
+            value = File.Exists(path) && File.ReadAllText(path).Trim() is { Length: > 0 } v
                 ? v
                 : throw new InvalidOperationException($"Secret file '{path}' (referenced by the profile) is missing or empty.");
         }
-        var name = reference.StartsWith("env:", StringComparison.Ordinal) ? reference[4..] : reference;
-        return env(name) is { Length: > 0 } value
-            ? value
-            : throw new InvalidOperationException($"Environment variable '{name}' (referenced by the profile) is not set.");
+        else
+        {
+            var name = reference.StartsWith("env:", StringComparison.Ordinal) ? reference[4..] : reference;
+            value = env(name) is { Length: > 0 } e
+                ? e
+                : throw new InvalidOperationException($"Environment variable '{name}' (referenced by the profile) is not set.");
+        }
+        Security.SecretRedactor.Register(value); // never shows up in logs, traces or tool results (#87)
+        return value;
     }
 
     /// <summary>Where a reference points, for display: never the value.</summary>

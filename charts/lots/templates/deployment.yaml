@@ -133,6 +133,9 @@ spec:
             {{- if .Values.audio.existingClaim }}
             - { name: audio, mountPath: /data/audio }
             {{- end }}
+            {{- range $i, $s := .Values.secretFiles }}
+            - { name: secret-file-{{ $i }}, mountPath: {{ $s.mountPath }}, readOnly: true }
+            {{- end }}
         {{- if .Values.gitops.enabled }}
         - name: git-sync
           image: {{ .Values.gitops.image | quote }}
@@ -181,6 +184,12 @@ spec:
         - name: knowledge
           persistentVolumeClaim:
             claimName: {{ .Values.knowledge.existingClaim }}
+        {{- end }}
+        {{- range $i, $s := .Values.secretFiles }}
+        - name: secret-file-{{ $i }}
+          secret:
+            secretName: {{ $s.secretName }}
+            defaultMode: 0440
         {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector: {{- toYaml . | nindent 8 }}

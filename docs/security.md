@@ -35,3 +35,73 @@ Responses are size-capped and requests time out (fetch 20 s, knowledge 30 s, web
 At the network layer, `networkPolicy.enabled` adds NetworkPolicies: the shell may reach anything except 169.254.0.0/16, the tool
 pack only public addresses on 80/443 and accepts traffic only from the shell. With Cilium, `networkPolicy.cilium.enabled` limits
 the tool pack to `networkPolicy.cilium.toolpackFqdns` by DNS name.
+
+## Secrets (#87)
+
+Profiles name secrets, they never contain them: credential fields (`tokenEnv`, `passwordEnv`, `clientSecretEnv`, audit
+`WebhookAuthHeaderRef`) take a reference, `NAME` / `env:NAME` for an environment variable or `file:/path` for a file. Files are
+read on every use, so rotation needs no restart. A profile in which a line looks like a credential (a JWT, `Bearer …`, a private
+key, a cloud or Git token, `password: …`) is rejected when it is loaded or applied.
+
+Masking: every value the shell resolves from a reference, every environment variable whose name contains
+key/token/secret/password/credential, the database password and every backend token it fetches or exchanges is replaced by
+`[redacted]` in log messages and exceptions, tool results (the trace and what the model sees), stored tool arguments and run
+errors. Credential shapes are masked even when the shell never saw the value (a token printed in a container log). Structured
+log properties written by a JSON or OTLP log exporter are not rewritten; the shell does not attach secrets to them.
+
+Insecure settings: outside `ASPNETCORE_ENVIRONMENT=Development` the shell refuses to start with `Auth:Mode=Dev`,
+`Auth:Dev:AllowHeaders=true` or an OIDC authority over plain http (loopback excepted). `Security:AllowInsecureSettings=true`
+overrides this for a throwaway demo and logs a warning on every start. Local compose sets Development.
+
+### Kubernetes Secrets and External Secrets Operator
+
+Any secret store that ESO supports (Bitwarden Secrets Manager, Vault, cloud key vaults) ends as a Kubernetes Secret; give it to
+the shell as an env var or a file:
+
+```yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata: { name: lots-cmdb, namespace: lots }
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: bitwarden }   # or a Vault store
+  target: { name: lots-cmdb }
+  data:
+    - secretKey: token
+      remoteRef: { key: CMDB_AGENT_TOKEN }
+```
+
+```yaml
+# values.yaml
+extraSecretEnv:
+  - { name: CMDB_AGENT_TOKEN, secretName: lots-cmdb, key: token }   # profile: passwordEnv: CMDB_AGENT_TOKEN
+secretFiles:
+  - { secretName: lots-cmdb, mountPath: /run/secrets/cmdb }          # or: passwordEnv: file:/run/secrets/cmdb/token
+```
+
+Prefer `secretFiles`: a refreshed Secret reaches the mounted file within a minute, an env var only on the next restart.
+
+### Vault
+
+- **Vault Secrets Operator or ESO**: as above (`VaultStaticSecret` / ESO `vault` provider → Kubernetes Secret → `secretFiles`).
+- **Vault Agent injector**: annotate the pod (`podAnnotations`) so the agent renders the secret into a shared volume and reference
+  the file:
+
+```yaml
+podAnnotations:
+  vault.hashicorp.com/agent-inject: "true"
+  vault.hashicorp.com/role: lots
+  vault.hashicorp.com/agent-inject-secret-cmdb: kv/data/lots/cmdb
+  vault.hashicorp.com/agent-inject-template-cmdb: '{{ with secret "kv/data/lots/cmdb" }}{{ .Data.data.token }}{{ end }}'
+# profile: passwordEnv: file:/vault/secrets/cmdb
+```
+
+### Bitwarden Secrets Manager without Kubernetes
+
+For compose or a VM, let `bws` inject the secrets as environment variables for the process; nothing is written to disk:
+
+```bash
+bws run --project-id <project> -- docker compose up -d
+```
+
+The machine-account access token for `bws` is itself a secret: keep it in the host's credential store, not in `.env`.

@@ -75,6 +75,11 @@ extraSecretEnv: []
 #    secretName: cmdb-agent
 #    key: token
 
+# Secrets mounted as files, for file: references in profiles (#87). Files are re-read on every use, so a rotated secret
+# (ExternalSecrets refresh, Vault Secrets Operator) takes effect without a restart.
+secretFiles: []
+#  - { secretName: cmdb-agent, mountPath: /run/secrets/cmdb }   # profile: passwordEnv: file:/run/secrets/cmdb/token
+
 # Persistent Data Protection keys (needed for delegated identity, ADR 0011: stored login tokens are encrypted with them).
 # Use a PVC shared by all replicas. Empty: keys are ephemeral and delegated calls fail closed after a restart.
 dataProtection:

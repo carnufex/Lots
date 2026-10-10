@@ -244,7 +244,7 @@ public sealed class AgentRunner(
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             run.Status = RunStatus.Failed;
-            run.Error = ex.Message;
+            run.Error = Security.SecretRedactor.Redact(ex.Message);
         }
 
         root?.SetTag("lots.run.status", run.Status.ToString());
@@ -395,7 +395,7 @@ public sealed class AgentRunner(
                 Kind = StepKind.ToolCall,
                 Name = call.Name,
                 ToolCallId = call.Id,
-                ArgumentsJson = call.ArgumentsJson,
+                ArgumentsJson = Security.SecretRedactor.Redact(call.ArgumentsJson),
                 Result = Cut(result.Text),
                 Flagged = result.Suspicious,
                 LatencyMs = sw.ElapsedMilliseconds,

@@ -106,6 +106,11 @@ builder.Services.AddHttpClient(nameof(Lots.Shell.Core.Telemetry.DependencyMonito
 builder.Services.AddSingleton<Lots.Shell.Core.Telemetry.DependencyMonitor>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<Lots.Shell.Core.Telemetry.DependencyMonitor>()); // #82/#83
 
+// Secrets never reach logs, traces or tool results (#87): known values are registered, credential shapes are masked.
+Lots.Shell.Core.Security.SecretRedactor.RegisterEnvironment();
+Lots.Shell.Core.Security.SecretRedactor.RegisterConnectionString(builder.Configuration.GetConnectionString("Lots"));
+Lots.Shell.Core.Security.SecurityChecks.AddSecretRedaction(builder.Logging);
+
 var app = builder.Build();
 
 // A profile naming a model alias that does not exist is a configuration error: stop instead of silently using another model.
@@ -119,6 +124,9 @@ var app = builder.Build();
 
 _ = app.Services.GetRequiredService<ProfileRegistry>(); // fail fast on invalid profiles
 AuthSetup.Validate(app.Configuration); // fail fast unless Auth:Mode is explicit
+// Dev auth and header identities only in Development (#87); elsewhere the shell refuses to start unless explicitly allowed.
+foreach (var warning in Lots.Shell.Core.Security.SecurityChecks.Enforce(app.Configuration, app.Environment))
+    app.Logger.LogWarning("Insecure setting: {Warning}", warning);
 
 if (app.Configuration.GetValue("Database:MigrateOnStartup", true))
 {

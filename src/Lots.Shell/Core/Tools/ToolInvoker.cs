@@ -97,6 +97,8 @@ public sealed class ToolInvoker(IEnumerable<IToolSource> sources, ProfileRegistr
 
         public static ToolResult FromTool(string tool, string text)
         {
+            // Secrets a tool echoes (an env dump in logs, a token in an error) reach neither the trace nor the model (#87).
+            text = Security.SecretRedactor.Redact(text);
             var guarded = InjectionGuard.Guard(tool, text);
             return new(text, guarded.Text, guarded.Suspicious, guarded.Findings);
         }

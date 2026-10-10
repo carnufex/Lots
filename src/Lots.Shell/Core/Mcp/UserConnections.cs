@@ -114,6 +114,7 @@ public sealed class UserConnections(IServiceScopeFactory scopes, IDataProtection
         using var doc = JsonDocument.Parse(await res.Content.ReadAsStringAsync(ct));
         var r = doc.RootElement;
         var access = r.GetProperty("access_token").GetString() ?? throw new HttpRequestException("no access_token");
+        Security.SecretRedactor.RegisterToken(access);
         var refresh = r.TryGetProperty("refresh_token", out var rt) ? rt.GetString() : null;
         DateTimeOffset? expires = r.TryGetProperty("expires_in", out var e) && e.TryGetInt32(out var s) ? clock.GetUtcNow().AddSeconds(s) : null;
         return new Tokens(access, refresh, expires, r.TryGetProperty("scope", out var sc) ? sc.GetString() : null);

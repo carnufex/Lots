@@ -82,6 +82,7 @@ public sealed class TokenExchangeClient(HttpClient http, TimeProvider clock, Fun
             using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
             var token = doc.RootElement.GetProperty("access_token").GetString()
                         ?? throw new InvalidOperationException("Token exchange returned no access_token.");
+            Security.SecretRedactor.RegisterToken(token);
             var lifetime = doc.RootElement.TryGetProperty("expires_in", out var e) && e.TryGetInt32(out var s) ? s : 300;
             _cache[key] = (token, clock.GetUtcNow().AddSeconds(lifetime));
             return token;

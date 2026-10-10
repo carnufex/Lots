@@ -125,6 +125,10 @@ public static class ProfileParser
         var errors = new List<string>();
         void Err(string m) => errors.Add($"{source}: {m}");
 
+        // Profiles are config as code and end up in Git, ConfigMaps and the admin UI: they name secrets, never contain them (#87).
+        if (Security.SecretRedactor.LooksLikeSecret(yaml, out var secretLine))
+            Err($"line {secretLine} looks like a secret value; reference it instead (passwordEnv/tokenEnv or env:NAME / file:/path)");
+
         if (string.IsNullOrWhiteSpace(doc.Name)) Err("name is required");
         if (doc.Version < 1) Err("version must be 1 or higher");
 

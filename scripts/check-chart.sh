@@ -8,7 +8,8 @@ ARGS=(--set database.existingSecret=db --set auth.oidc.authority=https://idp.exa
       --set mcpToolpack.enabled=true --set mcpToolpack.kubernetesReadOnly=true
       --set metrics.serviceMonitor.enabled=true --set metrics.grafanaDashboard=true --set metrics.alerts.enabled=true
       --set networkPolicy.enabled=true --set networkPolicy.cilium.enabled=true --set 'networkPolicy.cilium.toolpackFqdns={docs.example.com}'
-      --set 'egress.allowedHosts={*.corp.example}')
+      --set 'egress.allowedHosts={*.corp.example}'
+      --set 'secretFiles[0].secretName=cmdb' --set 'secretFiles[0].mountPath=/run/secrets/cmdb')
 
 helm lint charts/lots "${ARGS[@]}" >/dev/null
 OUT="$(helm template t charts/lots "${ARGS[@]}")"
