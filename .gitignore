@@ -4,6 +4,7 @@ obj/
 *.user
 .env
 evals/report*.md
+evals/history/
 node_modules/
 dist/
 profiles.local/

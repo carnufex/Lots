@@ -1,5 +1,10 @@
-[
-  { "id": "firing", "question": "Which alerts are firing right now?", "expectedTools": ["alerts_active"], "profile": "monitoring" },
-  { "id": "targets-down", "question": "Are any Prometheus scrape targets down?", "expectedTools": ["prom_query"], "profile": "monitoring" },
-  { "id": "trend", "question": "How has the number of up targets changed over the last hour?", "expectedTools": ["prom_query_range"], "profile": "monitoring" }
-]
+{
+  "dataset": "monitoring",
+  "version": 1,
+  "profile": "monitoring",
+  "cases": [
+    {"id": "firing", "question": "Which alerts are firing right now?", "expectedTools": ["alerts_active"]},
+    {"id": "targets-down", "question": "Are any Prometheus scrape targets down?", "expectedTools": ["prom_query"]},
+    {"id": "trend", "question": "How has the number of up targets changed over the last hour?", "expectedTools": ["prom_query_range"]}
+  ]
+}

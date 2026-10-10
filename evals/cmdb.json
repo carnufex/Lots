@@ -1,49 +1,12 @@
-[
-  {
-    "id": "site-types",
-    "profile": "cmdb",
-    "question": "Which site types exist in the CMDB?",
-    "expectedTools": [
-      "describe_catalog"
-    ],
-    "expectedFacts": [
-      "aggregation",
-      "splice"
-    ]
-  },
-  {
-    "id": "lifecycle-states",
-    "profile": "cmdb",
-    "question": "Which lifecycle states can a site have?",
-    "expectedTools": [
-      "describe_catalog"
-    ],
-    "expectedFacts": [
-      "in_service"
-    ]
-  },
-  {
-    "id": "search-hub",
-    "profile": "cmdb",
-    "question": "Search the CMDB for sites with 'hub' in the name and name a few.",
-    "expectedTools": [
-      "search"
-    ]
-  },
-  {
-    "id": "plans",
-    "profile": "cmdb",
-    "question": "Which change plans exist right now, and what is their status?",
-    "expectedTools": [
-      "list_plans"
-    ]
-  },
-  {
-    "id": "templates",
-    "profile": "cmdb",
-    "question": "Which site templates are available?",
-    "expectedTools": [
-      "list_site_templates"
-    ]
-  }
-]
+{
+  "dataset": "cmdb",
+  "version": 1,
+  "profile": "cmdb",
+  "cases": [
+    {"id": "site-types", "question": "Which site types exist in the CMDB?", "expectedTools": ["describe_catalog"], "expectedFacts": ["aggregation", "splice"]},
+    {"id": "lifecycle-states", "question": "Which lifecycle states can a site have?", "expectedTools": ["describe_catalog"], "expectedFacts": ["in_service"]},
+    {"id": "search-hub", "question": "Search the CMDB for sites with 'hub' in the name and name a few.", "expectedTools": ["search"]},
+    {"id": "plans", "question": "Which change plans exist right now, and what is their status?", "expectedTools": ["list_plans"]},
+    {"id": "templates", "question": "Which site templates are available?", "expectedTools": ["list_site_templates"]}
+  ]
+}

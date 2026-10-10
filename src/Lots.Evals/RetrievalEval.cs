@@ -75,34 +75,6 @@ public static partial class RetrievalScoring
     [GeneratedRegex(@"\[(k\d+)\]")] private static partial Regex CitedRef();
 }
 
-/// <summary>
-/// Optional LLM judge (OpenAI-compatible): is every claim of the answer supported by the passages? Calibrate against human labels
-/// before trusting it as a gate (#117).
-/// </summary>
-public sealed class Judge(HttpClient http, string model)
-{
-    public async Task<bool?> GroundedAsync(string question, string answer, IReadOnlyList<string> passages, CancellationToken ct = default)
-    {
-        if (passages.Count == 0) return false;
-        var prompt = new StringBuilder("You check answers for groundedness. Reply with exactly one word: YES if every factual claim in the ANSWER is ")
-            .Append("supported by the PASSAGES, otherwise NO.\n\nQUESTION:\n").Append(question).Append("\n\nPASSAGES:\n");
-        for (var i = 0; i < passages.Count; i++) prompt.Append($"[{i + 1}] ").Append(passages[i]).Append('\n');
-        prompt.Append("\nANSWER:\n").Append(answer);
-        using var res = await http.PostAsJsonAsync("chat/completions", new
-        {
-            model,
-            messages = new[] { new { role = "user", content = prompt.ToString() } },
-            temperature = 0,
-            reasoning_effort = "none",
-        }, ct);
-        if (!res.IsSuccessStatusCode) return null;
-        var body = await res.Content.ReadFromJsonAsync<JsonElement>(ct);
-        var text = body.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString() ?? "";
-        return text.Trim().StartsWith("YES", StringComparison.OrdinalIgnoreCase) ? true
-            : text.Trim().StartsWith("NO", StringComparison.OrdinalIgnoreCase) ? false : null;
-    }
-}
-
 public static class RetrievalCli
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
@@ -118,9 +90,7 @@ public static class RetrievalCli
         var withAnswers = args.Contains("--answers");
         var profile = arg("--profile") ?? "homelab";
         var minRecall = double.TryParse(arg("--min-recall"), System.Globalization.CultureInfo.InvariantCulture, out var m) ? m : 0.8;
-        Judge? judge = arg("--judge-url") is { } judgeUrl && arg("--judge-model") is { } judgeModel
-            ? new Judge(new HttpClient { BaseAddress = new Uri(judgeUrl.TrimEnd('/') + "/"), Timeout = TimeSpan.FromMinutes(2) }, judgeModel)
-            : null;
+        var judge = Judge.FromArgs(arg);
 
         var cases = JsonSerializer.Deserialize<List<RetrievalCase>>(await File.ReadAllTextAsync(file), Json) ?? [];
         var results = new List<RetrievalResult>();
