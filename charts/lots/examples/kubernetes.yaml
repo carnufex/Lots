@@ -1,0 +1,58 @@
+# Plain Kubernetes with the NVIDIA GPU operator (or device plugin) and an ingress controller.
+# helm install lots charts/lots -n lots -f charts/lots/examples/kubernetes.yaml
+image:
+  repository: registry.example.com/lots-shell
+  tag: "0.1.0"
+
+auth:
+  mode: Oidc
+  oidc:
+    authority: https://idp.example.com/application/o/lots/
+    clientId: lots
+    roleClaim: groups
+    rolePrefix: "lots-"          # IdP group lots-admin = role admin
+
+database:
+  existingSecret: lots-db        # key connection-string: Host=...;Database=lots;Username=lots;Password=...
+
+model:
+  baseUrl: http://ollama.ai.svc:11434/v1
+  name: qwen3.5
+  embedModel: bge-m3
+
+voice:
+  enabled: true
+  apiKey:
+    existingSecret: lots-voice   # key api-key, shared by the shell and the voice service
+  image:
+    repository: registry.example.com/lots-voice
+    tag: "0.1.0"
+  chatterbox: true
+  voices: { sv: cb-default, en: cb-default }
+  models:
+    create: true
+    size: 40Gi
+    storageClassName: longhorn
+  podSecurityContext:
+    fsGroup: 10001               # makes the new volume writable for the non-root user (OpenShift does this itself)
+  nodeSelector:
+    nvidia.com/gpu.present: "true"
+  tolerations:
+    - { key: nvidia.com/gpu, operator: Exists, effect: NoSchedule }
+
+audio:
+  existingClaim: lots-audio      # ReadWriteMany when replicaCount > 1
+dataProtection:
+  existingClaim: lots-keys
+
+ingress:
+  enabled: true
+  className: nginx
+  host: lots.example.com
+  tls:
+    secretName: lots-tls
+
+networkPolicy:
+  enabled: true
+  ingressFrom:
+    - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: ingress-nginx } }

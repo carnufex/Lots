@@ -1,0 +1,180 @@
+{{- /*
+The voice service (#133, ADR 0012/0015): speech to text (faster-whisper) and speech output (Piper, optionally Chatterbox) on a GPU.
+Its /models volume holds the downloaded models and the users' own voice references (personal data, ADR 0015): give it a
+persistent claim, or own voices are lost on every restart.
+*/ -}}
+{{- if .Values.voice.enabled }}
+{{- $v := .Values.voice }}
+{{- if not $v.apiKey.existingSecret }}
+{{- fail "voice.apiKey.existingSecret is required when voice.enabled (a Secret with the key the shell and the voice service share)" }}
+{{- end }}
+{{- $claim := $v.models.existingClaim | default (ternary (printf "%s-voice-models" (include "lots.name" .)) "" $v.models.create) }}
+{{- if $v.models.create }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "lots.name" . }}-voice-models
+  labels: {{- include "lots.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep   # own voice references live here: never delete them with an uninstall
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- with $v.models.storageClassName }}
+  storageClassName: {{ . }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ $v.models.size }}
+---
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "lots.name" . }}-voice
+  labels: {{- include "lots.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate   # one GPU and a ReadWriteOnce models volume: the old pod must let go first
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: lots-voice
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: lots-voice
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      automountServiceAccountToken: false
+      {{- with $v.runtimeClassName }}
+      runtimeClassName: {{ . }}
+      {{- end }}
+      securityContext:
+        {{- include "lots.podSecurityContext" . | nindent 8 }}
+        {{- with $v.podSecurityContext }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- if $v.fetchModels }}
+      initContainers:
+        # Downloads the Piper voices once (Whisper and Chatterbox weights are fetched on first use into the same volume).
+        - name: fetch-models
+          image: "{{ $v.image.repository }}:{{ $v.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ $v.image.pullPolicy }}
+          securityContext: {{- include "lots.containerSecurityContext" . | nindent 12 }}
+          command: ["sh", "-c", "ls /models/piper/*/model.onnx >/dev/null 2>&1 || python scripts/fetch_models.py /models/piper"]
+          env:
+            - { name: HOME, value: /tmp }
+            - { name: PYTHONDONTWRITEBYTECODE, value: "1" }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+            - { name: models, mountPath: /models }
+      {{- end }}
+      containers:
+        - name: voice
+          image: "{{ $v.image.repository }}:{{ $v.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ $v.image.pullPolicy }}
+          securityContext: {{- include "lots.containerSecurityContext" . | nindent 12 }}
+          ports:
+            - { name: http, containerPort: 8700 }
+          env:
+            - { name: HOME, value: /tmp }
+            - { name: PYTHONDONTWRITEBYTECODE, value: "1" }
+            - { name: VOICE_STT_COMPUTE, value: {{ $v.sttCompute | quote }} }
+            - { name: VOICE_STT_DEVICE, value: {{ ternary "cuda" "cpu" (gt (int $v.gpu.count) 0) | quote }} }
+            - { name: VOICE_CHATTERBOX, value: {{ ternary "1" "0" $v.chatterbox | quote }} }
+            - { name: VOICE_DEFAULT_LANGUAGE, value: {{ $v.defaultLanguage | quote }} }
+            - { name: VOICE_MAX_CONCURRENCY, value: {{ $v.maxConcurrency | quote }} }
+            - { name: PYTORCH_CUDA_ALLOC_CONF, value: "expandable_segments:True" }
+            # utility: nvidia-smi for the GPU guard (#84) that moves to the fast voice when memory runs low
+            - { name: NVIDIA_DRIVER_CAPABILITIES, value: "compute,utility" }
+            - name: VOICE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $v.apiKey.existingSecret }}
+                  key: {{ $v.apiKey.key }}
+            {{- range $v.extraEnv }}
+            - { name: {{ .name }}, value: {{ .value | quote }} }
+            {{- end }}
+          startupProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 10
+            failureThreshold: 90   # first start downloads and loads models: allow 15 minutes
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 10
+          resources:
+            {{- $res := deepCopy $v.resources }}
+            {{- if gt (int $v.gpu.count) 0 }}
+            {{- $limits := (get $res "limits") | default dict }}
+            {{- $_ := set $limits $v.gpu.resourceName (int $v.gpu.count) }}
+            {{- $_ := set $res "limits" $limits }}
+            {{- end }}
+            {{- toYaml $res | nindent 12 }}
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+            - { name: models, mountPath: /models }
+      {{- with $v.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $v.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $v.affinity }}
+      affinity: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: models
+          {{- if $claim }}
+          persistentVolumeClaim:
+            claimName: {{ $claim }}
+          {{- else }}
+          emptyDir: {}   # models are downloaded again on every start and own voices do not survive a restart
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "lots.name" . }}-voice
+  labels: {{- include "lots.labels" . | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/name: lots-voice
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - { name: http, port: 8700, targetPort: http }
+{{- if .Values.networkPolicy.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "lots.name" . }}-voice
+  labels: {{- include "lots.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: lots-voice
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    # Only the shell may call the voice service: it is not an API for users.
+    - from:
+        - podSelector:
+            matchLabels: {{- include "lots.selector" . | nindent 14 }}
+      ports: [{ port: 8700, protocol: TCP }]
+  egress:
+    - ports: [{ port: 53, protocol: UDP }, { port: 53, protocol: TCP }]
+    {{- with $v.modelDownloadEgress }}
+    # Model downloads (Hugging Face, GitHub releases). Empty this list once the models volume is filled to cut egress entirely.
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}
+{{- end }}

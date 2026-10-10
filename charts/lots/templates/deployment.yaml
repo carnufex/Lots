@@ -66,6 +66,24 @@ spec:
             - { name: GitOps__Path, value: {{ printf "/git/current/%s" .Values.gitops.path | trimSuffix "/" | quote }} }
             - { name: GitOps__Prune, value: {{ .Values.gitops.prune | quote }} }
             {{- end }}
+            {{- if or .Values.voice.enabled .Values.voice.url }}
+            {{- $v := .Values.voice }}
+            - { name: Speech__BaseUrl, value: {{ ternary (printf "http://%s-voice:8700/v1" (include "lots.name" .)) $v.url $v.enabled | quote }} }
+            - { name: Speech__DefaultLanguage, value: {{ $v.defaultLanguage | quote }} }
+            - { name: Speech__Voices__sv, value: {{ $v.voices.sv | quote }} }
+            - { name: Speech__Voices__en, value: {{ $v.voices.en | quote }} }
+            {{- with $v.vocabulary }}
+            - { name: Speech__Vocabulary, value: {{ . | quote }} }
+            {{- end }}
+            {{- if $v.apiKey.existingSecret }}
+            - { name: Speech__ApiKeyEnv, value: LOTS_VOICE_KEY }
+            - name: LOTS_VOICE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $v.apiKey.existingSecret }}
+                  key: {{ $v.apiKey.key }}
+            {{- end }}
+            {{- end }}
             {{- if .Values.audio.existingClaim }}
             - { name: Speech__AudioPath, value: /data/audio }
             - { name: Speech__AudioRetentionDays, value: {{ .Values.audio.retentionDays | quote }} }

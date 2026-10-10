@@ -37,6 +37,52 @@ model:
   # Embedding model on the same endpoint (knowledge, ADR 0016), e.g. nomic-embed-text or bge-m3. Empty: knowledge search is off.
   embedModel: ""
 
+# Voice (#133, ADR 0012): speech to text and speech output. Either run the voice service in this chart on a GPU node
+# (enabled: true), or point the shell at one running elsewhere (url), for example on a separate GPU machine.
+voice:
+  enabled: false
+  url: ""                  # external voice service, e.g. http://gpu-pc.lan:8700/v1 (used when enabled is false)
+  apiKey:
+    existingSecret: ""     # Secret holding the key the shell and the voice service share (required when enabled)
+    key: api-key
+  defaultLanguage: sv      # sv | en | auto: the dictation language when the user has not chosen one
+  voices:
+    sv: sv-nst             # cb-default = the expressive voice (needs chatterbox: true)
+    en: en-lessac
+  vocabulary: ""           # deployment-wide dictation words, comma separated (names, products)
+  image:
+    repository: registry.example.com/lots-voice   # built from services/voice (VOICE_CHATTERBOX=1 for the expressive voice)
+    tag: ""
+    pullPolicy: IfNotPresent
+  chatterbox: false        # expressive voice and own voices (ADR 0015): ~3.5 GB extra VRAM; the image must contain it
+  sttCompute: float16      # int8_float16 halves Whisper's VRAM at a small accuracy cost
+  maxConcurrency: 2
+  gpu:
+    count: 1               # GPUs requested; 0 runs on CPU (slow, for trying it out)
+    resourceName: nvidia.com/gpu
+  runtimeClassName: ""     # e.g. nvidia, when the GPU operator installs a runtime class instead of the default runtime
+  # /models holds the models (several GB) and the users' own voice references (personal data). Use a persistent claim:
+  # existingClaim, or create: true to let the chart create one (kept on uninstall). Neither: an emptyDir, re-downloaded on
+  # every start and own voices lost.
+  models:
+    existingClaim: ""
+    create: false
+    size: 30Gi
+    storageClassName: ""
+  fetchModels: true        # init container that downloads the Piper voices into an empty volume (needs internet once)
+  # Egress for model downloads when networkPolicy.enabled. Empty it after the first start to cut the voice service off entirely.
+  modelDownloadEgress:
+    - to: [{ ipBlock: { cidr: 0.0.0.0/0, except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16, 100.64.0.0/10] } }]
+      ports: [{ port: 443, protocol: TCP }]
+  podSecurityContext: {}   # plain Kubernetes with a root-owned volume: { fsGroup: 10001 }. OpenShift assigns fsGroup itself.
+  extraEnv: []             # e.g. [{ name: VOICE_MIN_FREE_VRAM_MB, value: "1500" }]
+  resources:
+    requests: { cpu: 500m, memory: 4Gi }
+    limits: { memory: 12Gi }
+  nodeSelector: {}         # e.g. { nvidia.com/gpu.present: "true" }
+  tolerations: []          # e.g. [{ key: nvidia.com/gpu, operator: Exists, effect: NoSchedule }]
+  affinity: {}
+
 # Conversation audio (ADR 0014): stored encrypted for audioRetentionDays on this PVC (shared by replicas). Empty = not stored.
 audio:
   existingClaim: ""

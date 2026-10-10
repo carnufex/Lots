@@ -1,0 +1,47 @@
+# OpenShift 4 with the restricted-v2 SCC and the NVIDIA GPU Operator. Every pod runs with the UID and fsGroup OpenShift assigns;
+# the chart sets no runAsUser or fsGroup, so no extra SCC is needed.
+# helm install lots charts/lots -n lots -f charts/lots/examples/openshift.yaml
+image:
+  repository: image-registry.openshift-image-registry.svc:5000/lots/lots-shell
+  tag: "0.1.0"
+
+auth:
+  mode: Oidc
+  oidc:
+    authority: https://keycloak.apps.example.com/realms/corp
+    clientId: lots
+    roleClaim: roles
+
+database:
+  existingSecret: lots-db
+
+model:
+  baseUrl: http://vllm.ai.svc:8000/v1
+  name: qwen3.5
+
+voice:
+  enabled: true
+  apiKey:
+    existingSecret: lots-voice
+  image:
+    repository: image-registry.openshift-image-registry.svc:5000/lots/lots-voice
+    tag: "0.1.0"
+  models:
+    create: true
+    size: 40Gi
+    storageClassName: gp3-csi
+  # The GPU Operator labels GPU nodes; GPU nodes are often tainted.
+  nodeSelector:
+    nvidia.com/gpu.present: "true"
+  tolerations:
+    - { key: nvidia.com/gpu, operator: Exists, effect: NoSchedule }
+
+route:
+  enabled: true
+  host: lots.apps.example.com
+  tlsTermination: edge
+
+networkPolicy:
+  enabled: true
+  ingressFrom:
+    - namespaceSelector: { matchLabels: { network.openshift.io/policy-group: ingress } }
