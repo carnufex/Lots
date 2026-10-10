@@ -27,6 +27,7 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
     public DbSet<VoiceConsentRecord> VoiceConsents => Set<VoiceConsentRecord>();
     public DbSet<ScheduleFireRecord> ScheduleFires => Set<ScheduleFireRecord>();
     public DbSet<AttachmentRecord> Attachments => Set<AttachmentRecord>();
+    public DbSet<ChannelEventRecord> ChannelEvents => Set<ChannelEventRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -173,6 +174,13 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
             e.Property(x => x.UserId).HasMaxLength(256);
         });
 
+        modelBuilder.Entity<ChannelEventRecord>(e =>
+        {
+            e.ToTable("channel_events");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasMaxLength(256);
+        });
+
         modelBuilder.Entity<AttachmentRecord>(e =>
         {
             e.ToTable("attachments");
@@ -310,6 +318,8 @@ public sealed class RunRecord
     public string? Trigger { get; set; }
     /// <summary>Who besides the owner and admins may read the run: <c>,role:operator,user:bob,</c> (#101).</summary>
     public string? Viewers { get; set; }
+    /// <summary>Where the answer goes for a run asked in a channel (#107): Slack channel and thread, or a mail address.</summary>
+    public string? ReplyJson { get; set; }
     /// <summary>Files given with the prompt (#105): <c>[{"id","name","kind"}]</c>.</summary>
     public string? AttachmentsJson { get; set; }
     /// <summary>Where the result is delivered when the run ends (e-mail, webhooks), as JSON (#101).</summary>
@@ -625,6 +635,13 @@ public sealed class UserVocabularyRecord
 /// and, optionally, the user's own voice. The clip itself lives only in the voice service; here is its id and consent.
 /// </summary>
 public enum VoiceConsentEvent { Given, Withdrawn, Revoked, Erased }
+
+/// <summary>A channel event (Slack event id, mail message id) that has been handled (#107): retries and duplicates are dropped.</summary>
+public sealed class ChannelEventRecord
+{
+    public required string Id { get; set; }
+    public DateTimeOffset At { get; set; }
+}
 
 /// <summary>A file a user gave a run (#105): the bytes, and for documents the extracted text.</summary>
 public sealed class AttachmentRecord

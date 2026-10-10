@@ -2666,6 +2666,113 @@
         }
       }
     },
+    "/channels/slack/events": {
+      "post": {
+        "tags": [
+          "Channels"
+        ],
+        "operationId": "LotsShellFeaturesChannelsSlackEventsEndpoint",
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/channels/slack/interactive": {
+      "post": {
+        "tags": [
+          "Channels"
+        ],
+        "operationId": "LotsShellFeaturesChannelsSlackInteractiveEndpoint",
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/channels/email/inbound": {
+      "post": {
+        "tags": [
+          "Channels"
+        ],
+        "operationId": "LotsShellFeaturesChannelsEmailInboundEndpoint",
+        "requestBody": {
+          "x-name": "InboundMail",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InboundMail"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/v1/chat/completions": {
+      "post": {
+        "tags": [
+          "V1"
+        ],
+        "operationId": "LotsShellFeaturesChannelsChatCompletionsEndpoint",
+        "requestBody": {
+          "x-name": "OpenAiChatRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpenAiChatRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/models": {
+      "get": {
+        "tags": [
+          "V1"
+        ],
+        "operationId": "LotsShellFeaturesChannelsModelsListEndpoint",
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/audit": {
       "get": {
         "tags": [
@@ -5955,6 +6062,62 @@
           },
           "defaultLanguage": {
             "type": "string"
+          }
+        }
+      },
+      "InboundMail": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "from": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string",
+            "nullable": true
+          },
+          "text": {
+            "type": "string",
+            "nullable": true
+          },
+          "messageId": {
+            "type": "string",
+            "nullable": true
+          },
+          "verified": {
+            "type": "boolean"
+          }
+        }
+      },
+      "OpenAiChatRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "model": {
+            "type": "string",
+            "nullable": true
+          },
+          "messages": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/OpenAiMessage"
+            }
+          },
+          "stream": {
+            "type": "boolean"
+          }
+        }
+      },
+      "OpenAiMessage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "type": "string"
+          },
+          "content": {
+            "nullable": true
           }
         }
       },

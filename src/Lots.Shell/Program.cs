@@ -66,6 +66,11 @@ builder.Services.AddScoped<AgentRunner>();
 builder.Services.AddScoped<RunLeases>();
 builder.Services.AddScoped<RunControl>();
 builder.Services.AddSingleton<RunStreams>(); // streamed answers (#95)
+// Channels (#107): Slack, mail to run, the OpenAI-compatible endpoint.
+builder.Services.Configure<Lots.Shell.Core.Channels.ChannelOptions>(builder.Configuration.GetSection(Lots.Shell.Core.Channels.ChannelOptions.Section));
+builder.Services.AddHttpClient(nameof(Lots.Shell.Core.Channels.SlackClient), h => h.Timeout = TimeSpan.FromSeconds(10))
+    .ConfigurePrimaryHttpMessageHandler(sp => sp.GetRequiredService<Lots.Shell.Core.Net.ShellEgress>().Handler(Lots.Shell.Core.Net.EgressPurpose.Webhook));
+builder.Services.AddSingleton<Lots.Shell.Core.Channels.SlackClient>();
 builder.Services.Configure<Lots.Shell.Core.Attachments.AttachmentOptions>(builder.Configuration.GetSection(Lots.Shell.Core.Attachments.AttachmentOptions.Section));
 builder.Services.AddKnowledge(builder.Configuration);
 builder.Services.AddSingleton<Lots.Shell.Features.Usage.PriceTable>();

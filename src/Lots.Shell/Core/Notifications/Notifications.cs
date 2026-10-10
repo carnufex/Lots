@@ -16,6 +16,10 @@ public static class NotificationEvents
     public const string QuotaWarning = "quota.warning";
     /// <summary>A scheduled or triggered run finished (#101); delivered to the schedule's own targets as well.</summary>
     public const string RunFinished = "run.finished";
+    /// <summary>The answer to a question asked in a channel (#107), sent back there (Slack thread, mail reply).</summary>
+    public const string ChannelReply = "channel.reply";
+    /// <summary>A channel run waits for an approval (#107): Approve/Deny buttons in the Slack thread.</summary>
+    public const string ChannelApproval = "channel.approval";
 }
 
 public sealed class WebhookTarget
@@ -112,6 +116,11 @@ public sealed class NotificationWorker(IServiceScopeFactory scopes, IHttpClientF
     {
         var o = options.Value;
         using var payload = JsonDocument.Parse(n.PayloadJson);
+        if (n.Event is NotificationEvents.ChannelReply or NotificationEvents.ChannelApproval)
+        {
+            await SendToChannelAsync(n.Event, payload.RootElement, ct);
+            return;
+        }
         var text = Describe(n.Event, payload.RootElement, o.PublicUrl);
         // A schedule's own targets (#101): its webhooks get a Slack/Teams style text, its addresses an e-mail.
         var ownHooks = payload.RootElement.TryGetProperty("deliverWebhooks", out var dw) ? dw.EnumerateArray().Select(x => x.GetString()!).ToList() : [];
@@ -145,6 +154,50 @@ public sealed class NotificationWorker(IServiceScopeFactory scopes, IHttpClientF
                 message.To.Add(to);
                 await smtp.SendMailAsync(message, ct);
             }
+        }
+    }
+
+    /// <summary>Answers and approval buttons go back to where the question was asked (#107).</summary>
+    private async Task SendToChannelAsync(string @event, JsonElement p, CancellationToken ct)
+    {
+        string S(string name) => p.TryGetProperty(name, out var v) && v.ValueKind != JsonValueKind.Null ? v.ToString() : "";
+        var link = string.IsNullOrEmpty(options.Value.PublicUrl) ? "" : $"{options.Value.PublicUrl!.TrimEnd('/')}/#/runs/{S("runId")}";
+        if (S("kind") == Channels.ChannelKinds.Slack)
+        {
+            var slack = scopes.CreateScope().ServiceProvider.GetRequiredService<Channels.SlackClient>();
+            if (@event == NotificationEvents.ChannelReply)
+            {
+                await slack.PostAsync(S("channel"), S("thread"), S("answer"), null, ct);
+                return;
+            }
+            // Explicit buttons only: an approval is never given by typing in the thread.
+            var text = $"Approval needed: {S("tool")} ({S("risk")}) for {S("requestedBy")}. Decide here or in Lots{(link.Length > 0 ? ": " + link : ".")}";
+            object[] blocks =
+            [
+                new { type = "section", text = new { type = "mrkdwn", text } },
+                new
+                {
+                    type = "actions",
+                    elements = new object[]
+                    {
+                        new { type = "button", action_id = "lots_approve", style = "primary", text = new { type = "plain_text", text = "Approve" }, value = S("approvalId") },
+                        new { type = "button", action_id = "lots_deny", style = "danger", text = new { type = "plain_text", text = "Deny" }, value = S("approvalId") },
+                    },
+                },
+            ];
+            await slack.PostAsync(S("channel"), S("thread"), text, blocks, ct);
+            return;
+        }
+        if (S("kind") == Channels.ChannelKinds.Email && @event == NotificationEvents.ChannelReply)
+        {
+            var mail = options.Value.Email;
+            if (string.IsNullOrEmpty(mail.SmtpHost) || mail.From is null) throw new InvalidOperationException("No SMTP server configured for mail replies.");
+            using var smtp = new SmtpClient(mail.SmtpHost, mail.SmtpPort) { EnableSsl = mail.UseTls };
+            if (mail.UserEnv is not null)
+                smtp.Credentials = new NetworkCredential(Environment.GetEnvironmentVariable(mail.UserEnv), Environment.GetEnvironmentVariable(mail.PasswordEnv ?? ""));
+            using var message = new MailMessage { From = new MailAddress(mail.From), Subject = S("subject"), Body = S("answer") + (link.Length > 0 ? "\n\n" + link : "") };
+            message.To.Add(S("to"));
+            await smtp.SendMailAsync(message, ct);
         }
     }
 

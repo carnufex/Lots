@@ -287,7 +287,8 @@ public sealed class AgentRunner(
         {
             MaskStoredConversation(run);
             LotsMetrics.RunsFinished.Add(1, new("profile", run.Profile), new("status", run.Status.ToString()), new("voice", run.Voice));
-            if (run.Trigger is not null) NotifyFinished(run);
+            if (run.ReplyJson is not null) ReplyInChannel(run);
+            else if (run.Trigger is not null) NotifyFinished(run);
             LotsMetrics.RunDuration.Record((clock.GetUtcNow() - run.CreatedAt).TotalSeconds, new("profile", run.Profile), new("status", run.Status.ToString()));
             run.SubjectTokenProtected = null;
             run.SubjectTokenExpiresAt = null;
@@ -386,6 +387,13 @@ public sealed class AgentRunner(
                     }, now);
                     run.Status = RunStatus.WaitingForApproval;
                     Audit(run, principal, call, AuditDecision.ApprovalRequested, policy.Reason, null, null);
+                    // Asked in Slack: the request also goes to the thread, with Approve/Deny buttons (#107).
+                    if (run.ReplyJson is not null && JsonSerializer.Deserialize<Channels.ChannelReply>(run.ReplyJson, ReplyJson) is { Kind: Channels.ChannelKinds.Slack } slack)
+                        Notifications.Outbox.Add(db, Notifications.NotificationEvents.ChannelApproval, new
+                        {
+                            approvalId = request.Id, runId = run.Id, kind = slack.Kind, channel = slack.Channel, thread = slack.Thread,
+                            tool = call.Name, risk = request.Risk, requestedBy = principal.UserId,
+                        }, now);
                     await SaveAsync(run);
                     return true;
                 }
@@ -505,6 +513,20 @@ public sealed class AgentRunner(
 
     /// <summary>With <c>pii.scope: all</c> the stored prompt, conversation and answer are masked once the run no longer needs them.</summary>
     private void MaskStoredConversation(RunRecord run) => Security.PiiMasking.MaskConversation(run, profiles.Find(run.Profile));
+
+    private static readonly JsonSerializerOptions ReplyJson = new(JsonSerializerDefaults.Web);
+
+    /// <summary>The answer goes back where the question was asked (#107): the Slack thread or a mail reply.</summary>
+    private void ReplyInChannel(RunRecord run)
+    {
+        var reply = JsonSerializer.Deserialize<Channels.ChannelReply>(run.ReplyJson!, ReplyJson)!;
+        var answer = run.Status == RunStatus.Completed ? run.FinalAnswer ?? "" : $"I could not finish: {run.Error}";
+        Notifications.Outbox.Add(db, Notifications.NotificationEvents.ChannelReply, new
+        {
+            runId = run.Id, kind = reply.Kind, channel = reply.Channel, thread = reply.Thread, to = reply.To, subject = reply.Subject,
+            answer = answer.Length <= 3500 ? answer : answer[..3500] + "…",
+        }, clock.GetUtcNow());
+    }
 
     /// <summary>A scheduled or triggered run has no one watching: its result goes out through the notification outbox (#101).</summary>
     private void NotifyFinished(RunRecord run)
