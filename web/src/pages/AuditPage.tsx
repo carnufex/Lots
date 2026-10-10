@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ApiError, type Api, type AuditEntry, type AuditFilter } from '../api'
+import { ApiError, auditQuery, type Api, type AuditEntry, type AuditFilter } from '../api'
 
 type Load =
   | { state: 'loading' }
@@ -7,9 +7,38 @@ type Load =
   | { state: 'error'; message: string }
   | { state: 'ok'; rows: AuditEntry[] }
 
+/** Downloads the filtered audit log as CSV or JSON lines (with the chain position and hash of every row). */
+async function exportAudit(api: Api, f: AuditFilter, format: 'csv' | 'json') {
+  const q = auditQuery(f)
+  q.set('format', format)
+  const res = await fetch(`/audit/export?${q}`, { headers: await api.authHeaders() })
+  const url = URL.createObjectURL(await res.blob())
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `lots-audit.${format === 'json' ? 'jsonl' : 'csv'}`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+function ChainStatus({ api }: { api: Api }) {
+  const [c, setC] = useState<{ intact: boolean; sealed: number; firstBrokenSeq: number | null; problem: string | null; unsealed: number } | null>(null)
+  useEffect(() => {
+    api.raw<NonNullable<typeof c>>('/audit/verify').then(setC).catch(() => setC(null))
+  }, [api])
+  if (!c) return null
+  return (
+    <p className={c.intact ? 'muted small' : 'error'}>
+      {c.intact
+        ? `Tamper check: the hash chain of ${c.sealed.toLocaleString()} sealed entries is intact${c.unsealed ? ` (${c.unsealed} waiting to be sealed)` : ''}.`
+        : `Tamper check FAILED at entry ${c.firstBrokenSeq}: ${c.problem}.`}
+    </p>
+  )
+}
+
 export default function AuditPage({ api }: { api: Api }) {
-  const [filter, setFilter] = useState<AuditFilter>({})
-  const [applied, setApplied] = useState<AuditFilter>({})
+  const initial: AuditFilter = { runId: new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('runId') ?? undefined }
+  const [filter, setFilter] = useState<AuditFilter>(initial)
+  const [applied, setApplied] = useState<AuditFilter>(initial)
   const [load, setLoad] = useState<Load>({ state: 'loading' })
 
   useEffect(() => {
@@ -30,6 +59,7 @@ export default function AuditPage({ api }: { api: Api }) {
   return (
     <section>
       <h1>Audit</h1>
+      <ChainStatus api={api} />
       {load.state === 'forbidden' ? (
         <div className="empty">
           <p>The audit log is only available to admins and auditors.</p>
@@ -53,6 +83,23 @@ export default function AuditPage({ api }: { api: Api }) {
               <input className="wide" value={filter.runId ?? ''} onChange={(e) => setFilter({ ...filter, runId: e.target.value })} />
             </label>
             <label>
+              Tool
+              <input value={filter.tool ?? ''} onChange={(e) => setFilter({ ...filter, tool: e.target.value })} />
+            </label>
+            <label>
+              Decision
+              <select value={filter.decision ?? ''} onChange={(e) => setFilter({ ...filter, decision: e.target.value || undefined })}>
+                <option value="">Any</option>
+                {['Allowed', 'Denied', 'ApprovalRequested', 'ApprovalGranted', 'ApprovalRefused', 'ApprovalDenied'].map((d) => (
+                  <option key={d}>{d}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Profile
+              <input value={filter.profile ?? ''} onChange={(e) => setFilter({ ...filter, profile: e.target.value })} />
+            </label>
+            <label>
               From
               <input type="datetime-local" value={filter.from ?? ''} onChange={(e) => setFilter({ ...filter, from: e.target.value })} />
             </label>
@@ -62,6 +109,12 @@ export default function AuditPage({ api }: { api: Api }) {
             </label>
             <button className="btn" type="submit">
               Filter
+            </button>
+            <button className="btn" type="button" onClick={() => void exportAudit(api, applied, 'csv')}>
+              Export CSV
+            </button>
+            <button className="btn" type="button" onClick={() => void exportAudit(api, applied, 'json')}>
+              Export JSON
             </button>
           </form>
 

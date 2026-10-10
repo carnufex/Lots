@@ -83,6 +83,17 @@ export interface AuditFilter {
   runId?: string
   from?: string
   to?: string
+  tool?: string
+  decision?: string
+  profile?: string
+}
+
+export function auditQuery(f: AuditFilter): URLSearchParams {
+  const q = new URLSearchParams()
+  for (const k of ['user', 'runId', 'tool', 'decision', 'profile'] as const) if (f[k]) q.set(k, f[k]!)
+  if (f.from) q.set('from', new Date(f.from).toISOString())
+  if (f.to) q.set('to', new Date(f.to).toISOString())
+  return q
 }
 
 export interface ToolCall {
@@ -400,11 +411,7 @@ export function createApi(auth: Auth) {
     decide: (id: string, outcome: 'approve' | 'deny', comment: string) =>
       request<Approval>(`/approvals/${id}/${outcome}`, { method: 'POST', body: JSON.stringify({ comment: comment || null }) }),
     listAudit: (f: AuditFilter) => {
-      const q = new URLSearchParams()
-      if (f.user) q.set('user', f.user)
-      if (f.runId) q.set('runId', f.runId)
-      if (f.from) q.set('from', new Date(f.from).toISOString())
-      if (f.to) q.set('to', new Date(f.to).toISOString())
+      const q = auditQuery(f)
       q.set('limit', '200')
       return request<AuditEntry[]>(`/audit?${q}`)
     },

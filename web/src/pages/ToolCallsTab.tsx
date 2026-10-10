@@ -177,7 +177,7 @@ export default function ToolCallsTab({ api }: { api: Api }) {
                           <p className="small">
                             {c.reason && <span className="muted">Policy: {c.reason} · </span>}
                             {c.backendAuth && <span className="muted">Backend auth: {c.backendAuth} · </span>}
-                            <a href={`#/runs/${c.runId}`}>Open run</a>
+                            <a href={`#/runs/${c.runId}`}>Open run</a> · <a href={`#/audit?runId=${c.runId}`}>audit entries</a>
                           </p>
                         </td>
                       </tr>

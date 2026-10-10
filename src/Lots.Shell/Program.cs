@@ -50,6 +50,11 @@ builder.Services.AddSingleton<Lots.Shell.Core.Speech.IAudioStore, Lots.Shell.Cor
 builder.Services.AddHostedService<Lots.Shell.Core.Speech.AudioRetentionWorker>();
 builder.Services.Configure<Lots.Shell.Features.Privacy.RetentionOptions>(builder.Configuration.GetSection(Lots.Shell.Features.Privacy.RetentionOptions.Section));
 builder.Services.AddSingleton<Lots.Shell.Features.Privacy.RetentionWorker>();
+builder.Services.AddSingleton<Lots.Shell.Core.Audit.AuditSealer>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<Lots.Shell.Core.Audit.AuditSealer>()); // hash chain (#81)
+builder.Services.Configure<Lots.Shell.Core.Audit.AuditForwardOptions>(builder.Configuration.GetSection(Lots.Shell.Core.Audit.AuditForwardOptions.Section));
+builder.Services.AddHttpClient(nameof(Lots.Shell.Core.Audit.AuditForwarder), h => h.Timeout = TimeSpan.FromSeconds(15));
+builder.Services.AddHostedService<Lots.Shell.Core.Audit.AuditForwarder>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<Lots.Shell.Features.Privacy.RetentionWorker>());
 builder.Services.AddHostedService<Lots.Shell.Features.Conversations.ConversationSummaryWorker>();
 builder.Services.Configure<Lots.Shell.Core.Quotas.QuotaOptions>(builder.Configuration.GetSection(Lots.Shell.Core.Quotas.QuotaOptions.Section));

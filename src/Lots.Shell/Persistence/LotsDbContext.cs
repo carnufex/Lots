@@ -18,6 +18,7 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
     public DbSet<QuotaOverrideRecord> QuotaOverrides => Set<QuotaOverrideRecord>();
     public DbSet<ConversationAudioRecord> ConversationAudio => Set<ConversationAudioRecord>();
     public DbSet<ConversationRecord> Conversations => Set<ConversationRecord>();
+    public DbSet<AuditForwardStateRecord> AuditForwardState => Set<AuditForwardStateRecord>();
     public DbSet<ConfigVersionRecord> ConfigVersions => Set<ConfigVersionRecord>();
     public DbSet<ConflictVoteRecord> ConflictVotes => Set<ConflictVoteRecord>();
     public DbSet<UserSettingsRecord> UserSettings => Set<UserSettingsRecord>();
@@ -202,6 +203,16 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
             e.Property(x => x.ApproverId).HasMaxLength(256);
             e.Property(x => x.BackendAuth).HasMaxLength(64);
             e.Property(x => x.ResultStatus).HasMaxLength(16);
+            e.HasIndex(x => x.Seq).IsUnique();
+            e.Property(x => x.PrevHash).HasMaxLength(64);
+            e.Property(x => x.Hash).HasMaxLength(64);
+        });
+
+        modelBuilder.Entity<AuditForwardStateRecord>(e =>
+        {
+            e.ToTable("audit_forward_state");
+            e.HasKey(x => x.Target);
+            e.Property(x => x.Target).HasMaxLength(32);
         });
 
         modelBuilder.Entity<RunStepRecord>(e =>
@@ -418,6 +429,19 @@ public sealed class AuditRecord
     public string? BackendAuth { get; set; }
     /// <summary>ok / error for executed calls, null otherwise.</summary>
     public string? ResultStatus { get; set; }
+    /// <summary>Position in the hash chain (#81), assigned by the sealer; null until sealed.</summary>
+    public long? Seq { get; set; }
+    public string? PrevHash { get; set; }
+    public string? Hash { get; set; }
+}
+
+/// <summary>How far audit forwarding to one target got (#81): it resumes after LastSeq.</summary>
+public sealed class AuditForwardStateRecord
+{
+    public required string Target { get; set; }
+    public long LastSeq { get; set; }
+    public DateTimeOffset? LastSentAt { get; set; }
+    public string? LastError { get; set; }
 }
 
 /// <summary>
