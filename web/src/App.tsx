@@ -200,7 +200,7 @@ function Shell({ config, auth, session }: { config: ClientConfig; auth: Auth; se
           {route.name === 'policy' && <PolicyPage api={api} />}
           {route.name === 'models' && <ModelsPage api={api} />}
           {route.name === 'identity' && <IdentityPage api={api} />}
-          {route.name === 'usage' && <UsagePage api={api} />}
+          {route.name === 'usage' && <UsagePage api={api} profiles={config.profiles} />}
           {route.name === 'feedback' && <FeedbackPage api={api} />}
           {route.name === 'planned' && <PlaceholderPage item={PLANNED.find((p) => p.slug === route.slug)!} />}
         </main>

@@ -9,6 +9,8 @@ export interface OidcConfig {
 export interface ProfileInfo {
   name: string
   description: string
+  /** What telemetry keeps of this profile's runs (#145): off, metadata, redacted or full. */
+  telemetryContent?: 'off' | 'metadata' | 'redacted' | 'full'
 }
 
 export interface VoiceConfig {

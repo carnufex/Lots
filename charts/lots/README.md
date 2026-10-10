@@ -131,7 +131,8 @@ Generated from the comments in `values.yaml` by `python scripts/chart-values-doc
 | `metrics.alerts.gpuFreeBytes` | `1073741824` |  |
 | `otlpEndpoint` | `""` | OTLP endpoint (e.g. an OpenTelemetry Collector) for traces and logs of the shell, the MCP servers and the voice service (#140). Metrics stay on /metrics for Prometheus; deploy/observability/otel-collector.yaml is a collector config with tail sampling. |
 | `telemetry.otlpMetrics` | `false` | also push metrics over OTLP: only when nothing scrapes /metrics, or they are counted twice |
-| `telemetry.captureContent` | `false` | prompts, answers and tool data as span events (redacted); see ADR 0019 and #145 |
+| `telemetry.content` | `metadata` | off \| metadata \| redacted \| full: what traces carry of runs (#145); profiles may set their own |
+| `telemetry.allowFullContent` | `false` | let a profile use content: full (no personal-data masking) |
 | `telemetry.userHashKey.existingSecret` | `""` | Secret with a key for stable lots.user.hash values across restarts and replicas |
 | `telemetry.userHashKey.key` | `user-hash-key` |  |
 | `service.port` | `80` |  |

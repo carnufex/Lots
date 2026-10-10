@@ -152,9 +152,27 @@ to the first. Every Lots span carries `lots.run.id`, `lots.profile`, `lots.profi
 | Speech | `speech_to_text`, `text_to_speech` | language, audio seconds, time to first audio, fallback |
 | MCP server, voice service | `POST /mcp`, `POST /v1/audio/...` | child spans in the same trace: the shell sends `traceparent` |
 
-**Content.** Prompts, answers, tool arguments and results are span events (`gen_ai.user.message`, `gen_ai.choice`,
-`gen_ai.tool.arguments`, `gen_ai.tool.result`), redacted. They are only recorded with `Telemetry__CaptureContent=true`, which is the
-default in Development only (ADR 0019).
+**Content (#145).** `Telemetry__Content` sets what traces may carry of a run, and a profile can set its own mode with
+`telemetry: { content: ... }`:
+
+| Mode | Spans carry |
+|---|---|
+| `off` | timings and decisions only. Free-text attributes such as policy reasons are left out too |
+| `metadata` (production default) | the above plus policy reasons. No prompts, answers, tool arguments or results |
+| `redacted` (Development default) | content as span events (`gen_ai.user.message`, `gen_ai.choice`, `gen_ai.tool.arguments`, `gen_ai.tool.result`), with secrets and every kind of personal data masked |
+| `full` | content with secrets masked. A profile only gets it when `Telemetry__AllowFullContent=true`; otherwise it falls back to `redacted` |
+
+Logs and run outcomes never carry prompts or answers in any mode. Users see each profile's mode on the Usage page ("What monitoring
+records about your runs").
+
+**Retention.**
+
+- Metadata in Tempo and Loki and metrics in Prometheus follow those backends' retention: a week in the shipped stack
+  (`deploy/observability`).
+- Content kept in traces expires with them. Keep the backend retention short when a profile uses `redacted` or `full`.
+- The shell's own run trace in PostgreSQL follows `Retention:RunsDays`, and outcomes go with their run.
+- Deleting a user (`DELETE /me/data`) removes their runs, outcomes and feedback. Copies in external backends cannot be deleted per user;
+  they expire with the backend's retention. Telemetry never names the user, only `lots.user.hash`.
 
 **Not traced.** The browser itself: a turn starts at the shell's HTTP request. Endpointing in the browser is measured in History,
 not as a span.

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import type { ProfileInfo } from '../config'
 import type { Api } from '../api'
 import MyData from '../components/MyData'
 import ApiTokens from '../components/ApiTokens'
@@ -78,7 +79,7 @@ function QuotaCard({ api }: { api: Api }) {
 }
 
 /** Usage (#77): tokens, cost, latency and failures over time or per model, profile or user. */
-export default function UsagePage({ api }: { api: Api }) {
+export default function UsagePage({ api, profiles = [] }: { api: Api; profiles?: ProfileInfo[] }) {
   const [groupBy, setGroupBy] = useState<string>('day')
   const [days, setDays] = useState(30)
   const [report, setReport] = useState<UsageReport | null>(null)
@@ -99,7 +100,7 @@ export default function UsagePage({ api }: { api: Api }) {
     <section>
       <h1>{t('Usage')}</h1>
       <QuotaCard api={api} />
-      <MyData api={api} />
+      <MyData api={api} profiles={profiles} />
       <ApiTokens api={api} />
       <div className="filters">
         <label>

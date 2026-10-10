@@ -157,6 +157,13 @@ public static class JsonLogging
                 o.AddProcessor(new RedactingLogProcessor()).AddOtlpExporter();
             });
         UserHash.Configure(builder.Configuration["Telemetry:UserHashKey"]);
-        Tracing.CaptureContent = builder.Configuration.GetValue("Telemetry:CaptureContent", builder.Environment.IsDevelopment());
+        var content = builder.Configuration["Telemetry:Content"];
+        // Telemetry:CaptureContent=true (#139) still means redacted.
+        Tracing.DefaultContent = Enum.TryParse<ContentCapture>(content, true, out var mode) ? mode
+            : builder.Configuration.GetValue<bool?>("Telemetry:CaptureContent") is { } legacy ? (legacy ? ContentCapture.Redacted : ContentCapture.Metadata)
+            : builder.Environment.IsDevelopment() ? ContentCapture.Redacted : ContentCapture.Metadata;
+        if (content is { Length: > 0 } && !Enum.TryParse<ContentCapture>(content, true, out _))
+            throw new InvalidOperationException($"Telemetry:Content must be off, metadata, redacted or full, not '{content}'.");
+        Tracing.AllowFullContent = builder.Configuration.GetValue("Telemetry:AllowFullContent", false);
     }
 }

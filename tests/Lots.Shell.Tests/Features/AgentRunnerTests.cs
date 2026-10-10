@@ -405,4 +405,84 @@ public class AgentRunnerTests
         });
         Assert.DoesNotContain(mine.SelectMany(a => a.TagObjects), t => t.Value as string == "alice"); // never the user id in clear
     }
+
+    private static (List<System.Diagnostics.Activity> Spans, System.Diagnostics.ActivityListener Listener) Capture()
+    {
+        var spans = new List<System.Diagnostics.Activity>();
+        var listener = new System.Diagnostics.ActivityListener
+        {
+            ShouldListenTo = s => s.Name == "Lots.Shell",
+            Sample = (ref System.Diagnostics.ActivityCreationOptions<System.Diagnostics.ActivityContext> _) => System.Diagnostics.ActivitySamplingResult.AllDataAndRecorded,
+            ActivityStopped = a => { lock (spans) spans.Add(a); },
+        };
+        System.Diagnostics.ActivitySource.AddActivityListener(listener);
+        return (spans, listener);
+    }
+
+    [Theory]
+    [InlineData(Lots.Shell.Core.Telemetry.ContentCapture.Metadata, false)]
+    [InlineData(Lots.Shell.Core.Telemetry.ContentCapture.Off, false)]
+    [InlineData(Lots.Shell.Core.Telemetry.ContentCapture.Redacted, true)]
+    public async Task Content_reaches_spans_only_in_the_modes_that_allow_it(Lots.Shell.Core.Telemetry.ContentCapture mode, bool expectContent)
+    {
+        var previous = Lots.Shell.Core.Telemetry.Tracing.DefaultContent;
+        Lots.Shell.Core.Telemetry.Tracing.DefaultContent = mode;
+        var (spans, listener) = Capture();
+        try
+        {
+            var db = NewDb(nameof(Content_reaches_spans_only_in_the_modes_that_allow_it) + mode);
+            var tools = new FakeTools(("list_containers", ToolRisk.Read)) { Output = _ => "contact alice@example.com for lots-shell" };
+            var id = await NewRun(db);
+            await Runner(db, new ScriptedModel(_ => CallTool("list_containers"), _ => Answer("mail alice@example.com")), tools).ExecuteAsync(id, default);
+
+            List<System.Diagnostics.Activity> mine;
+            lock (spans) mine = spans.Where(a => (string?)a.GetTagItem("lots.run.id") == id.ToString()).ToList();
+            var texts = mine.SelectMany(a => a.Events).SelectMany(e => e.Tags).Select(t => t.Value?.ToString() ?? "")
+                .Concat(mine.SelectMany(a => a.TagObjects).Select(t => t.Value?.ToString() ?? "")).ToList();
+            Assert.Equal(expectContent, texts.Any(t => t.Contains("which containers are unhealthy"))); // the prompt only where content is kept
+            Assert.DoesNotContain(texts, t => t.Contains("alice@example.com"));             // personal data never, even when content is kept
+            Assert.Equal(expectContent, mine.SelectMany(a => a.Events).Any(e => e.Name == "gen_ai.tool.result"));
+            Assert.Equal(mode != Lots.Shell.Core.Telemetry.ContentCapture.Off, mine.Any(a => a.GetTagItem("lots.policy.reason") is not null));
+        }
+        finally
+        {
+            listener.Dispose();
+            Lots.Shell.Core.Telemetry.Tracing.DefaultContent = previous;
+        }
+    }
+
+    private sealed class CapturingLogger : Microsoft.Extensions.Logging.ILogger<AgentRunner>
+    {
+        public List<string> Lines { get; } = [];
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+        public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            lock (Lines) Lines.Add(formatter(state, exception) + " " + string.Join(" ", (state as IEnumerable<KeyValuePair<string, object?>> ?? []).Select(kv => kv.Value)));
+        }
+    }
+
+    [Fact]
+    public async Task Metadata_mode_keeps_prompts_and_answers_out_of_logs_and_outcomes()
+    {
+        var name = nameof(Metadata_mode_keeps_prompts_and_answers_out_of_logs_and_outcomes);
+        var db = NewDb(name);
+        var tools = new FakeTools(("list_containers", ToolRisk.Read));
+        var registry = RegistryFor(tools);
+        var log = new CapturingLogger();
+        var runner = new AgentRunner(db, new ScriptedModel(_ => CallTool("list_containers"), _ => Answer("the answer text 42")), new ToolInvoker([tools], registry), registry,
+            Options.Create(new AgentOptions()), TimeProvider.System, logger: log);
+        var id = await NewRun(db);
+
+        await runner.ExecuteAsync(id, default);
+        await Lots.Shell.Core.Outcomes.RunOutcomes.ComputeAsync(db, [id], registry, new Lots.Shell.Features.Usage.PriceTable(new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build()),
+            new Lots.Shell.Core.Outcomes.OutcomeOptions(), TimeProvider.System, default);
+
+        Assert.NotEmpty(log.Lines);
+        Assert.DoesNotContain(log.Lines, l => l.Contains("which containers are unhealthy") || l.Contains("the answer text 42"));
+        var outcome = JsonSerializer.Serialize(await db.RunOutcomes.SingleAsync());
+        Assert.DoesNotContain("which containers are unhealthy", outcome);
+        Assert.DoesNotContain("the answer text 42", outcome);
+        Assert.DoesNotContain("\"u1\"", outcome); // the user only as a hash
+    }
 }

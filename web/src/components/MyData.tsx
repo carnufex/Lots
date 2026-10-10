@@ -1,9 +1,18 @@
 import { useState } from 'react'
 import type { Api } from '../api'
+import type { ProfileInfo } from '../config'
 import { t } from '../i18n'
 
 /** Your data (#79): download everything Lots keeps about you, or delete it. */
-export default function MyData({ api }: { api: Api }) {
+const MODES: Record<string, string> = {
+  off: 'nothing about the content, only that the run happened',
+  metadata: 'timings, tools used and outcomes, but none of your words or the answers',
+  redacted: 'also your questions, the answers and tool results, with personal data and secrets masked',
+  full: 'also your questions, the answers and tool results, with secrets masked',
+}
+
+/** Your data (#79): download everything Lots keeps about you, or delete it. And what telemetry records of your runs (#145). */
+export default function MyData({ api, profiles = [] }: { api: Api; profiles?: ProfileInfo[] }) {
   const [message, setMessage] = useState<string | null>(null)
 
   const download = async () => {
@@ -38,6 +47,22 @@ export default function MyData({ api }: { api: Api }) {
         {t('Delete my data')}
       </button>
       {message && <p className="muted">{message}</p>}
+      {profiles.length > 0 && (
+        <details className="capture">
+          <summary>{t('What monitoring records about your runs')}</summary>
+          <p className="muted">
+            {t("Besides your own history, Lots sends monitoring data to the operators' observability tools. Per context:")}
+          </p>
+          <ul>
+            {profiles.map((p) => (
+              <li key={p.name}>
+                <strong>{p.name}</strong>: {t(MODES[p.telemetryContent ?? 'metadata'])}
+              </li>
+            ))}
+          </ul>
+          <p className="muted">{t('You appear there only as an anonymous code, never by name. Deleting your data removes your runs here; monitoring copies expire with their own retention (about a week).')}</p>
+        </details>
+      )}
     </div>
   )
 }

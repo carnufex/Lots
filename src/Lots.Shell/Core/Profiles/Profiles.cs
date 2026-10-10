@@ -78,7 +78,8 @@ public sealed record Profile(
     ApprovalRules? Approvals = null,
     DataClass Sensitivity = DataClass.Internal,
     PiiRedaction? Pii = null,
-    IReadOnlyList<string>? DelegateTo = null)
+    IReadOnlyList<string>? DelegateTo = null,
+    Telemetry.ContentCapture? TelemetryContent = null)
 {
     /// <summary>Profiles a run of this profile may hand tasks to with the <c>delegate</c> tool (#103).</summary>
     public IReadOnlyList<string> Delegates => DelegateTo ?? [];
@@ -236,6 +237,13 @@ public static class ProfileParser
         if (doc.Sensitivity is not null && !DataClasses.TryParse(doc.Sensitivity, out profileClass))
             Err($"unknown sensitivity '{doc.Sensitivity}' ({DataClasses.Choices})");
 
+        Telemetry.ContentCapture? content = null;
+        if (doc.Telemetry?.Content is { } contentText)
+        {
+            if (Enum.TryParse<Telemetry.ContentCapture>(contentText, true, out var mode) && !int.TryParse(contentText, out _)) content = mode;
+            else Err($"telemetry.content must be off, metadata, redacted or full, not '{contentText}'");
+        }
+
         if (errors.Count > 0) throw new ProfileException(errors);
 
         ApprovalRules? approvalRules = null;
@@ -250,7 +258,8 @@ public static class ProfileParser
 
         var profile = new Profile(doc.Name!, doc.Version, doc.Description ?? "", doc.Instructions?.Trim() ?? "", servers, tools, roles,
             string.IsNullOrWhiteSpace(doc.Model) ? null : doc.Model.Trim(), doc.DetectConflicts, tests, approvalRules, profileClass, pii,
-            (doc.Delegates ?? []).Select(d => d.Trim()).Where(d => d.Length > 0 && !d.Equals(doc.Name, StringComparison.OrdinalIgnoreCase)).Distinct().ToList());
+            (doc.Delegates ?? []).Select(d => d.Trim()).Where(d => d.Length > 0 && !d.Equals(doc.Name, StringComparison.OrdinalIgnoreCase)).Distinct().ToList(),
+            content);
         var failures = Policy.PolicyTests.Run(profile).Where(r => !r.Passed).Select(r => $"{source}: policy test failed: {r.Description}").ToList();
         if (failures.Count > 0) throw new ProfileException(failures);
         return profile;
@@ -333,6 +342,8 @@ public static class ProfileParser
         public PiiDoc? Pii { get; set; }
         public List<PolicyTestDoc>? PolicyTests { get; set; }
         public ApprovalsDoc? Approvals { get; set; }
+        /// <summary>What telemetry may carry of this profile's runs (#145): <c>content: off|metadata|redacted|full</c>.</summary>
+        public TelemetryDoc? Telemetry { get; set; }
         public List<ServerDoc>? Servers { get; set; }
         public List<ToolDoc>? Tools { get; set; }
         public List<RoleDoc>? Roles { get; set; }
@@ -360,6 +371,8 @@ public static class ProfileParser
         public string? AuthorizeUrl { get; set; }
     }
     private sealed class PiiDoc { public List<string>? Redact { get; set; } public string? Scope { get; set; } }
+
+    private sealed class TelemetryDoc { public string? Content { get; set; } }
 
     private sealed class ToolDoc { public string? Name { get; set; } public string? Risk { get; set; } public string? Sensitivity { get; set; } }
 

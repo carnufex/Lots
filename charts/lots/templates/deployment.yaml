@@ -104,7 +104,8 @@ spec:
             - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: {{ .Values.otlpEndpoint | quote }} }
             {{- end }}
             - { name: Telemetry__OtlpMetrics, value: {{ .Values.telemetry.otlpMetrics | quote }} }
-            - { name: Telemetry__CaptureContent, value: {{ .Values.telemetry.captureContent | quote }} }
+            - { name: Telemetry__Content, value: {{ .Values.telemetry.content | quote }} }
+            - { name: Telemetry__AllowFullContent, value: {{ .Values.telemetry.allowFullContent | quote }} }
             {{- if .Values.telemetry.userHashKey.existingSecret }}
             - name: Telemetry__UserHashKey
               valueFrom:

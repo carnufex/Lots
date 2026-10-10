@@ -4,15 +4,35 @@ using Lots.Shell.Persistence;
 namespace Lots.Shell.Core.Telemetry;
 
 /// <summary>Spans beyond the agent loop (#76): approval waits, retrieval, speech. Same source as the runner's spans.</summary>
+/// <summary>How much of a run's content telemetry carries (#145).</summary>
+public enum ContentCapture { Off, Metadata, Redacted, Full }
+
 public static class Tracing
 {
     public static ActivitySource Source => Runs.AgentRunner.Telemetry;
 
     /// <summary>
-    /// Whether spans carry content as events (prompts, answers, tool arguments and results), always redacted. Off by default outside
-    /// Development (ADR 0019 point 2); <c>Telemetry:CaptureContent</c> turns it on.
+    /// What telemetry may carry of a run's content (#145, ADR 0019 point 2): the deployment default (<c>Telemetry:Content</c>;
+    /// metadata outside Development, redacted in Development). A profile may set its own with <c>telemetry.content</c>.
     /// </summary>
-    public static bool CaptureContent { get; set; }
+    public static ContentCapture DefaultContent { get; set; } = ContentCapture.Metadata;
+
+    /// <summary><c>full</c> (content without personal-data masking) only where the deployment allows it (<c>Telemetry:AllowFullContent</c>).</summary>
+    public static bool AllowFullContent { get; set; }
+
+    /// <summary>The mode a run of this profile uses.</summary>
+    public static ContentCapture ContentFor(Profiles.Profile? profile)
+    {
+        var mode = profile?.TelemetryContent ?? DefaultContent;
+        return mode == ContentCapture.Full && !AllowFullContent ? ContentCapture.Redacted : mode;
+    }
+
+    /// <summary>A free-text attribute (a policy reason, an error message): left out entirely in <c>off</c> mode.</summary>
+    public static void FreeText(Activity? span, string key, string? value, ContentCapture mode)
+    {
+        if (span is null || value is null || mode == ContentCapture.Off) return;
+        span.SetTag(key, Security.SecretRedactor.Redact(value));
+    }
 
     /// <summary>The attributes every span of a run carries (ADR 0019): run, profile and version, user hash, channel, conversation.</summary>
     public static void RunTags(Activity? span, RunRecord run, int? profileVersion)
@@ -35,11 +55,17 @@ public static class Tracing
         return run.Trigger?.Split(':')[0] switch { null or "" => "web", var t => t };
     }
 
-    /// <summary>A content event on a span, redacted, only when content capture is on.</summary>
-    public static void Content(Activity? span, string name, string role, string? text)
+    private static readonly Security.PiiKind[] AllPii = Enum.GetValues<Security.PiiKind>();
+
+    /// <summary>
+    /// A content event on a span. <c>off</c>/<c>metadata</c>: nothing. <c>redacted</c>: secrets and every kind of personal data masked.
+    /// <c>full</c>: secrets masked, the rest as is.
+    /// </summary>
+    public static void Content(Activity? span, string name, string role, string? text, ContentCapture mode)
     {
-        if (span is null || !CaptureContent || text is null) return;
-        var clean = Security.PiiRedactor.Redact(Security.SecretRedactor.Redact(text), Security.PiiRedactor.LogKinds);
+        if (span is null || text is null || mode is ContentCapture.Off or ContentCapture.Metadata) return;
+        var clean = Security.SecretRedactor.Redact(text);
+        if (mode == ContentCapture.Redacted) clean = Security.PiiRedactor.Redact(clean, AllPii);
         span.AddEvent(new ActivityEvent(name, tags: new ActivityTagsCollection
         {
             ["gen_ai.message.role"] = role,

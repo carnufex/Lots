@@ -151,7 +151,8 @@ metrics:
 otlpEndpoint: ""
 telemetry:
   otlpMetrics: false     # also push metrics over OTLP: only when nothing scrapes /metrics, or they are counted twice
-  captureContent: false  # prompts, answers and tool data as span events (redacted); see ADR 0019 and #145
+  content: metadata      # off | metadata | redacted | full: what traces carry of runs (#145); profiles may set their own
+  allowFullContent: false  # let a profile use content: full (no personal-data masking)
   userHashKey:
     existingSecret: ""   # Secret with a key for stable lots.user.hash values across restarts and replicas
     key: user-hash-key

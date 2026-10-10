@@ -635,4 +635,11 @@ export const sv: Record<string, string> = {
   "Save eval case": "Spara eval-fall",
   "You rated this answer good": "Du gav svaret bra betyg",
   "You rated this answer bad": "Du gav svaret dåligt betyg",
+  "What monitoring records about your runs": "Vad övervakningen sparar om dina körningar",
+  "Besides your own history, Lots sends monitoring data to the operators' observability tools. Per context:": "Utöver din egen historik skickar Lots övervakningsdata till driftens observabilitetsverktyg. Per kontext:",
+  "nothing about the content, only that the run happened": "inget om innehållet, bara att körningen skedde",
+  "timings, tools used and outcomes, but none of your words or the answers": "tider, använda verktyg och utfall, men inget av det du skrev eller svaren",
+  "also your questions, the answers and tool results, with personal data and secrets masked": "även dina frågor, svaren och verktygsresultat, med personuppgifter och hemligheter maskerade",
+  "also your questions, the answers and tool results, with secrets masked": "även dina frågor, svaren och verktygsresultat, med hemligheter maskerade",
+  "You appear there only as an anonymous code, never by name. Deleting your data removes your runs here; monitoring copies expire with their own retention (about a week).": "Där syns du bara som en anonym kod, aldrig med namn. Om du raderar dina data försvinner körningarna här; kopior i övervakningen försvinner när deras egen lagringstid går ut (ungefär en vecka).",
 }
