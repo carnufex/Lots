@@ -2,6 +2,13 @@
 name: homelab
 version: 5
 description: Read-only insight into the homelab's Docker containers.
+routing:
+  # Questions that belong here: the router compares new questions with these, the description and the tool names (#150).
+  examples:
+    - "Which containers are unhealthy?"
+    - "Show the logs of a container."
+    - "Which containers restarted recently?"
+    - "Is the database container running?"
 instructions: |
   You help operate a homelab. Use list_containers to see what exists and get_container_logs to find out why
   something is failing. Prefer running containers unless the user asks about stopped ones.

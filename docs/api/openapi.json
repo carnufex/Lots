@@ -1181,6 +1181,47 @@
         ]
       }
     },
+    "/route": {
+      "post": {
+        "tags": [
+          "Route"
+        ],
+        "operationId": "LotsShellFeaturesRunsRouteEndpoint",
+        "requestBody": {
+          "x-name": "RouteRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RouteRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteDecision"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/runs/{id}": {
       "get": {
         "tags": [
@@ -5988,6 +6029,14 @@
           },
           "status": {
             "type": "string"
+          },
+          "profile": {
+            "type": "string",
+            "nullable": true
+          },
+          "routing": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -6024,6 +6073,73 @@
           },
           "reasoningEffort": {
             "type": "string",
+            "nullable": true
+          },
+          "routing": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "RouteDecision": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "profile": {
+            "type": "string",
+            "nullable": true
+          },
+          "mode": {
+            "type": "string"
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RouteCandidate"
+            }
+          },
+          "margin": {
+            "type": "number",
+            "format": "double"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string"
+          },
+          "latencyMs": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "RouteCandidate": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "profile": {
+            "type": "string"
+          },
+          "score": {
+            "type": "number",
+            "format": "double"
+          },
+          "readOnly": {
+            "type": "boolean"
+          }
+        }
+      },
+      "RouteRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "prompt": {
+            "type": "string"
+          },
+          "conversationId": {
+            "type": "string",
+            "format": "guid",
             "nullable": true
           }
         }
@@ -6216,6 +6332,10 @@
         "additionalProperties": false,
         "properties": {
           "prompt": {
+            "type": "string",
+            "nullable": true
+          },
+          "profile": {
             "type": "string",
             "nullable": true
           }
@@ -8377,6 +8497,14 @@
             "nullable": true
           },
           "feedbackComment": {
+            "type": "string",
+            "nullable": true
+          },
+          "profile": {
+            "type": "string",
+            "nullable": true
+          },
+          "routing": {
             "type": "string",
             "nullable": true
           }

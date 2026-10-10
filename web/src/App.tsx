@@ -68,7 +68,7 @@ const NAV: { title: string; items: NavItem[] }[] = [
   { title: 'Work', items: [chatNav, historyNav, nav('approvals', 'Approvals', 'approvals')] },
   { title: 'Oversight', items: [nav('audit', 'Audit', 'audit'), page('usage', 'Usage', 'models')] },
   { title: 'Capabilities', items: [knowledgeNav, integrationsNav, voiceNav, planned('transcription'), page('models', 'Models', 'models')] },
-  { title: 'Administration', items: [page('profiles', 'Profiles', 'profiles'), page('policy', 'Policy', 'policy'), page('identity', 'Identity', 'identity'), page('feedback', 'Feedback', 'approvals'), page('insights', 'Insights', 'insights')] },
+  { title: 'Administration', items: [page('profiles', 'Contexts', 'profiles'), page('policy', 'Policy', 'policy'), page('identity', 'Identity', 'identity'), page('feedback', 'Feedback', 'approvals'), page('insights', 'Insights', 'insights')] },
 ]
 
 function useHashRoute(): Route {

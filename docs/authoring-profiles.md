@@ -76,6 +76,20 @@ instructions: |
   Acknowledge an incident only when the user asks you to, and say which one you acknowledged.
 ```
 
+### Routing examples
+
+Users do not pick a context: the shell routes each question (ADR 0023). It compares the question with your description, tool names and
+a few example questions. Give it examples that only your context answers, in the words users use:
+
+```yaml
+routing:
+  examples:
+    - "Which incidents are open right now?"
+    - "Who is on call for the payments team?"
+```
+
+Check them with `Lots.Evals --mode routing --file evals/routing.json` (add cases for your context).
+
 ## 5. Policy tests
 
 Write a test for every rule you care about. Policy tests run whenever the profile is loaded or applied, and by `lotsctl validate`. A

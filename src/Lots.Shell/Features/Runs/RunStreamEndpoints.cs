@@ -75,7 +75,8 @@ public sealed class RunEventsEndpoint(LotsDbContext db, RunStreams streams, ICur
     }
 }
 
-public sealed record RegenerateRequest(Guid Id, string? Prompt = null);
+/// <param name="Profile">Answer again in this context instead (#150: "use cmdb instead"); it must be one the user can use.</param>
+public sealed record RegenerateRequest(Guid Id, string? Prompt = null, string? Profile = null);
 
 /// <summary>
 /// Regenerate or edit the last turn of a conversation (#95): a new run with the same (or the edited) prompt replaces the old one
@@ -101,7 +102,13 @@ public sealed class RegenerateRunEndpoint(LotsDbContext db, TimeProvider clock, 
         if (old.ConversationId is { } conv && await db.Runs.AnyAsync(r => r.ConversationId == conv && r.CreatedAt > old.CreatedAt && r.RetryOf != old.Id, ct))
             AddError("Only the latest turn of a conversation can be regenerated or edited.");
         if (await db.Runs.AnyAsync(r => r.RetryOf == old.Id, ct)) AddError("This turn was already regenerated.");
-        if (profiles.Find(old.Profile) is not { } profile)
+        if (req.Profile is { } other && !Core.Routing.ContextRouter.Usable(me, profiles).Any(p => string.Equals(p.Name, other, StringComparison.OrdinalIgnoreCase)))
+        {
+            AddError(x => x.Profile!, $"'{other}' is not a context you can use.");
+            await Send.ErrorsAsync(403, ct);
+            return;
+        }
+        if (profiles.Find(req.Profile ?? old.Profile) is not { } profile)
         {
             AddError($"The run's profile '{old.Profile}' no longer exists.");
             await Send.ErrorsAsync(409, ct);
@@ -116,8 +123,11 @@ public sealed class RegenerateRunEndpoint(LotsDbContext db, TimeProvider clock, 
         var run = RunFactory.Create(HttpContext, me, clock.GetUtcNow(), profile, config, vault, req.Prompt?.Trim() ?? old.Prompt, old.Voice,
             old.ConversationId, retryOf: old.Id);
         run.AttachmentsJson = old.AttachmentsJson; // the same files go with the redone question
+        // A correction of the router: recorded on the new run, and the old run's outcome becomes a "misrouted" signal for mining (#143).
+        run.RoutingMode = req.Profile is not null && !string.Equals(req.Profile, old.Profile, StringComparison.OrdinalIgnoreCase) ? "corrected" : old.RoutingMode;
         db.Runs.Add(run);
         await db.SaveChangesAsync(ct);
-        await Send.ResponseAsync(new StartRunResponse(run.Id, run.Status.ToString()), 202, ct);
+        if (run.RoutingMode == "corrected") await Feedback.PutFeedbackEndpoint.MarkOutcomeDirtyAsync(db, old.Id, ct);
+        await Send.ResponseAsync(new StartRunResponse(run.Id, run.Status.ToString(), run.Profile, run.RoutingMode), 202, ct);
     }
 }

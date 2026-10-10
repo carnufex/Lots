@@ -25,6 +25,10 @@ In the web UI this is one model:
 
 ## Profiles
 
+In the UI a profile is called a **context**. Users do not have to choose one: the shell routes every question to the context it
+belongs to, among those the user's roles allow, asks with one click when it is unsure, and shows which context answered with a
+"use X instead" (ADR 0023).
+
 A **profile** is a domain: the tools the agent may use there and the rules for them. It is a YAML resource:
 
 | Part | What it does |

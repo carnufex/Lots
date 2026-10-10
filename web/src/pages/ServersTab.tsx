@@ -128,7 +128,7 @@ export function CatalogTab({ api }: { api: Api }) {
           <thead>
             <tr>
               <th>{t('Tool')}</th>
-              <th>{t('Profile')}</th>
+              <th>{t('Context')}</th>
               <th>{t('Risk')}</th>
               <th>{t('Status')}</th>
               <th>{t('May use')}</th>

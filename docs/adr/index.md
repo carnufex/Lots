@@ -27,3 +27,4 @@ records themselves.
 | [0020](0020-model-choice-per-run.md) | A run may choose a configured model alias and reasoning effort, restricted by role | accepted (2026-10-10). Decides #119. |
 | [0021](0021-image-signing-key.md) | Image signing with a cosign key pair kept in the secret store | accepted (2026-10-10). Decides #148. |
 | [0022](0022-playbooks-as-config.md) | Playbooks: step-by-step flows declared as config and enforced by the shell | accepted (2026-10-10). Decides #159. |
+| [0023](0023-automatic-context-routing.md) | Automatic context routing: a router in front of the run | accepted (2026-10-11). Implements #150. |

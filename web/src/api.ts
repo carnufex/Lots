@@ -285,6 +285,20 @@ export interface ConversationSummary {
   stages: StageTotals
 }
 
+/** The router could not choose with confidence (#150): the user picks one of these. */
+export interface RouteChoice {
+  reason: string
+  candidates: { profile: string; score: number; readOnly: boolean }[]
+}
+
+export interface StartedRun {
+  id: string
+  status: RunStatus
+  /** The context that answers and how it was chosen (manual, only, auto, sticky, chosen, corrected, default). */
+  profile?: string
+  routing?: string
+}
+
 export interface ConversationTurn {
   runId: string
   prompt: string
@@ -302,6 +316,9 @@ export interface ConversationTurn {
   /** The user's own rating of this answer (#121): 1 good, -1 bad. */
   rating?: number | null
   feedbackComment?: string | null
+  /** The context that answered this turn and how it was chosen (#150). */
+  profile?: string | null
+  routing?: string | null
 }
 
 /** A user's rating of an answer (#121). */
@@ -638,8 +655,9 @@ export function createApi(auth: Auth) {
     voteConflict: (id: string, option: string) => request<Conflict>(`/knowledge/conflicts/${id}/vote`, { method: 'POST', body: JSON.stringify({ option }) }),
     resolveConflict: (id: string, option: string) => request<void>(`/knowledge/conflicts/${id}/resolve`, { method: 'POST', body: JSON.stringify({ option }) }),
     chunk: (id: string) => request<KnowledgeHit>(`/knowledge/chunks/${encodeURIComponent(id)}`),
-    regenerateRun: (id: string, prompt?: string) =>
-      request<{ id: string; status: RunStatus }>(`/runs/${id}/regenerate`, { method: 'POST', body: JSON.stringify(prompt ? { prompt } : {}) }),
+    /** Answer the latest turn again: the same or an edited prompt, or in another context ("use cmdb instead", #150). */
+    regenerateRun: (id: string, prompt?: string, profile?: string) =>
+      request<StartedRun>(`/runs/${id}/regenerate`, { method: 'POST', body: JSON.stringify({ ...(prompt ? { prompt } : {}), ...(profile ? { profile } : {}) }) }),
     /**
      * Live run events (#95) via fetch (EventSource cannot send the Authorization header). Calls onPartial with the answer written
      * so far, onChanged when status or steps change; resolves when the run is done or the stream ends.
@@ -675,8 +693,18 @@ export function createApi(auth: Auth) {
       if (!res.ok) throw new ApiError(res.status, await describe(res))
       return (await res.json()) as { id: string; name: string; kind: 'image' | 'text' | 'document'; size: number }
     },
-    startRun: (prompt: string, profile: string, options: { voice?: boolean; conversationId?: string; attachments?: string[] } = {}) =>
-      request<{ id: string; status: RunStatus }>('/runs', { method: 'POST', body: JSON.stringify({ prompt, profile, ...options }) }),
+    /**
+     * Starts a run. profile null (or "auto") lets the shell choose the context (#150); when it is unsure it answers with a choice
+     * instead of a run, which the caller shows and sends again with routing "chosen".
+     */
+    startRun: async (
+      prompt: string,
+      profile: string | null,
+      options: { voice?: boolean; conversationId?: string; attachments?: string[]; routing?: 'chosen' } = {},
+    ): Promise<StartedRun | { choose: RouteChoice }> => {
+      const r = await request<StartedRun | RouteChoice>('/runs', { method: 'POST', body: JSON.stringify({ prompt, profile: profile || 'auto', ...options }) }, [409])
+      return 'candidates' in r ? { choose: r } : r
+    },
     /** A short fixed acknowledgement ("Jag kollar.") to play while the agent works; null when unavailable. */
     ack: async (language: VoiceLanguage): Promise<Blob | null> => {
       const res = await fetch(`/voice/ack?language=${language === 'auto' ? 'sv' : language}`, { headers: await auth.headers() })

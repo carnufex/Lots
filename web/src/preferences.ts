@@ -35,6 +35,12 @@ export function current(): Preferences {
   return { theme: theme(), language: language(), defaultContext: local(CONTEXT_KEY), autoSpeak: local(AUTO_KEY) === '1' }
 }
 
+/** The context picked for new messages: the user's default if it is still offered, else '' (the shell chooses, #150). */
+export function preferredContext(profiles: ProfileInfo[]): string {
+  const d = local(CONTEXT_KEY)
+  return profiles.some((p) => p.name === d) ? d! : ''
+}
+
 /** The context a new chat or run starts in: the user's default if it is still offered, else the first. */
 export function defaultContext(profiles: ProfileInfo[]): string {
   const d = local(CONTEXT_KEY)

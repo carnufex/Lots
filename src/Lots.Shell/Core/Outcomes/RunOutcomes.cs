@@ -43,6 +43,10 @@ public sealed class RunOutcomeRecord
     public int AnswerChars { get; set; }
     public bool Spoken { get; set; }
     public bool IsRetry { get; set; }
+    /// <summary>How the context was chosen (#150): manual, only, auto, sticky, chosen, corrected, default.</summary>
+    public string? Routing { get; set; }
+    /// <summary>The user had this turn answered again in another context: the router (or the user's choice) was wrong.</summary>
+    public bool Rerouted { get; set; }
     /// <summary>The user ran the same prompt again, or retried this run: the answer did not do it.</summary>
     public bool UserRetried { get; set; }
     /// <summary>Another turn in the same conversation started within <see cref="OutcomeOptions.FollowUpMinutes"/>: often a correction.</summary>
@@ -102,7 +106,7 @@ public static class RunOutcomes
         var since = runs.Min(r => r.CreatedAt);
         // Later runs of the same users, for the retry and follow-up signals.
         var later = await db.Runs.AsNoTracking().Where(r => users.Contains(r.UserId) && r.CreatedAt >= since)
-            .Select(r => new { r.Id, r.UserId, r.Prompt, r.ConversationId, r.CreatedAt, r.RetryOf }).ToListAsync(ct);
+            .Select(r => new { r.Id, r.UserId, r.Prompt, r.ConversationId, r.CreatedAt, r.RetryOf, r.Profile }).ToListAsync(ct);
         var existing = await db.Set<RunOutcomeRecord>().Where(o => ids.Contains(o.RunId)).ToDictionaryAsync(o => o.RunId, ct);
 
         foreach (var run in runs)
@@ -149,6 +153,8 @@ public static class RunOutcomes
             o.AnswerChars = answer.Length;
             o.Spoken = spoken.Contains(run.Id);
             o.IsRetry = run.RetryOf is not null;
+            o.Routing = run.RoutingMode;
+            o.Rerouted = later.Any(l => l.RetryOf == run.Id && !string.Equals(l.Profile, run.Profile, StringComparison.OrdinalIgnoreCase));
             o.UserRetried = later.Any(l => l.Id != run.Id && l.UserId == run.UserId && l.CreatedAt > run.CreatedAt
                                             && (l.RetryOf == run.Id || string.Equals(l.Prompt.Trim(), run.Prompt.Trim(), StringComparison.OrdinalIgnoreCase)));
             o.FollowUp = run.ConversationId is { } conv && later.Any(l => l.Id != run.Id && l.ConversationId == conv
@@ -172,7 +178,7 @@ public static class RunOutcomes
     /// <summary>The single most telling problem of a run, for a low-cardinality metric label.</summary>
     public static string Problem(RunOutcomeRecord o) =>
         o.TimedOut ? "timeout" : o.StepLimitHit ? "step_limit" : o.Status == "Failed" ? "failed" : o.Status == "Cancelled" ? "cancelled"
-        : o.ApprovalRefusals > 0 ? "approval_refused" : o.PolicyDenials > 0 ? "denied" : o.ToolErrors > 0 ? "tool_error"
+        : o.Rerouted ? "misrouted" : o.ApprovalRefusals > 0 ? "approval_refused" : o.PolicyDenials > 0 ? "denied" : o.ToolErrors > 0 ? "tool_error"
         : o.EmptyAnswer ? "empty_answer" : o.VoiceSkippedTools ? "voice_skipped_tools" : o.Refused ? "refused" : "none";
 
     private static bool IsToolError(RunStepRecord s) => s.Result?.Contains("Error:", StringComparison.Ordinal) == true;

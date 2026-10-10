@@ -27,7 +27,7 @@ interface UsageReport {
 const GROUPS = [
   ['day', t('Per day')],
   ['model', t('Per model')],
-  ['profile', t('Per profile')],
+  ['profile', t('Per context')],
   ['user', t('Per user (admins)')],
 ] as const
 

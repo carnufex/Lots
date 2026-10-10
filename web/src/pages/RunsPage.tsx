@@ -44,7 +44,7 @@ export function RunsList({ api }: { api: Api }) {
           <thead>
             <tr>
               <th>{t('Prompt')}</th>
-              <th>{t('Profile')}</th>
+              <th>{t('Context')}</th>
               <th>{t('User')}</th>
               <th>{t('Status')}</th>
               <th>{t('Started')}</th>

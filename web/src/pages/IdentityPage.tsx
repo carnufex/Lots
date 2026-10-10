@@ -75,7 +75,7 @@ export default function IdentityPage({ api }: { api: Api }) {
             <thead>
               <tr>
                 <th>{t('Server')}</th>
-                <th>{t('Profiles')}</th>
+                <th>{t('Contexts')}</th>
                 <th>{t('Identity')}</th>
                 <th>{t('Credentials')}</th>
               </tr>

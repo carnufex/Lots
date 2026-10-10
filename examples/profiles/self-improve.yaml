@@ -5,6 +5,12 @@ kind: Profile
 name: self-improve
 version: 2
 description: Analyse run outcomes, traces, audit and logs to find what goes wrong and why.
+routing:
+  # Questions that belong here: the router compares new questions with these, the description and the tool names (#150).
+  examples:
+    - "Why did runs fail last week?"
+    - "Which tools error most often?"
+    - "Compare two versions of a profile."
 instructions: |
   You analyse how Lots has been doing. Use outcomes_summary for the big picture and compare_profile_versions to see whether a change
   helped. Use list_failed_runs to find concrete runs, then get_run_trace and get_run_audit to understand one, and tool_error_breakdown,

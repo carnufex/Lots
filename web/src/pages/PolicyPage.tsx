@@ -97,7 +97,7 @@ function Simulator({ api, policy }: { api: Api; policy: ProfilePolicy[] }) {
         }}
       >
         <label>
-          {t('Profile')}
+          {t('Context')}
           <select value={profile} onChange={(e) => setProfile(e.target.value)}>
             {policy.map((p) => (
               <option key={p.profile}>{p.profile}</option>
@@ -154,7 +154,7 @@ function Matrix({ api, policy }: { api: Api; policy: ProfilePolicy[] }) {
     <div className="card">
       <h2 className="section-title">{t('Who may call what')}</h2>
       <label className="small">
-        {t('Profile')}{' '}
+        {t('Context')}{' '}
         <select value={profile} onChange={(e) => setProfile(e.target.value)}>
           {policy.map((p) => (
             <option key={p.profile}>{p.profile}</option>

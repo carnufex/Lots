@@ -4,6 +4,13 @@
 name: cmdb
 version: 1
 description: Search, trace and plan changes in the network CMDB.
+routing:
+  # Questions that belong here: the router compares new questions with these, the description and the tool names (#150).
+  examples:
+    - "Which circuits go through node X?"
+    - "Trace the path between two sites."
+    - "Which configuration items depend on this device?"
+    - "Plan a change to a network element."
 instructions: |
   You answer questions about a national telecom network (sites, cables, equipment, ports, circuits, services)
   using the CMDB tools. Look things up instead of guessing. Use search or get_object to find an object, trace to

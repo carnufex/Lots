@@ -38,6 +38,7 @@ export default function Conversation({
   onTurn,
   onEnd,
   showTranscript = true,
+  context,
 }: {
   api: Api
   profiles: ProfileInfo[]
@@ -50,6 +51,8 @@ export default function Conversation({
   onEnd?: (conversationId: string, turns: number) => void
   /** Chat shows the turns in its own thread, so the transcript here is optional. */
   showTranscript?: boolean
+  /** The chat's context choice; '' lets the shell choose (#150). Without it the conversation offers its own picker. */
+  context?: string
 }) {
   const [state, setState] = useState<AvatarState>('off')
   const [messages, setMessages] = useState<Message[]>([])
@@ -70,8 +73,8 @@ export default function Conversation({
   const profileRef = useRef(profile)
   useEffect(() => {
     languageRef.current = language
-    profileRef.current = profile
-  }, [language, profile])
+    profileRef.current = context ?? profile
+  }, [language, profile, context])
   const log = useRef<HTMLOListElement>(null)
   const turns = useRef(0)
   const hooks = useRef({ onTurn, onEnd })
@@ -128,8 +131,15 @@ export default function Conversation({
         add({ who: 'you', text })
         const spoken: VoiceLanguage = heard.language === 'en' ? 'en' : languageRef.current === 'en' ? 'en' : 'sv'
 
-        const run = await api.startRun(text, profileRef.current, { voice: true, conversationId: conversationId.current })
+        const started = await api.startRun(text, profileRef.current || null, { voice: true, conversationId: conversationId.current })
         if (mine !== turn.current) return
+        if ('choose' in started) {
+          // Never a silent guess (#150): say so, and let the user pick the context in the chat.
+          add({ who: 'agent', text: t('I am not sure where this belongs: {list}. Pick a context in the chat and ask again.', { list: started.choose.candidates.map((c) => c.profile).join(', ') }), failed: true })
+          go('listening')
+          return
+        }
+        const run = started
 
         // A short fixed acknowledgement if the answer takes a moment, so it never feels like silence.
         const ack = window.setTimeout(() => {
@@ -295,8 +305,8 @@ export default function Conversation({
               <option value="normal">{t('Sensitivity: normal')}</option>
               <option value="high">{t('Sensitivity: high')}</option>
             </select>
-            {profiles.length > 1 && (
-              <select aria-label={t('Profile')} value={profile} onChange={(e) => setProfile(e.target.value)}>
+            {context === undefined && profiles.length > 1 && (
+              <select aria-label={t('Context')} value={profile} onChange={(e) => setProfile(e.target.value)}>
                 {profiles.map((p) => (
                   <option key={p.name} value={p.name}>
                     {p.name}

@@ -13,7 +13,8 @@ public sealed record TimelineEvent(string Kind, string Name, long StartMs, long 
 public sealed record TurnDto(
     Guid RunId, string Prompt, string? Answer, string Status, string? Error, DateTimeOffset StartedAt, long DurationMs,
     IReadOnlyList<TimelineEvent> Events, bool Voice = false, Guid? RetryOf = null, bool Superseded = false,
-    IReadOnlyList<Core.Attachments.AttachmentRef>? Attachments = null, int? Rating = null, string? FeedbackComment = null);
+    IReadOnlyList<Core.Attachments.AttachmentRef>? Attachments = null, int? Rating = null, string? FeedbackComment = null,
+    string? Profile = null, string? Routing = null);
 
 public sealed record StageTotals(long SttMs, long LlmMs, long ToolMs, long TtsMs, long OtherMs);
 
@@ -91,7 +92,7 @@ public static class ConversationViews
                 events.OrderBy(e => e.StartMs).ToList(), run.Voice, run.RetryOf, runs.Any(r => r.RetryOf == run.Id),
                 run.AttachmentsJson is null ? null : System.Text.Json.JsonSerializer.Deserialize<List<Core.Attachments.AttachmentRef>>(run.AttachmentsJson,
                     new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)),
-                feedback.GetValueOrDefault(run.Id)?.Rating, feedback.GetValueOrDefault(run.Id)?.Comment));
+                feedback.GetValueOrDefault(run.Id)?.Rating, feedback.GetValueOrDefault(run.Id)?.Comment, run.Profile, run.RoutingMode));
         }
 
         var all = turns.SelectMany(t => t.Events).ToList();

@@ -98,7 +98,7 @@ export default function AuditPage({ api }: { api: Api }) {
               </select>
             </label>
             <label>
-              {t('Profile')}
+              {t('Context')}
               <input value={filter.profile ?? ''} onChange={(e) => setFilter({ ...filter, profile: e.target.value })} />
             </label>
             <label>
@@ -142,7 +142,7 @@ export default function AuditPage({ api }: { api: Api }) {
                   <th>{t('Approver')}</th>
                   <th>{t('Result')}</th>
                   <th>{t('Backend auth')}</th>
-                  <th>{t('Profile')}</th>
+                  <th>{t('Context')}</th>
                 </tr>
               </thead>
               <tbody>

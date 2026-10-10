@@ -104,7 +104,7 @@ function Settings({ api, caps, profiles }: { api: Api; caps: Capabilities | null
         <label>
           {t('Default context')}
           <select value={p.defaultContext ?? ''} onChange={(e) => void change({ ...p, defaultContext: e.target.value || null })}>
-            <option value="">{t('First available')}</option>
+            <option value="">{t('Automatic')}</option>
             {usable.map((x) => (
               <option key={x.name} value={x.name}>
                 {x.name}

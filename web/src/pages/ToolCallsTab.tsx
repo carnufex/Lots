@@ -49,7 +49,7 @@ export default function ToolCallsTab({ api }: { api: Api }) {
       >
         {text('tool', t('Tool'))}
         {text('user', t('User'))}
-        {text('profile', t('Profile'))}
+        {text('profile', t('Context'))}
         <label>
           {t('Status')}
           <select value={filter.status ?? ''} onChange={(e) => setFilter({ ...filter, status: e.target.value || undefined })}>
@@ -140,7 +140,7 @@ export default function ToolCallsTab({ api }: { api: Api }) {
                 <th>{t('Status')}</th>
                 <th>{t('Decision')}</th>
                 <th>{t('Latency')}</th>
-                <th>{t('Profile')}</th>
+                <th>{t('Context')}</th>
               </tr>
             </thead>
             <tbody>

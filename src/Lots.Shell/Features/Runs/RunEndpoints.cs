@@ -10,10 +10,15 @@ namespace Lots.Shell.Features.Runs;
 
 /// <param name="Model">A configured model alias to answer with instead of the profile's (comparisons, #119). Roles in <c>Models:ChooseRoles</c> only (default admin, evaluator).</param>
 /// <param name="ReasoningEffort">none, minimal, low, medium or high; same roles as <paramref name="Model"/>.</param>
+/// <param name="Routing">"chosen" when the user picked the context after the router asked (#150); recorded on the run.</param>
 public sealed record StartRunRequest(string Prompt, string? Profile = null, bool Voice = false, Guid? ConversationId = null,
-    List<Guid>? Attachments = null, string? Model = null, string? ReasoningEffort = null);
+    List<Guid>? Attachments = null, string? Model = null, string? ReasoningEffort = null, string? Routing = null);
 
-public sealed record StartRunResponse(Guid Id, string Status);
+/// <param name="Profile">The context to answer in; null or "auto" lets the router choose (#150). Context is the UI name of a profile.</param>
+public sealed record StartRunResponse(Guid Id, string Status, string? Profile = null, string? Routing = null);
+
+/// <summary>Returned with 409 when the router cannot choose with confidence: the user picks one of these and sends again with it.</summary>
+public sealed record RouteChoiceDto(string Reason, IReadOnlyList<Core.Routing.RouteCandidate> Candidates);
 
 public sealed class StartRunEndpoint(LotsDbContext db, TimeProvider clock, ProfileRegistry profiles, IConfiguration config, ICurrentPrincipal who, SubjectTokenVault vault,
     Lots.Shell.Core.Quotas.QuotaService quotas)
@@ -33,7 +38,25 @@ public sealed class StartRunEndpoint(LotsDbContext db, TimeProvider clock, Profi
             return;
         }
 
-        var profileName = req.Profile ?? config["Agent:DefaultProfile"] ?? profiles.All.First().Name;
+        Core.Routing.RouteDecision? route = null;
+        string? routing = "manual";
+        if (string.IsNullOrWhiteSpace(req.Profile) || req.Profile == "auto")
+        {
+            var router = HttpContext.RequestServices.GetRequiredService<Core.Routing.ContextRouter>();
+            var current = req.ConversationId is { } conv
+                ? await db.Runs.AsNoTracking().Where(r => r.ConversationId == conv).OrderByDescending(r => r.CreatedAt).Select(r => r.Profile).FirstOrDefaultAsync(ct)
+                : null;
+            route = await router.RouteAsync(who.Get(HttpContext), req.Prompt, current, ct);
+            if (route.Mode == "ask")
+            {
+                // Never a silent guess: the user picks, with one click, and sends again with that context.
+                await Send.ResultAsync(TypedResults.Json(new RouteChoiceDto(route.Reason, route.Candidates), statusCode: 409));
+                return;
+            }
+            routing = route.Mode == "none" ? "default" : route.Mode;
+        }
+        var profileName = route?.Profile ?? (string.IsNullOrWhiteSpace(req.Profile) || req.Profile == "auto" ? null : req.Profile)
+            ?? config["Agent:DefaultProfile"] ?? profiles.All.First().Name;
         var profile = profiles.Find(profileName);
         if (profile is null)
         {
@@ -80,10 +103,40 @@ public sealed class StartRunEndpoint(LotsDbContext db, TimeProvider clock, Profi
         run.AttachmentsJson = attachments;
         run.ModelAlias = string.IsNullOrWhiteSpace(req.Model) ? null : req.Model.Trim();
         run.ReasoningEffort = string.IsNullOrWhiteSpace(req.ReasoningEffort) ? null : req.ReasoningEffort.Trim().ToLowerInvariant();
+        run.RoutingMode = req.Routing is "chosen" && routing == "manual" ? "chosen" : routing;
+        run.RoutingJson = route is null || route.Mode == "only" ? null : System.Text.Json.JsonSerializer.Serialize(
+            new { route.Method, route.Margin, route.LatencyMs, candidates = route.Candidates.Select(c => new { c.Profile, c.Score }) });
         db.Runs.Add(run);
         await db.SaveChangesAsync(ct);
         Lots.Shell.Core.Telemetry.LotsMetrics.RunsStarted.Add(1, new("profile", run.Profile), new("voice", run.Voice));
-        await Send.ResponseAsync(new StartRunResponse(run.Id, run.Status.ToString()), 202, ct);
+        await Send.ResponseAsync(new StartRunResponse(run.Id, run.Status.ToString(), run.Profile, run.RoutingMode), 202, ct);
+    }
+}
+
+public sealed record RouteRequest(string Prompt, Guid? ConversationId = null);
+
+/// <summary>
+/// The router's decision without starting anything (#150): for the routing evals and for clients that want to show where a question
+/// would go. Same candidates (policy first), scores and thresholds as a real run.
+/// </summary>
+public sealed class RouteEndpoint(LotsDbContext db, ICurrentPrincipal who, Core.Routing.ContextRouter router) : Endpoint<RouteRequest, Core.Routing.RouteDecision>
+{
+    public override void Configure() => Post("/route");
+
+    public override async Task HandleAsync(RouteRequest req, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(req.Prompt))
+        {
+            AddError(x => x.Prompt, "Prompt is required.");
+            await Send.ErrorsAsync(cancellation: ct);
+            return;
+        }
+        var me = who.Get(HttpContext);
+        var current = req.ConversationId is { } conv
+            ? await db.Runs.AsNoTracking().Where(r => r.ConversationId == conv && r.UserId == me.UserId).OrderByDescending(r => r.CreatedAt)
+                .Select(r => r.Profile).FirstOrDefaultAsync(ct)
+            : null;
+        await Send.OkAsync(await router.RouteAsync(me, req.Prompt, current, ct), ct);
     }
 }
 

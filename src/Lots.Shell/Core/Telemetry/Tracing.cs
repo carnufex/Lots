@@ -15,7 +15,30 @@ public static class Tracing
     /// What telemetry may carry of a run's content (#145, ADR 0019 point 2): the deployment default (<c>Telemetry:Content</c>;
     /// metadata outside Development, redacted in Development). A profile may set its own with <c>telemetry.content</c>.
     /// </summary>
-    public static ContentCapture DefaultContent { get; set; } = ContentCapture.Metadata;
+    public static ContentCapture DefaultContent
+    {
+        get => _scoped.Value ?? _default;
+        set => _default = value;
+    }
+
+    private static ContentCapture _default = ContentCapture.Metadata;
+    private static readonly AsyncLocal<ContentCapture?> _scoped = new();
+
+    /// <summary>
+    /// The deployment default for the current async flow only (tests): unlike setting <see cref="DefaultContent"/>, another host starting in
+    /// parallel cannot change it underneath.
+    /// </summary>
+    public static IDisposable ScopedDefault(ContentCapture mode)
+    {
+        var before = _scoped.Value;
+        _scoped.Value = mode;
+        return new Restore(() => _scoped.Value = before);
+    }
+
+    private sealed class Restore(Action undo) : IDisposable
+    {
+        public void Dispose() => undo();
+    }
 
     /// <summary><c>full</c> (content without personal-data masking) only where the deployment allows it (<c>Telemetry:AllowFullContent</c>).</summary>
     public static bool AllowFullContent { get; set; }
@@ -44,6 +67,16 @@ public static class Tracing
         span.SetTag("lots.user.hash", UserHash.Of(run.UserId));
         span.SetTag("lots.channel", Channel(run));
         if (run.ConversationId is { } conv) span.SetTag("gen_ai.conversation.id", conv.ToString());
+        if (run.RoutingMode is { } routing) span.SetTag("lots.routing.mode", routing);
+        if (run.RoutingJson is { } json)
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(json);
+                if (doc.RootElement.TryGetProperty("Margin", out var m)) span.SetTag("lots.routing.margin", m.GetDouble());
+                if (doc.RootElement.TryGetProperty("Method", out var me)) span.SetTag("lots.routing.method", me.GetString());
+                if (doc.RootElement.TryGetProperty("LatencyMs", out var l)) span.SetTag("lots.routing.latency_ms", l.GetInt64());
+            }
+            catch (System.Text.Json.JsonException) { /* an old or foreign value: no attributes */ }
     }
 
     /// <summary>Where a run came from: voice, slack, email, api, schedule, webhook, delegate (a sub-agent) or web.</summary>

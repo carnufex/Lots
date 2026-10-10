@@ -414,6 +414,10 @@ public sealed class RunRecord
     public string? ModelAlias { get; set; }
     /// <summary>A reasoning effort chosen for this run (#119); null leaves it to the model or the voice settings.</summary>
     public string? ReasoningEffort { get; set; }
+    /// <summary>How the context was chosen (#150): manual, only, auto, sticky, chosen (the user picked after being asked), corrected.</summary>
+    public string? RoutingMode { get; set; }
+    /// <summary>The router's candidates, scores and margin when it decided; null when the user chose.</summary>
+    public string? RoutingJson { get; set; }
     /// <summary>Started in a role preview (#156): the admin's real roles; the run's <see cref="Roles"/> are the previewed ones.</summary>
     public string? PreviewRealRoles { get; set; }
     public bool PreviewAllowWrites { get; set; }

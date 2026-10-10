@@ -156,7 +156,7 @@ function List({ api }: { api: Api }) {
           </select>
         </label>
         <label>
-          {t('Profile')}
+          {t('Context')}
           <input value={profile} onChange={(e) => setProfile(e.target.value)} />
         </label>
         <label>
@@ -271,7 +271,7 @@ function Detail({ api, id }: { api: Api; id: string }) {
         <div><dt>{t('Date')}</dt><dd>{when(c.startedAt)}</dd></div>
         <div><dt>{t('Duration')}</dt><dd>{fmt(c.durationMs)}</dd></div>
         <div><dt>{t('User')}</dt><dd>{c.userId}</dd></div>
-        <div><dt>{t('Profile')}</dt><dd>{c.profile}</dd></div>
+        <div><dt>{t('Context')}</dt><dd>{c.profile}</dd></div>
         <div><dt>{t('Status')}</dt><dd><span className={`status ${c.status}`}>{c.status}</span></dd></div>
         <div><dt>{t('Conversation id')}</dt><dd className="mono small">{c.id}</dd></div>
         <div><dt>{t('Tokens')}</dt><dd>{c.promptTokens} in · {c.completionTokens} out</dd></div>

@@ -74,7 +74,7 @@ export default function ProfilesPage({ api }: { api: Api }) {
 
   return (
     <section>
-      <h1>{t('Profiles')}</h1>
+      <h1>{t('Contexts')}</h1>
       {error && <p className="error">{error}</p>}
       {gitops?.state.enabled && (
         <div className="card">
@@ -109,7 +109,7 @@ export default function ProfilesPage({ api }: { api: Api }) {
         <table>
           <thead>
             <tr>
-              <th>{t('Profile')}</th>
+              <th>{t('Context')}</th>
               <th>{t('Version')}</th>
               <th>{t('Managed by')}</th>
               <th>{t('Last applied')}</th>

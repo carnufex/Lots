@@ -1857,3 +1857,15 @@ p.summary {
     min-height: 0;
   }
 }
+
+/* automatic context routing (#150) */
+.turn-context {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 6px;
+}
+.route-choice {
+  margin: 0 0 8px;
+}

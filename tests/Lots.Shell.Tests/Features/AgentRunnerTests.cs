@@ -425,8 +425,8 @@ public class AgentRunnerTests
     [InlineData(Lots.Shell.Core.Telemetry.ContentCapture.Redacted, true)]
     public async Task Content_reaches_spans_only_in_the_modes_that_allow_it(Lots.Shell.Core.Telemetry.ContentCapture mode, bool expectContent)
     {
-        var previous = Lots.Shell.Core.Telemetry.Tracing.DefaultContent;
-        Lots.Shell.Core.Telemetry.Tracing.DefaultContent = mode;
+        // Scoped to this test's flow: a web host starting in another test sets the global default from its configuration.
+        using var scoped = Lots.Shell.Core.Telemetry.Tracing.ScopedDefault(mode);
         var (spans, listener) = Capture();
         try
         {
@@ -447,7 +447,6 @@ public class AgentRunnerTests
         finally
         {
             listener.Dispose();
-            Lots.Shell.Core.Telemetry.Tracing.DefaultContent = previous;
         }
     }
 

@@ -98,7 +98,7 @@ public class OidcAuthTests : IClassFixture<WebApplicationFactory<Program>>
         var client = _factory.CreateClient();
         var alice = Token("alice", ["operator"]);
 
-        var start = await client.SendAsync(Req(HttpMethod.Post, "/runs", alice, new { prompt = "hello" }));
+        var start = await client.SendAsync(Req(HttpMethod.Post, "/runs", alice, new { prompt = "hello", profile = TestProfiles.Name }));
         Assert.Equal(HttpStatusCode.Accepted, start.StatusCode);
         var id = (await start.Content.ReadFromJsonAsync<Started>())!.Id;
 

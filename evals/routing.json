@@ -1,0 +1,21 @@
+{
+  "dataset": "routing",
+  "version": 1,
+  "description": "Question -> context for automatic routing (#150). Cases for contexts a stack does not offer are skipped.",
+  "cases": [
+    { "question": "Which containers are unhealthy?", "expect": "homelab" },
+    { "question": "Show me the logs of the postgres container.", "expect": "homelab" },
+    { "question": "Is the lots-shell container running?", "expect": "homelab" },
+    { "question": "Vilka containrar har startat om senaste timmen?", "expect": "homelab" },
+    { "question": "Which circuits go through node X?", "expect": "cmdb" },
+    { "question": "Trace the path between site A and site B in the network.", "expect": "cmdb" },
+    { "question": "Plan a change for the core router configuration items.", "expect": "cmdb" },
+    { "question": "Which pods are crash looping in the cluster?", "expect": "kubernetes" },
+    { "question": "Show events for the deployment in the default namespace.", "expect": "kubernetes" },
+    { "question": "Which pull requests are open in the repository?", "expect": "git" },
+    { "question": "Summarise the latest issues on GitHub.", "expect": "git" },
+    { "question": "Which alerts are firing right now?", "expect": "monitoring" },
+    { "question": "What is the CPU usage metric for the last hour in Prometheus?", "expect": "monitoring" },
+    { "question": "Hello!", "expect": "ask", "note": "no domain: the user should choose" }
+  ]
+}

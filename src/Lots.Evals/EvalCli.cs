@@ -188,6 +188,7 @@ public static class EvalCli
         if (Arg(args, "--mode") == "retrieval") return await RetrievalCli.RunAsync(http, args, name => Arg(args, name));
         if (Arg(args, "--mode") == "injection") return await InjectionCli.RunAsync(http, name => Arg(args, name));
         if (Arg(args, "--mode") == "calibrate") return await JudgeCalibration.RunAsync(name => Arg(args, name));
+        if (Arg(args, "--mode") == "routing") return await RoutingEval.RunAsync(http, name => Arg(args, name));
 
         var historyRoot = Arg(args, "--history") ?? "evals/history";
         switch (Arg(args, "--mode"))

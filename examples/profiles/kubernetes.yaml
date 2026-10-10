@@ -4,6 +4,12 @@ kind: Profile
 name: kubernetes
 version: 1
 description: Read-only view of the cluster's workloads, events and logs.
+routing:
+  # Questions that belong here: the router compares new questions with these, the description and the tool names (#150).
+  examples:
+    - "Which pods are crash looping?"
+    - "Show events for a deployment."
+    - "Which workloads run in this namespace?"
 instructions: |
   You help operate a Kubernetes cluster. Start broad (k8s_list pods or deployments, events) and narrow down
   (k8s_describe, k8s_logs) to explain why something is unhealthy. Name namespaces and objects exactly.

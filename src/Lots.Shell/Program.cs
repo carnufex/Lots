@@ -85,6 +85,9 @@ builder.Services.Configure<Lots.Shell.Core.Attachments.AttachmentOptions>(builde
 builder.Services.AddKnowledge(builder.Configuration);
 builder.Services.AddSingleton<Lots.Shell.Features.Usage.PriceTable>();
 builder.Services.Configure<Lots.Shell.Core.Outcomes.OutcomeOptions>(builder.Configuration.GetSection(Lots.Shell.Core.Outcomes.OutcomeOptions.Section));
+builder.Services.Configure<Lots.Shell.Core.Routing.RoutingOptions>(builder.Configuration.GetSection(Lots.Shell.Core.Routing.RoutingOptions.Section));
+builder.Services.AddSingleton<Lots.Shell.Core.Routing.ContextRouter>();
+builder.Services.AddHostedService<Lots.Shell.Core.Routing.RoutingWarmup>();
 builder.Services.AddSingleton<Lots.Shell.Core.Outcomes.RunOutcomeWorker>();
 if (builder.Configuration.GetValue("Outcomes:Enabled", true))
     builder.Services.AddHostedService(sp => sp.GetRequiredService<Lots.Shell.Core.Outcomes.RunOutcomeWorker>()); // #141

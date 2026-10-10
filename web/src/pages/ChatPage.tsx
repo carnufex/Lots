@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Feedback from '../components/Feedback'
-import { type Api, type ConversationDetail, type ConversationSummary, type ConversationTurn } from '../api'
+import { type Api, type ConversationDetail, type ConversationSummary, type ConversationTurn, type RouteChoice } from '../api'
 import type { ProfileInfo, VoiceConfig } from '../config'
 import Conversation from '../components/Conversation'
 import MicButton from '../components/MicButton'
@@ -9,7 +9,7 @@ import type { VoiceLanguage } from '../api'
 import Markdown from '../components/Markdown'
 import { AttachmentList, AttachPicker, type UploadedAttachment } from '../components/Attachments'
 import { fmt, t } from '../i18n'
-import { defaultContext } from '../preferences'
+import { preferredContext } from '../preferences'
 
 const ACTIVE = ['Pending', 'Running', 'WaitingForApproval']
 
@@ -26,7 +26,9 @@ export default function ChatPage({ api, profiles, id, voice }: { api: Api; profi
   const [live, setLive] = useState<{ runId: string; partial: string } | null>(null)
   const [prompt, setPrompt] = useState('')
   const [files, setFiles] = useState<UploadedAttachment[]>([])
-  const [profile, setProfile] = useState(() => defaultContext(profiles))
+  // '' = Automatic (#150): the shell picks the context per message; a choice here overrides it.
+  const [profile, setProfile] = useState(() => preferredContext(profiles))
+  const [ask, setAsk] = useState<{ text: string; choice: RouteChoice } | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [note, setNote] = useState<string | null>(null)
@@ -42,7 +44,6 @@ export default function ChatPage({ api, profiles, id, voice }: { api: Api; profi
     try {
       const d = await api.getConversation(id)
       setDetail(d)
-      if (d.conversation.profile) setProfile(d.conversation.profile)
       return d
     } catch {
       setDetail(null) // a new conversation has no runs yet
@@ -92,13 +93,19 @@ export default function ChatPage({ api, profiles, id, voice }: { api: Api; profi
   const last = turns.at(-1)
   const busy = live !== null
 
-  const send = async () => {
-    const text = prompt.trim()
+  const send = async (picked?: string) => {
+    const text = (picked ? ask?.text : prompt.trim()) ?? ''
     if (!text || busy) return
     setError(null)
+    setAsk(null)
     const conversationId = id ?? crypto.randomUUID()
     try {
-      const run = await api.startRun(text, profile, { conversationId, attachments: files.map((f) => f.id) })
+      const started = await api.startRun(text, picked ?? (profile || null), { conversationId, attachments: files.map((f) => f.id), ...(picked ? { routing: 'chosen' as const } : {}) })
+      if ('choose' in started) {
+        setAsk({ text, choice: started.choose }) // one click, never a silent guess
+        return
+      }
+      const run = started
       setPrompt('')
       setFiles([])
       if (!id) window.location.hash = `#/chat/${conversationId}`
@@ -108,10 +115,10 @@ export default function ChatPage({ api, profiles, id, voice }: { api: Api; profi
     }
   }
 
-  const regenerate = async (turn: ConversationTurn, edited?: string) => {
+  const regenerate = async (turn: ConversationTurn, edited?: string, context?: string) => {
     setError(null)
     try {
-      const run = await api.regenerateRun(turn.runId, edited)
+      const run = await api.regenerateRun(turn.runId, edited, context)
       setEditing(null)
       void follow(run.id)
     } catch (e) {
@@ -148,7 +155,8 @@ export default function ChatPage({ api, profiles, id, voice }: { api: Api; profi
         {talking && voice?.enabled && (
           <Conversation
             api={api}
-            profiles={profiles.filter((p) => p.name === profile)}
+            profiles={profiles}
+            context={profile}
             defaultLanguage={voice.defaultLanguage}
             conversationId={id}
             showTranscript={!id}
@@ -185,6 +193,21 @@ export default function ChatPage({ api, profiles, id, voice }: { api: Api; profi
                   )}
                 </div>
                 <div className="turn-agent">
+                  {turn.profile && profiles.length > 1 && (
+                    <p className="turn-context small muted">
+                      <span className="chip" title={turn.routing ? t('Chosen: {how}', { how: t(turn.routing) }) : undefined}>
+                        {turn.profile}
+                      </span>
+                      {isLast && !busy && !ACTIVE.includes(turn.status) &&
+                        profiles
+                          .filter((p) => p.name !== turn.profile)
+                          .map((p) => (
+                            <button key={p.name} type="button" className="btn ghost small" onClick={() => void regenerate(turn, undefined, p.name)}>
+                              {t('Use {context} instead', { context: p.name })}
+                            </button>
+                          ))}
+                    </p>
+                  )}
                   {answer ? <Markdown text={answer} /> : ACTIVE.includes(turn.status) ? <p className="muted">{turn.status === 'WaitingForApproval' ? t('Waiting for an approval…') : t('Working…')}</p> : null}
                   {turn.status === 'WaitingForApproval' && (
                     <p className="small">
@@ -224,6 +247,22 @@ export default function ChatPage({ api, profiles, id, voice }: { api: Api; profi
           <div ref={endRef} />
         </div>
 
+        {ask && (
+          <div className="route-choice card" role="group" aria-label={t('Choose a context')}>
+            <p className="small">{t('Where does this belong?')} <span className="muted">{ask.choice.reason}</span></p>
+            <div className="row">
+              {ask.choice.candidates.map((c) => (
+                <button key={c.profile} type="button" className="btn" onClick={() => void send(c.profile)}>
+                  {c.profile}
+                  {!c.readOnly && <span className="muted small"> {t('(can change things)')}</span>}
+                </button>
+              ))}
+              <button type="button" className="btn ghost" onClick={() => setAsk(null)}>
+                {t('Cancel')}
+              </button>
+            </div>
+          </div>
+        )}
         <form
           className="chat-input"
           onSubmit={(e) => {
@@ -248,8 +287,9 @@ export default function ChatPage({ api, profiles, id, voice }: { api: Api; profi
             }}
           />
           <div className="row">
-            {profiles.length > 1 && !id ? (
-              <select aria-label={t('Profile')} value={profile} onChange={(e) => setProfile(e.target.value)}>
+            {profiles.length > 1 ? (
+              <select aria-label={t('Context')} value={profile} onChange={(e) => setProfile(e.target.value)}>
+                <option value="">{t('Automatic')}</option>
                 {profiles.map((p) => (
                   <option key={p.name} value={p.name}>
                     {p.name}

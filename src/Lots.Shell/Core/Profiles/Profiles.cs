@@ -79,8 +79,12 @@ public sealed record Profile(
     DataClass Sensitivity = DataClass.Internal,
     PiiRedaction? Pii = null,
     IReadOnlyList<string>? DelegateTo = null,
-    Telemetry.ContentCapture? TelemetryContent = null)
+    Telemetry.ContentCapture? TelemetryContent = null,
+    IReadOnlyList<string>? RoutingExamples = null)
 {
+    /// <summary>Example questions that belong here (#150): the router compares a new question with these, the description and the tools.</summary>
+    public IReadOnlyList<string> Routing => RoutingExamples ?? [];
+
     /// <summary>Profiles a run of this profile may hand tasks to with the <c>delegate</c> tool (#103).</summary>
     public IReadOnlyList<string> Delegates => DelegateTo ?? [];
 
@@ -244,6 +248,10 @@ public static class ProfileParser
             else Err($"telemetry.content must be off, metadata, redacted or full, not '{contentText}'");
         }
 
+        var examples = (doc.Routing?.Examples ?? []).Select(e => e.Trim()).Where(e => e.Length > 0).Distinct().ToList();
+        if (examples.Count > 50) Err("routing.examples: at most 50 examples");
+        if (examples.Any(e => e.Length > 300)) Err("routing.examples: an example is longer than 300 characters");
+
         if (errors.Count > 0) throw new ProfileException(errors);
 
         ApprovalRules? approvalRules = null;
@@ -259,7 +267,7 @@ public static class ProfileParser
         var profile = new Profile(doc.Name!, doc.Version, doc.Description ?? "", doc.Instructions?.Trim() ?? "", servers, tools, roles,
             string.IsNullOrWhiteSpace(doc.Model) ? null : doc.Model.Trim(), doc.DetectConflicts, tests, approvalRules, profileClass, pii,
             (doc.Delegates ?? []).Select(d => d.Trim()).Where(d => d.Length > 0 && !d.Equals(doc.Name, StringComparison.OrdinalIgnoreCase)).Distinct().ToList(),
-            content);
+            content, examples.Count == 0 ? null : examples);
         var failures = Policy.PolicyTests.Run(profile).Where(r => !r.Passed).Select(r => $"{source}: policy test failed: {r.Description}").ToList();
         if (failures.Count > 0) throw new ProfileException(failures);
         return profile;
@@ -344,6 +352,8 @@ public static class ProfileParser
         public ApprovalsDoc? Approvals { get; set; }
         /// <summary>What telemetry may carry of this profile's runs (#145): <c>content: off|metadata|redacted|full</c>.</summary>
         public TelemetryDoc? Telemetry { get; set; }
+        /// <summary>Automatic context routing (#150): <c>examples: [questions that belong to this profile]</c>.</summary>
+        public RoutingDoc? Routing { get; set; }
         public List<ServerDoc>? Servers { get; set; }
         public List<ToolDoc>? Tools { get; set; }
         public List<RoleDoc>? Roles { get; set; }
@@ -373,6 +383,8 @@ public static class ProfileParser
     private sealed class PiiDoc { public List<string>? Redact { get; set; } public string? Scope { get; set; } }
 
     private sealed class TelemetryDoc { public string? Content { get; set; } }
+
+    private sealed class RoutingDoc { public List<string>? Examples { get; set; } }
 
     private sealed class ToolDoc { public string? Name { get; set; } public string? Risk { get; set; } public string? Sensitivity { get; set; } }
 
