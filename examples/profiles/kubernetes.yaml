@@ -1,0 +1,22 @@
+# Template: read-only Kubernetes insight (toolpack with Kubernetes:InCluster=true or Kubernetes:Url).
+# Give the toolpack's service account a read-only ClusterRole WITHOUT secrets (get/list/watch on the kinds below, pods/log).
+kind: Profile
+name: kubernetes
+version: 1
+description: Read-only view of the cluster's workloads, events and logs.
+instructions: |
+  You help operate a Kubernetes cluster. Start broad (k8s_list pods or deployments, events) and narrow down
+  (k8s_describe, k8s_logs) to explain why something is unhealthy. Name namespaces and objects exactly.
+  You cannot change anything; say what a human should do.
+servers:
+  - name: toolpack
+    url: http://mcp-toolpack:8080/mcp
+tools:
+  - { name: k8s_list, risk: read }
+  - { name: k8s_describe, risk: read }
+  - { name: k8s_logs, risk: read }
+roles:
+  - { name: operator, allow: [read] }
+policyTests:
+  - { roles: [operator], tool: k8s_logs, expect: allow }
+  - { roles: [], tool: k8s_list, expect: deny }

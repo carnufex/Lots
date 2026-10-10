@@ -35,6 +35,29 @@ if (config["Sql:ConnectionStringRef"] is { Length: > 0 } sqlRef)
     packs.Add("sql");
 }
 
+if (config["Kubernetes:Url"] is { Length: > 0 } || config.GetValue("Kubernetes:InCluster", false))
+{
+    builder.Services.AddSingleton(_ => new KubernetesApi(config, Secret));
+    mcp.WithTools<KubernetesTools>();
+    packs.Add("kubernetes");
+}
+
+if (config["Prometheus:Url"] is { Length: > 0 })
+{
+    builder.Services.AddHttpClient("prometheus", c => c.Timeout = TimeSpan.FromSeconds(30));
+    builder.Services.AddHttpClient("alertmanager", c => c.Timeout = TimeSpan.FromSeconds(15));
+    mcp.WithTools<MonitoringTools>();
+    packs.Add("monitoring");
+}
+
+if (config.GetSection("Git:Repos").Get<string[]>() is { Length: > 0 })
+{
+    builder.Services.AddHttpClient("git", c => c.Timeout = TimeSpan.FromSeconds(20));
+    builder.Services.AddSingleton<Func<string, string>>(Secret);
+    mcp.WithTools<GitTools>();
+    packs.Add("git");
+}
+
 if (config["OpenApi:Spec"] is { Length: > 0 } spec)
 {
     var text = spec.StartsWith("http", StringComparison.OrdinalIgnoreCase) ? await new HttpClient().GetStringAsync(spec) : File.ReadAllText(spec);

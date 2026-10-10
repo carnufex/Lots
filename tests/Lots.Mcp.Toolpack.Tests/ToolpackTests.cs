@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using System.Net;
 using System.Text.Json;
 using Lots.Mcp.Toolpack;
@@ -175,5 +176,55 @@ public class OpenApiTests
 
         Assert.Equal("https://crm.example/api/customers/..%2Fadmin%3Fx%3D1", uri.AbsoluteUri);
         Assert.Throws<ArgumentException>(() => tool.Build(new Dictionary<string, JsonElement>()));
+    }
+}
+
+public class KubernetesTests
+{
+    private sealed class Api(string json) : HttpMessageHandler
+    {
+        public List<string> Paths { get; } = [];
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            Paths.Add(request.RequestUri!.PathAndQuery);
+            Assert.Equal(HttpMethod.Get, request.Method); // never anything but reads
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json) });
+        }
+    }
+
+    [Fact]
+    public void Secrets_and_configmaps_are_not_kinds_the_tools_can_read()
+    {
+        Assert.Throws<ArgumentException>(() => KubernetesTools.PathFor("secrets", "lots"));
+        Assert.Throws<ArgumentException>(() => KubernetesTools.PathFor("configmaps", "lots"));
+        Assert.Equal("apis/apps/v1/namespaces/lots/deployments/web%2F..", KubernetesTools.PathFor("deployments", "lots", "web/.."));
+    }
+
+    [Fact]
+    public async Task Lists_summarise_status()
+    {
+        var api = new Api("""{"items":[{"metadata":{"namespace":"lots","name":"web-1"},"spec":{"nodeName":"w1"},"status":{"phase":"Running","containerStatuses":[{"ready":true,"restartCount":2},{"ready":false,"restartCount":1}]}}]}""");
+        var tools = new KubernetesTools(new KubernetesApi(new HttpClient(api) { BaseAddress = new Uri("http://k8s/") }));
+
+        Assert.Equal("lots/web-1 | phase=Running | ready=1/2 | restarts=3 | node=w1", await tools.List("pods", "lots", "app=web"));
+        Assert.Equal("/api/v1/namespaces/lots/pods?labelSelector=app%3Dweb", api.Paths.Single());
+    }
+}
+
+public class GitToolsTests
+{
+    [Fact]
+    public void Only_allowlisted_repositories_are_reachable()
+    {
+        var config = new Microsoft.Extensions.Configuration.ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Git:Repos:0"] = "carnufex/Lots",
+            ["Git:Repos:1"] = "ops/*",
+        }).Build();
+        var tools = new GitTools(null!, config, s => s);
+        Assert.True(tools.RepoAllowed("carnufex/lots"));
+        Assert.True(tools.RepoAllowed("ops/runbooks"));
+        Assert.False(tools.RepoAllowed("carnufex/Lots-private"));
+        Assert.False(tools.RepoAllowed("opsx/runbooks"));
     }
 }

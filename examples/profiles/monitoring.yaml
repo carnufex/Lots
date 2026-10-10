@@ -1,0 +1,19 @@
+# Template: Prometheus queries and active alerts (toolpack with Prometheus:Url, optionally Alertmanager:Url).
+kind: Profile
+name: monitoring
+version: 1
+description: Metrics and alerts from Prometheus and Alertmanager.
+instructions: |
+  You answer questions about the health and trends of systems with PromQL. Use alerts_active for what is wrong now,
+  prom_query for current values and prom_query_range for trends. Show the query you used.
+servers:
+  - name: toolpack
+    url: http://mcp-toolpack:8080/mcp
+tools:
+  - { name: alerts_active, risk: read }
+  - { name: prom_query, risk: read }
+  - { name: prom_query_range, risk: read }
+roles:
+  - { name: operator, allow: [read] }
+policyTests:
+  - { roles: [operator], tool: alerts_active, expect: allow }

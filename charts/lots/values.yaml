@@ -104,6 +104,22 @@ mcpHomelab:
     tag: ""
   dockerUrl: http://docker-proxy:2375
 
+# Tool packs (#63/#64): fetch, files, SQL, OpenAPI, Kubernetes, monitoring, Git. Each pack is off unless configured in env.
+mcpToolpack:
+  enabled: false
+  image:
+    repository: ghcr.io/carnufex/lots-mcp-toolpack
+    tag: ""
+  kubernetesReadOnly: false   # creates a ServiceAccount with a read-only ClusterRole (no secrets) and enables the kubernetes pack
+  filesClaim: ""              # PVC mounted read-only at /files (set env Files__Root: /files)
+  env: {}
+  #  Prometheus__Url: http://kube-prometheus-stack-prometheus.monitoring:9090
+  #  Alertmanager__Url: http://kube-prometheus-stack-alertmanager.monitoring:9093
+  #  Git__Repos__0: my-org/*
+  #  Fetch__AllowedHosts__0: docs.example.com
+  secretEnv: []
+  #  - { name: GIT_TOKEN, secretName: lots-git, key: token }   # then env Git__TokenRef: GIT_TOKEN
+
 resources:
   requests: { cpu: 100m, memory: 256Mi }
   limits: { memory: 512Mi }
