@@ -22,6 +22,7 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
             e.Property(x => x.Profile).HasMaxLength(128);
             e.Property(x => x.UserId).HasMaxLength(256);
             e.HasIndex(x => x.UserId);
+            e.HasIndex(x => x.ConversationId);
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
             e.HasIndex(x => x.Status);
             e.Property(x => x.LeaseOwner).HasMaxLength(256);
@@ -101,6 +102,10 @@ public sealed class RunRecord
     public Guid Id { get; set; }
     public required string Prompt { get; set; }
     public string Profile { get; set; } = "";
+    /// <summary>The run is part of a spoken conversation: short plain answers, no long reasoning phase.</summary>
+    public bool Voice { get; set; }
+    /// <summary>Runs with the same id are the turns of one conversation; earlier turns are context for later ones.</summary>
+    public Guid? ConversationId { get; set; }
     public string UserId { get; set; } = "";
     /// <summary>Comma-separated roles the run acts with, fixed when the run starts.</summary>
     public string Roles { get; set; } = "";

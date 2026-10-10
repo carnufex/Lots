@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Lots.Shell.Features.Runs;
 
-public sealed record StartRunRequest(string Prompt, string? Profile = null);
+public sealed record StartRunRequest(string Prompt, string? Profile = null, bool Voice = false, Guid? ConversationId = null);
 
 public sealed record StartRunResponse(Guid Id, string Status);
 
@@ -37,13 +37,21 @@ public sealed class StartRunEndpoint(LotsDbContext db, TimeProvider clock, Profi
             return;
         }
 
+        if (req.ConversationId is { } conversation
+            && await db.Runs.AnyAsync(r => r.ConversationId == conversation && r.UserId != who.Get(HttpContext).UserId, ct))
+        {
+            AddError("That conversation belongs to someone else.");
+            await Send.ErrorsAsync(400, ct);
+            return;
+        }
+
         // Roles are fixed on the run when it starts: the run acts with the permissions its user had then.
         var me = who.Get(HttpContext);
 
         var now = clock.GetUtcNow();
         var run = new RunRecord
         {
-            Id = Guid.NewGuid(), Prompt = req.Prompt, Profile = profile.Name, UserId = me.UserId, Roles = string.Join(',', me.Roles),
+            Id = Guid.NewGuid(), Prompt = req.Prompt, Profile = profile.Name, Voice = req.Voice, ConversationId = req.ConversationId, UserId = me.UserId, Roles = string.Join(',', me.Roles),
             CreatedAt = now, UpdatedAt = now,
         };
         // Only runs whose profile uses delegated servers keep the user's login token (encrypted), and only until the

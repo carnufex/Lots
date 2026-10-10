@@ -23,12 +23,22 @@ public sealed record ModelResponse(
     ModelUsage Usage,
     TimeSpan Latency);
 
+/// <summary>Per-call hints. <see cref="Fast"/>: answer without a long reasoning phase (voice needs the first words quickly).</summary>
+public sealed record ModelCallOptions(bool Fast = false);
+
 public interface IModelClient
 {
     Task<ModelResponse> CompleteAsync(
         IReadOnlyList<ChatMessage> messages,
         IReadOnlyList<ToolDefinition> tools,
         CancellationToken ct);
+
+    /// <summary>With hints. Providers that do not support them simply ignore the hints.</summary>
+    Task<ModelResponse> CompleteAsync(
+        IReadOnlyList<ChatMessage> messages,
+        IReadOnlyList<ToolDefinition> tools,
+        ModelCallOptions options,
+        CancellationToken ct) => CompleteAsync(messages, tools, ct);
 }
 
 public sealed class ModelOptions
@@ -41,4 +51,10 @@ public sealed class ModelOptions
 
     /// <summary>Name of the environment variable holding the API key. Empty = no auth (e.g. Ollama).</summary>
     public string? ApiKeyEnv { get; set; }
+
+    /// <summary>
+    /// Value of <c>reasoning_effort</c> sent for fast (voice) calls. "none" turns thinking off on models that think by default
+    /// (without it a 120-token budget can be spent entirely on thinking and the answer comes back empty). Empty = not sent.
+    /// </summary>
+    public string? FastReasoningEffort { get; set; } = "none";
 }

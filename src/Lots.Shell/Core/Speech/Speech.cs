@@ -48,6 +48,16 @@ public sealed class SpeechOptions
     public Dictionary<string, string> Voices { get; set; } = new() { ["sv"] = "sv-nst", ["en"] = "en-lessac" };
     public int MaxAudioBytes { get; set; } = 15 * 1024 * 1024;
     public int MaxTextChars { get; set; } = 1500;
+
+    /// <summary>
+    /// Fixed phrases spoken right after the user stops talking, while the agent is working. A closed list from configuration:
+    /// never user input, so it cannot be used as a free text-to-speech channel (ADR 0013).
+    /// </summary>
+    public Dictionary<string, string[]> Acknowledgements { get; set; } = new()
+    {
+        ["sv"] = ["Jag kollar.", "Ett ögonblick.", "Okej, jag tittar på det."],
+        ["en"] = ["Let me check.", "One moment.", "Okay, looking into it."],
+    };
     public int TimeoutSeconds { get; set; } = 60;
 
     /// <summary>Language the UI preselects for dictation: sv, en or auto. A Swedish installation sets sv.</summary>

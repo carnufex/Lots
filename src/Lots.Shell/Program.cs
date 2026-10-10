@@ -18,6 +18,7 @@ builder.AddLotsAuth();
 builder.Services.AddFastEndpoints();
 builder.Services.AddModelClient(builder.Configuration);
 builder.Services.AddSpeech(builder.Configuration);
+builder.Services.AddSingleton<Lots.Shell.Features.Voice.AcknowledgementCache>();
 builder.Services.Configure<AgentOptions>(builder.Configuration.GetSection(AgentOptions.Section));
 builder.Services.AddSingleton(TimeProvider.System);
 // Profiles are config as code: loaded from YAML at startup; an invalid manifest stops the shell.

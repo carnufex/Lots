@@ -254,3 +254,56 @@ public sealed class SetVocabularyEndpoint(LotsDbContext db, ICurrentPrincipal wh
         await Send.OkAsync(new VocabularyDto(words, shared), ct);
     }
 }
+
+public sealed record AckRequest(string? Language = null);
+
+/// <summary>
+/// A short fixed acknowledgement ("Jag kollar.") for conversation mode. Phrases come from configuration and the synthesized
+/// audio is cached, so the first word of a reply starts almost instantly and costs nothing after the first use.
+/// </summary>
+public sealed class AcknowledgementEndpoint(ITextToSpeech tts, IOptions<SpeechOptions> options, AcknowledgementCache cache)
+    : Endpoint<AckRequest>
+{
+    public override void Configure() => Get("/voice/ack");
+
+    public override async Task HandleAsync(AckRequest req, CancellationToken ct)
+    {
+        var o = options.Value;
+        var language = string.IsNullOrWhiteSpace(req.Language) ? "sv" : req.Language.Trim().ToLowerInvariant();
+        if (!o.Enabled || !SpeechOptions.Languages.Contains(language) || o.Acknowledgements.GetValueOrDefault(language) is not { Length: > 0 } phrases)
+        {
+            await Send.NotFoundAsync(ct);
+            return;
+        }
+
+        var phrase = phrases[Random.Shared.Next(phrases.Length)];
+        try
+        {
+            var bytes = await cache.GetAsync((language, phrase), async () =>
+            {
+                using var audio = await tts.SynthesizeAsync(phrase, language, ct);
+                using var ms = new MemoryStream();
+                await audio.Content.CopyToAsync(ms, ct);
+                return (ms.ToArray(), audio.ContentType);
+            });
+            await Send.BytesAsync(bytes.Audio, contentType: bytes.ContentType, cancellation: ct);
+        }
+        catch (SpeechUnavailableException)
+        {
+            await Send.NotFoundAsync(ct); // the client simply skips the acknowledgement
+        }
+    }
+}
+
+/// <summary>Synthesized acknowledgement audio, kept in memory (a handful of short clips).</summary>
+public sealed class AcknowledgementCache
+{
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<(string, string), (byte[] Audio, string ContentType)> _items = new();
+
+    public async Task<(byte[] Audio, string ContentType)> GetAsync((string Language, string Phrase) key, Func<Task<(byte[], string)>> create)
+    {
+        if (_items.TryGetValue(key, out var hit)) return hit;
+        var made = await create();
+        return _items.GetOrAdd(key, made);
+    }
+}

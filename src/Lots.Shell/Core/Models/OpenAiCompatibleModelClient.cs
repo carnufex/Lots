@@ -10,9 +10,13 @@ public sealed class OpenAiCompatibleModelClient(HttpClient http, IOptions<ModelO
 {
     private readonly ModelOptions _options = options.Value;
 
+    public Task<ModelResponse> CompleteAsync(IReadOnlyList<ChatMessage> messages, IReadOnlyList<ToolDefinition> tools, CancellationToken ct) =>
+        CompleteAsync(messages, tools, new ModelCallOptions(), ct);
+
     public async Task<ModelResponse> CompleteAsync(
         IReadOnlyList<ChatMessage> messages,
         IReadOnlyList<ToolDefinition> tools,
+        ModelCallOptions callOptions,
         CancellationToken ct)
     {
         var body = new JsonObject
@@ -20,6 +24,8 @@ public sealed class OpenAiCompatibleModelClient(HttpClient http, IOptions<ModelO
             ["model"] = _options.Model,
             ["messages"] = new JsonArray(messages.Select(ToJson).ToArray()),
         };
+        if (callOptions.Fast && !string.IsNullOrEmpty(_options.FastReasoningEffort))
+            body["reasoning_effort"] = _options.FastReasoningEffort;
         if (tools.Count > 0)
         {
             body["tools"] = new JsonArray(tools.Select(t => (JsonNode)new JsonObject
