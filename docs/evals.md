@@ -86,7 +86,8 @@ The report (`evals/report-calibration.md`) gives agreement, Cohen's kappa and ho
 model reaches the agreement floor, treat `judge` as a signal and gate on the deterministic checks only. Add labels from real answers as
 users rate them: `GET /feedback/labels` (see below).
 
-Other modes: `--mode retrieval` (knowledge search, #57) and `--mode injection` (red-team, ADR 0017).
+Other modes: `--mode retrieval` (knowledge search, #57), `--mode injection` (red-team, ADR 0017), and the voice evals
+(`voice-stt`, `voice-latency`, `voice-tts`, `voice-tts-score`, #123), described in `evals/voice/README.md`.
 
 ## From user feedback to eval cases
 

@@ -190,6 +190,13 @@ public static class EvalCli
         if (Arg(args, "--mode") == "calibrate") return await JudgeCalibration.RunAsync(name => Arg(args, name));
 
         var historyRoot = Arg(args, "--history") ?? "evals/history";
+        switch (Arg(args, "--mode"))
+        {
+            case "voice-stt": return await VoiceCli.SttAsync(http, name => Arg(args, name), historyRoot, !args.Contains("--no-history"));
+            case "voice-latency": return await VoiceCli.LatencyAsync(http, name => Arg(args, name), historyRoot, !args.Contains("--no-history"));
+            case "voice-tts": return await VoiceCli.TtsAsync(name => Arg(args, name));
+            case "voice-tts-score": return await VoiceCli.TtsScoreAsync(name => Arg(args, name));
+        }
         if (Arg(args, "--mode") == "history")
         {
             var name = Arg(args, "--dataset") ?? Path.GetFileNameWithoutExtension(file);

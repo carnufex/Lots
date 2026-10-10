@@ -6,7 +6,9 @@ using Microsoft.EntityFrameworkCore;
 namespace Lots.Shell.Features.Conversations;
 
 /// <summary>One thing that took time in a turn: speech in, a model call, a tool call or speech out. Times are relative to the conversation start.</summary>
-public sealed record TimelineEvent(string Kind, string Name, long StartMs, long DurationMs, int? PromptTokens = null, int? CompletionTokens = null);
+/// <param name="FirstAudioMs">Speech output only: time to the first audio, the latency that counts in a conversation (#123).</param>
+public sealed record TimelineEvent(string Kind, string Name, long StartMs, long DurationMs, int? PromptTokens = null, int? CompletionTokens = null,
+    long? FirstAudioMs = null);
 
 public sealed record TurnDto(
     Guid RunId, string Prompt, string? Answer, string Status, string? Error, DateTimeOffset StartedAt, long DurationMs,
@@ -80,7 +82,7 @@ public static class ConversationViews
                     s.PromptTokens, s.CompletionTokens));
 
             foreach (var u in speech.Where(u => u.Direction == "Tts" && u.RunId == run.Id))
-                events.Add(new("tts", $"first audio after {u.LatencyMs} ms", Rel(u.At), u.DurationMs ?? u.LatencyMs));
+                events.Add(new("tts", $"first audio after {u.LatencyMs} ms", Rel(u.At), u.DurationMs ?? u.LatencyMs, FirstAudioMs: u.LatencyMs));
 
             var end = events.Count == 0 ? Rel(run.UpdatedAt) : Math.Max(Rel(run.UpdatedAt), events.Max(e => e.StartMs + e.DurationMs));
             var begin = events.Count == 0 ? Rel(run.CreatedAt) : Math.Min(Rel(run.CreatedAt), events.Min(e => e.StartMs));

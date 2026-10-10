@@ -156,3 +156,80 @@ public class ModelComparisonTests
         Assert.Equal("operator,evaluator", ModelComparison.RolesFor("operator, evaluator", null, "low"));
     }
 }
+
+public class VoiceEvalTests
+{
+    [Theory]
+    [InlineData("Hej, jag heter Christopher.", "hej jag heter christopher", 0.0)]
+    [InlineData("Hej, jag heter Christopher.", "Hej, jag heter Christoffer.", 0.25)]
+    [InlineData("Vad hände med backupen?", "vad hände", 2.0 / 4)]
+    [InlineData("två containrar", "två små containrar", 0.5)]
+    [InlineData("", "", 0.0)]
+    public void Word_error_rate(string reference, string heard, double wer)
+    {
+        Assert.Equal(wer, Wer.Of(reference, heard), 3);
+    }
+
+    [Fact]
+    public void Swedish_letters_survive_normalisation()
+    {
+        Assert.Equal(["så", "här", "går", "det", "what's"], Wer.Words("Så här går det – what’s!"));
+    }
+
+    [Fact]
+    public void Turn_timing_comes_from_the_timeline()
+    {
+        var t = VoiceLatency.FromEvents([("stt", 0, 400, null), ("llm", 500, 1200, null), ("tool", 1700, 60, null), ("llm", 1800, 900, null), ("tts", 2900, 3000, 350)]);
+
+        Assert.Equal(new VoiceTurnTiming(400, 2100, 60, 350, 2900), t);
+        Assert.Null(VoiceLatency.FromEvents([("llm", 0, 100, null)]).SpeechToAnswerAudio); // typed turn: no end of speech
+    }
+
+    [Fact]
+    public void Stages_are_checked_against_the_budget()
+    {
+        var budget = VoiceLatency.ParseBudget("""{"stt":{"p50":300,"p95":800},"model":{"p50":800}}""");
+        var turns = new[] { new VoiceTurnTiming(200, 900, 0, 300, 2000), new VoiceTurnTiming(900, 3000, 0, 400, 5000) };
+
+        var stages = VoiceLatency.Summarise(turns, budget).ToDictionary(s => s.Name);
+
+        Assert.False(stages["stt"].WithinBudget); // p95 900 > 800
+        Assert.False(stages["model"].WithinBudget);
+        Assert.Equal(0, stages["tools"].Count);
+        Assert.True(stages["tools"].WithinBudget); // no data is not a failure of the stage
+        Assert.True(stages["firstAudio"].WithinBudget); // no budget given
+    }
+
+    [Fact]
+    public void Ratings_map_back_to_their_hidden_voice()
+    {
+        var clips = new[]
+        {
+            new ListeningClip("C01", "sv-nst", "sv", "a", "Hej", 150, 300, "hej", 0, null),
+            new ListeningClip("C02", "cb-default", "sv", "a", "Hej", 900, 2000, "hej", 0, "gpu-low"),
+        };
+        var ratings = Listening.ParseRatings("code,naturalness,clarity,note\nC01,3,4,\nC02,5,5,\"warm, \"\"human\"\"\"\nC03,9,1,\n");
+
+        var report = Listening.Report(clips, ratings);
+
+        Assert.Equal(2, ratings.Count); // out of range dropped
+        Assert.Equal("warm, \"human\"", ratings[1].Note);
+        Assert.Contains("| cb-default | sv | 1 | 5.0 | 5.0 |", report);
+        Assert.Contains("| sv-nst | sv | 1 | 3.0 | 4.0 |", report);
+        Assert.DoesNotContain("cb-default", Listening.Sheet(clips, 1)); // blind
+    }
+
+    [Fact]
+    public void A_streamed_wav_gets_its_real_sizes()
+    {
+        var wav = new byte[44 + 100];
+        System.Text.Encoding.ASCII.GetBytes("RIFF").CopyTo(wav, 0);
+        System.Text.Encoding.ASCII.GetBytes("data").CopyTo(wav, 36);
+        BitConverter.GetBytes(-1).CopyTo(wav, 40);
+
+        var fixedWav = WavFix.WithSizes(wav);
+
+        Assert.Equal(136, BitConverter.ToInt32(fixedWav, 4));
+        Assert.Equal(100, BitConverter.ToInt32(fixedWav, 40));
+    }
+}

@@ -29,7 +29,12 @@ Create `evals/voice/recordings/manifest.json`. Copy `manifest.example.json` and 
 
 ## How we use it
 
-`python spikes/voice/eval_recordings.py` sends every file to the running voice service (with and without the language hint),
+`dotnet run --project src/Lots.Evals -- --mode voice-stt --dev-user claude-test-voice-evals [--max-wer 0.2]` sends every file through
+the shell's own `POST /voice/transcribe` (the eval identity's dictation vocabulary included), with and without the language hint. It reports
+word error rate per file and per language, whether language detection got it right, and the latency. Results are stored under
+`evals/history/voice-stt/` and compared with the previous run; the exit code is 1 when the corpus WER is above `--max-wer`.
+
+The older spike script `python spikes/voice/eval_recordings.py` does the same straight against the voice service (with and without the language hint),
 and reports word error rate per file and in total, whether language detection got it right, and the latency. That gives us a
 real number to improve against (model size, detection, endpointing) and the first real data for the voice evals (#36).
 
@@ -38,3 +43,29 @@ real number to improve against (model size, detection, endpointing) and the firs
 See `phrases.md`: about 14 Swedish and 8 English phrases that cover short greetings, questions with numbers and technical
 words, names, and mixed Swedish and English. Variation is more valuable than quantity: a few in a noisier place, a few fast,
 a few quiet.
+
+## Latency budget
+
+`dotnet run --project src/Lots.Evals -- --mode voice-latency --dev-user claude-test-voice-evals --dev-roles admin [--days 7] [--user <id>]`
+reads the spoken turns of the last days from History and reports p50/p95 per stage against `budget.json`: speech to text, model,
+tools, time to first audio of speech output, and end of speech to the first audio of the answer. End of speech is when the transcription
+started, so upload time counts against speech to text. An admin identity sees everyone's turns; `--user` narrows it to one person. The exit
+code is 1 when a stage is over budget. Runs are stored as `voice-latency` history, so `--mode history --dataset voice-latency` shows the
+trend.
+
+## Listening test (speech output)
+
+`dotnet run --project src/Lots.Evals -- --mode voice-tts [--voices-sv sv-nst,cb-default,<own voice id>] [--voices-en en-lessac,cb-default]`
+synthesises every sentence in `tts-sentences.json` with every voice straight from the voice service (`--voice-url`, key from
+`VOICE_API_KEY` or `services/voice/.env`). The output goes to `listening/<time>/` (git-ignored: clips can be a person's own voice):
+
+- `clips/` holds the audio under neutral codes, and `key.json` maps each code to its voice.
+- Automatic measures per clip: time to first audio, whether the voice fell back to the fast one, and round-trip intelligibility (the
+  clip is transcribed again and compared with the sentence).
+- `sheet.html` is a blind rating page in a shuffled order. Rate naturalness and clarity from 1 to 5, add notes, then download `ratings.csv`
+  into the same folder.
+
+`--mode voice-tts-score --dir evals/voice/listening/<time>` reveals the voices and writes `report.md`: mean opinion scores per voice and
+language next to the automatic measures. Numbers read as digits ("12" for "tolv") count as recognition errors in the round trip, so
+compare voices with each other rather than reading the WER as absolute.
+

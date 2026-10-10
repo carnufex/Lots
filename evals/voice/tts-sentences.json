@@ -1,0 +1,10 @@
+[
+  { "id": "sv-greeting", "language": "sv", "text": "Hej! Jag är här, vad vill du veta?", "why": "short and friendly: the tone users hear first" },
+  { "id": "sv-status", "language": "sv", "text": "Två av tolv containrar är inte friska. Databasen startade om för fyra minuter sedan.", "why": "numbers and a status report" },
+  { "id": "sv-names", "language": "sv", "text": "Authentik och Longhorn mår bra, men lots-shell har loggat tre varningar i natt.", "why": "product names inside Swedish" },
+  { "id": "sv-question", "language": "sv", "text": "Vill du att jag startar om web-containern, eller ska vi titta på loggarna först?", "why": "question intonation" },
+  { "id": "sv-long", "language": "sv", "text": "Backupen i natt tog fyrtio minuter, vilket är dubbelt så länge som vanligt, så jag föreslår att vi kontrollerar disken.", "why": "a long sentence: breathing and pacing" },
+  { "id": "en-greeting", "language": "en", "text": "Hi! I'm here, what would you like to know?", "why": "short and friendly" },
+  { "id": "en-status", "language": "en", "text": "Two of twelve containers are unhealthy, and the database restarted four minutes ago.", "why": "numbers and a status report" },
+  { "id": "en-question", "language": "en", "text": "Should I restart the web container, or do you want to look at the logs first?", "why": "question intonation" }
+]

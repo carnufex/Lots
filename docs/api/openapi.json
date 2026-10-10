@@ -6916,6 +6916,11 @@
             "type": "integer",
             "format": "int32",
             "nullable": true
+          },
+          "firstAudioMs": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
           }
         }
       },
