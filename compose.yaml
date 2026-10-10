@@ -14,6 +14,8 @@ services:
       Speech__ApiKeyEnv: LOTS_VOICE_KEY
       Speech__DefaultLanguage: ${LOTS_VOICE_DEFAULT_LANGUAGE:-auto}
       Speech__Vocabulary: ${LOTS_VOICE_VOCABULARY:-}
+      Speech__Voices__sv: ${LOTS_VOICE_SV:-sv-nst}   # cb-default = the expressive voice (needs VOICE_CHATTERBOX=1 in the voice service)
+      Speech__Voices__en: ${LOTS_VOICE_EN:-en-lessac}
       LOTS_VOICE_KEY: ${LOTS_VOICE_KEY:-}
       Model__BaseUrl: ${LOTS_MODEL_URL:-http://host.docker.internal:11434/v1}
       Model__Model: ${LOTS_MODEL:-}
