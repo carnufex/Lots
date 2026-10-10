@@ -945,6 +945,105 @@
         ]
       }
     },
+    "/triggers/{Name}": {
+      "post": {
+        "tags": [
+          "Triggers"
+        ],
+        "operationId": "LotsShellFeaturesSchedulesTriggerEndpoint",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TriggeredDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/schedules": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "LotsShellFeaturesSchedulesListSchedulesEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ScheduleDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/admin/schedules/{name}/run": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "LotsShellFeaturesSchedulesRunScheduleNowEndpoint",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TriggeredDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/runs": {
       "post": {
         "tags": [
@@ -4205,6 +4304,83 @@
         }
       },
       "TokenRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "TriggeredDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "runId": {
+            "type": "string",
+            "format": "guid"
+          }
+        }
+      },
+      "ScheduleDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "profile": {
+            "type": "string"
+          },
+          "user": {
+            "type": "string"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "cron": {
+            "type": "string",
+            "nullable": true
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "next": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "webhook": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "viewers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "deliverTargets": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lastRunId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "lastStatus": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastRunAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "RunScheduleRequest": {
         "type": "object",
         "additionalProperties": false
       },

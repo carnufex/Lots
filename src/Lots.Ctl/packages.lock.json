@@ -14,6 +14,11 @@
           "Microsoft.Extensions.Logging": "10.0.12"
         }
       },
+      "Cronos": {
+        "type": "Transitive",
+        "resolved": "0.13.0",
+        "contentHash": "Nkve+Yi0+ol3ntSBRHeW0ka9cJQ8vndSUvvkXqF9LVqwpoqWueyxu/HS275r98RDOmF7/mzRnZW5XXUBXob+TA=="
+      },
       "FastEndpoints": {
         "type": "Transitive",
         "resolved": "8.3.0",
@@ -549,6 +554,7 @@
       "lots.shell": {
         "type": "Project",
         "dependencies": {
+          "Cronos": "[0.13.0, )",
           "FastEndpoints": "[8.3.0, )",
           "FastEndpoints.Swagger": "[8.3.0, )",
           "Microsoft.AspNetCore.Authentication.JwtBearer": "[10.0.12, )",

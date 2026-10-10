@@ -158,7 +158,108 @@ export default function ProfilesPage({ api }: { api: Api }) {
           }}
         />
       )}
+      <Schedules api={api} />
     </section>
+  )
+}
+
+interface Schedule {
+  name: string
+  profile: string
+  user: string
+  roles: string[]
+  cron: string | null
+  timeZone: string
+  next: string | null
+  webhook: boolean
+  enabled: boolean
+  viewers: string[]
+  deliverTargets: number
+  lastRunId: string | null
+  lastStatus: string | null
+  lastRunAt: string | null
+}
+
+/** Scheduled and triggered runs (#101): applied like profiles (kind: Schedule), listed here with their next run. */
+function Schedules({ api }: { api: Api }) {
+  const [list, setList] = useState<Schedule[] | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
+  const load = useCallback(() => {
+    api.raw<Schedule[]>('/admin/schedules').then(setList).catch(() => setList(null))
+  }, [api])
+  useEffect(load, [load])
+  if (!list) return null
+
+  const runNow = async (name: string) => {
+    try {
+      const r = await api.raw<{ runId: string }>(`/admin/schedules/${encodeURIComponent(name)}/run`, { method: 'POST', body: '{}' })
+      setMessage(null)
+      window.location.assign(`#/runs/${r.runId}`)
+    } catch (e) {
+      setMessage(String(e))
+    }
+  }
+
+  return (
+    <>
+      <h2 className="section-title">Schedules</h2>
+      <p className="muted small">
+        Runs without a person: on a cron schedule or from a webhook, as a service identity with its own roles. Apply them like
+        profiles (<code>kind: Schedule</code>); see docs/schedules.md.
+      </p>
+      {list.length === 0 ? (
+        <p className="muted small">No schedules applied.</p>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Runs as</th>
+              <th>When</th>
+              <th>Next</th>
+              <th>Last run</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {list.map((s) => (
+              <tr key={s.name}>
+                <td>
+                  {s.name}
+                  {!s.enabled && <span className="muted small"> disabled</span>}
+                  <div className="muted small">{s.profile}</div>
+                </td>
+                <td className="small">
+                  {s.user}
+                  <div className="muted">{s.roles.join(', ')}</div>
+                </td>
+                <td className="mono small">
+                  {s.cron ?? ''}
+                  {s.cron && s.timeZone !== 'UTC' && <div className="muted">{s.timeZone}</div>}
+                  {s.webhook && <div className="muted">webhook</div>}
+                </td>
+                <td className="small">{s.next ? new Date(s.next).toLocaleString() : ''}</td>
+                <td className="small">
+                  {s.lastRunId ? (
+                    <a href={`#/runs/${s.lastRunId}`}>
+                      {s.lastStatus} · {new Date(s.lastRunAt!).toLocaleString()}
+                    </a>
+                  ) : (
+                    <span className="muted">never</span>
+                  )}
+                </td>
+                <td>
+                  <button type="button" className="btn small" onClick={() => void runNow(s.name)}>
+                    Run now
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {message && <p className="error small">{message}</p>}
+    </>
   )
 }
 

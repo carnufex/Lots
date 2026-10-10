@@ -22,14 +22,11 @@ export default function ChatPage({ api, profiles, id }: { api: Api; profiles: Pr
   const endRef = useRef<HTMLDivElement | null>(null)
 
   const loadList = useCallback(() => {
-    api.listConversations().then((l) => setList(l.conversations)).catch(() => setList([]))
+    void api.listConversations().then((l) => setList(l.conversations), () => setList([]))
   }, [api])
 
   const loadDetail = useCallback(async (): Promise<ConversationDetail | null> => {
-    if (!id) {
-      setDetail(null)
-      return null
-    }
+    if (!id) return null // a new chat: nothing to load (the page is keyed by conversation, so no stale detail)
     try {
       const d = await api.getConversation(id)
       setDetail(d)

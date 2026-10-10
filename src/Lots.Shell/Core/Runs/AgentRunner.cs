@@ -284,6 +284,7 @@ public sealed class AgentRunner(
         {
             MaskStoredConversation(run);
             LotsMetrics.RunsFinished.Add(1, new("profile", run.Profile), new("status", run.Status.ToString()), new("voice", run.Voice));
+            if (run.Trigger is not null) NotifyFinished(run);
             LotsMetrics.RunDuration.Record((clock.GetUtcNow() - run.CreatedAt).TotalSeconds, new("profile", run.Profile), new("status", run.Status.ToString()));
             run.SubjectTokenProtected = null;
             run.SubjectTokenExpiresAt = null;
@@ -501,6 +502,19 @@ public sealed class AgentRunner(
 
     /// <summary>With <c>pii.scope: all</c> the stored prompt, conversation and answer are masked once the run no longer needs them.</summary>
     private void MaskStoredConversation(RunRecord run) => Security.PiiMasking.MaskConversation(run, profiles.Find(run.Profile));
+
+    /// <summary>A scheduled or triggered run has no one watching: its result goes out through the notification outbox (#101).</summary>
+    private void NotifyFinished(RunRecord run)
+    {
+        var deliver = run.DeliverJson is null ? null : JsonSerializer.Deserialize<Schedules.ScheduleDelivery>(run.DeliverJson, Json);
+        var answer = run.FinalAnswer ?? run.Error ?? "";
+        Notifications.Outbox.Add(db, Notifications.NotificationEvents.RunFinished, new
+        {
+            runId = run.Id, trigger = run.Trigger, status = run.Status.ToString(), profile = run.Profile,
+            answer = answer.Length <= 1500 ? answer : answer[..1500] + "…",
+            deliverEmail = deliver?.Email ?? [], deliverWebhooks = deliver?.Webhooks ?? [],
+        }, clock.GetUtcNow());
+    }
 
     private void AuditModel(RunRecord run, Principal principal, string? alias, AuditDecision decision, string reason) =>
         db.AuditLog.Add(new AuditRecord

@@ -13,7 +13,9 @@ public static class ResourceKinds
 {
     public const string Profile = "Profile";
     public const string KnowledgeSource = "KnowledgeSource";
-    public static readonly string[] Applicable = [Profile, KnowledgeSource];
+    /// <summary>A run started by cron or a webhook (#101).</summary>
+    public const string Schedule = "Schedule";
+    public static readonly string[] Applicable = [Profile, KnowledgeSource, Schedule];
 }
 
 public static class ManagedBy
@@ -101,6 +103,11 @@ public sealed class ConfigService(LotsDbContext db, ProfileRegistry profiles, Mo
                     parsed = p;
                 }
                 catch (ProfileException ex) { errors.AddRange(ex.Errors); }
+            }
+            else if (doc.Kind == ResourceKinds.Schedule)
+            {
+                parsed = Schedules.ScheduleParser.Parse(doc.Spec, doc.Name, profiles, errors);
+                version = existing is null ? 1 : Normalise(existing.Spec) == Normalise(doc.Spec) ? existing.Version : existing.Version + 1;
             }
             else
             {

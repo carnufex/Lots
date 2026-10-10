@@ -14,6 +14,8 @@ public static class NotificationEvents
     public const string ApprovalDecided = "approval.decided";
     public const string ApprovalExpired = "approval.expired";
     public const string QuotaWarning = "quota.warning";
+    /// <summary>A scheduled or triggered run finished (#101); delivered to the schedule's own targets as well.</summary>
+    public const string RunFinished = "run.finished";
 }
 
 public sealed class WebhookTarget
@@ -72,7 +74,6 @@ public sealed class NotificationWorker(IServiceScopeFactory scopes, IHttpClientF
     protected override async Task ExecuteAsync(CancellationToken stop)
     {
         var o = options.Value;
-        if (o.Webhooks.Count == 0 && string.IsNullOrEmpty(o.Email.SmtpHost)) return;
         while (!stop.IsCancellationRequested)
         {
             try { await DeliverDueAsync(stop); }
@@ -112,6 +113,13 @@ public sealed class NotificationWorker(IServiceScopeFactory scopes, IHttpClientF
         var o = options.Value;
         using var payload = JsonDocument.Parse(n.PayloadJson);
         var text = Describe(n.Event, payload.RootElement, o.PublicUrl);
+        // A schedule's own targets (#101): its webhooks get a Slack/Teams style text, its addresses an e-mail.
+        var ownHooks = payload.RootElement.TryGetProperty("deliverWebhooks", out var dw) ? dw.EnumerateArray().Select(x => x.GetString()!).ToList() : [];
+        foreach (var url in ownHooks)
+        {
+            using var res = await http.CreateClient(nameof(NotificationWorker)).PostAsJsonAsync(url, new { text }, ct);
+            if (!res.IsSuccessStatusCode) throw new HttpRequestException($"webhook answered {(int)res.StatusCode}");
+        }
         foreach (var hook in o.Webhooks.Where(h => h.Events.Count == 0 || h.Events.Contains(n.Event)))
         {
             object body = hook.Format == "json" ? new { @event = n.Event, at = n.CreatedAt, data = payload.RootElement } : new { text };
@@ -119,9 +127,12 @@ public sealed class NotificationWorker(IServiceScopeFactory scopes, IHttpClientF
             if (!res.IsSuccessStatusCode) throw new HttpRequestException($"webhook answered {(int)res.StatusCode}");
         }
         var mail = o.Email;
-        if (!string.IsNullOrEmpty(mail.SmtpHost) && mail.From is not null && (mail.Events.Count == 0 || mail.Events.Contains(n.Event)))
+        if (!string.IsNullOrEmpty(mail.SmtpHost) && mail.From is not null
+            && (mail.Events.Count == 0 || mail.Events.Contains(n.Event) || payload.RootElement.TryGetProperty("deliverEmail", out _)))
         {
-            var recipients = mail.To.Select(t => (Email: t, Note: (string?)null)).ToList();
+            var recipients = (mail.Events.Count == 0 || mail.Events.Contains(n.Event) ? mail.To : []).Select(t => (Email: t, Note: (string?)null)).ToList();
+            if (payload.RootElement.TryGetProperty("deliverEmail", out var de))
+                recipients.AddRange(de.EnumerateArray().Select(x => (Email: x.GetString()!, Note: (string?)null)));
             if (mail.ToApprovers && n.Event == NotificationEvents.ApprovalRequested)
                 recipients.AddRange((await ApproversOfAsync(payload.RootElement, db, ct)).Select(r => (r.Email, r.OnBehalfOf is null ? null : $"You receive this because {r.OnBehalfOf} is away and named you as delegate.")));
             if (recipients.Count == 0) return;
@@ -160,6 +171,8 @@ public sealed class NotificationWorker(IServiceScopeFactory scopes, IHttpClientF
             NotificationEvents.ApprovalExpired => $"Approval expired without a decision: {S("tool")} requested by {S("requestedBy")}.{link}",
             NotificationEvents.ApprovalDecided => $"{S("tool")} requested by {S("requestedBy")} was {S("outcome")} by {S("decidedBy")}.",
             NotificationEvents.QuotaWarning => $"{S("user")} has used {S("used")} of {S("limit")} ({S("share")}) of their daily {S("budget")} budget.",
+            NotificationEvents.RunFinished => $"{S("trigger")} {S("status").ToLowerInvariant()}: {S("answer")}" +
+                (string.IsNullOrEmpty(publicUrl) ? "" : $"\n{publicUrl.TrimEnd('/')}/#/runs/{S("runId")}"),
             _ => @event,
         };
     }

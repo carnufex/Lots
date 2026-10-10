@@ -25,6 +25,7 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
     public DbSet<UserVocabularyRecord> UserVocabulary => Set<UserVocabularyRecord>();
     public DbSet<ApiTokenRecord> ApiTokens => Set<ApiTokenRecord>();
     public DbSet<VoiceConsentRecord> VoiceConsents => Set<VoiceConsentRecord>();
+    public DbSet<ScheduleFireRecord> ScheduleFires => Set<ScheduleFireRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -171,6 +172,13 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
             e.Property(x => x.UserId).HasMaxLength(256);
         });
 
+        modelBuilder.Entity<ScheduleFireRecord>(e =>
+        {
+            e.ToTable("schedule_fires");
+            e.HasKey(x => new { x.Name, x.DueAt }); // one row per occurrence: the claim that makes exactly one replica fire it
+            e.Property(x => x.Name).HasMaxLength(128);
+        });
+
         modelBuilder.Entity<VoiceConsentRecord>(e =>
         {
             e.ToTable("voice_consents");
@@ -285,6 +293,12 @@ public sealed class RunRecord
     /// need an approval even where the role would allow them directly.
     /// </summary>
     public bool Tainted { get; set; }
+    /// <summary>What started the run without a person (#101): <c>schedule:&lt;name&gt;</c>, <c>webhook:&lt;name&gt;</c>, <c>manual:&lt;name&gt;</c>.</summary>
+    public string? Trigger { get; set; }
+    /// <summary>Who besides the owner and admins may read the run: <c>,role:operator,user:bob,</c> (#101).</summary>
+    public string? Viewers { get; set; }
+    /// <summary>Where the result is delivered when the run ends (e-mail, webhooks), as JSON (#101).</summary>
+    public string? DeliverJson { get; set; }
     /// <summary>The answer the model is writing right now (#95), for readers on other replicas; null between model calls.</summary>
     public string? Partial { get; set; }
     /// <summary>The highest data class the run has read (#89). Model calls go only to endpoints cleared for it.</summary>
@@ -594,6 +608,15 @@ public sealed class UserVocabularyRecord
 /// and, optionally, the user's own voice. The clip itself lives only in the voice service; here is its id and consent.
 /// </summary>
 public enum VoiceConsentEvent { Given, Withdrawn, Revoked, Erased }
+
+/// <summary>A schedule occurrence that has been fired (#101).</summary>
+public sealed class ScheduleFireRecord
+{
+    public required string Name { get; set; }
+    public DateTimeOffset DueAt { get; set; }
+    public DateTimeOffset FiredAt { get; set; }
+    public Guid? RunId { get; set; }
+}
 
 /// <summary>
 /// The own-voice consent trail (#93), append-only: when a user gave consent for a recording (and to which statement), withdrew it,

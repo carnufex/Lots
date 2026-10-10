@@ -109,6 +109,13 @@ public sealed class ListRunsEndpoint(LotsDbContext db, ICurrentPrincipal who, IC
         if (!isAdmin) q = q.Where(r => r.UserId == me.UserId);
 
         var runs = await q.OrderByDescending(r => r.CreatedAt).Take(100).ToListAsync(ct);
+        if (!isAdmin)
+        {
+            // Scheduled runs shared with the caller's roles (#101).
+            var shared = await db.Runs.AsNoTracking().Where(r => r.Viewers != null && r.UserId != me.UserId)
+                .OrderByDescending(r => r.CreatedAt).Take(200).ToListAsync(ct);
+            runs = runs.Concat(shared.Where(r => RunAccess.IsViewer(r, me))).OrderByDescending(r => r.CreatedAt).Take(100).ToList();
+        }
         await Send.OkAsync(runs.Select(r => new RunSummaryDto(r.Id, r.Prompt, r.Profile, r.UserId, r.Status.ToString(), r.CreatedAt)).ToList(), ct);
     }
 }
@@ -119,8 +126,12 @@ public static class RunAccess
     public static bool CanRead(RunRecord run, Principal me, IConfiguration config)
     {
         var admins = (config["Auth:AdminRoles"] ?? "admin").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        return run.UserId == me.UserId || me.Roles.Any(r => admins.Contains(r, StringComparer.OrdinalIgnoreCase));
+        return run.UserId == me.UserId || me.Roles.Any(r => admins.Contains(r, StringComparer.OrdinalIgnoreCase)) || IsViewer(run, me);
     }
+
+    /// <summary>A scheduled run names who may read it besides the owner and admins (#101).</summary>
+    public static bool IsViewer(RunRecord run, Principal me) =>
+        run.Viewers is { Length: > 0 } v && Core.Knowledge.KnowledgeAccess.TokensOf(me).Any(t => v.Contains("," + t + ",", StringComparison.OrdinalIgnoreCase));
 }
 
 public sealed record GetRunRequest(Guid Id);

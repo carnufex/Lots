@@ -80,6 +80,10 @@ builder.Services.AddHttpClient(nameof(Lots.Shell.Core.Audit.AuditForwarder), h =
 builder.Services.AddHostedService<Lots.Shell.Core.Audit.AuditForwarder>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<Lots.Shell.Features.Privacy.RetentionWorker>());
 builder.Services.AddHostedService<Lots.Shell.Features.Conversations.ConversationSummaryWorker>();
+// Cron schedules (#101): every replica ticks, one claims each occurrence. Schedules:Enabled=false turns firing off.
+builder.Services.AddSingleton<Lots.Shell.Core.Schedules.ScheduleWorker>();
+if (builder.Configuration.GetValue("Schedules:Enabled", true))
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<Lots.Shell.Core.Schedules.ScheduleWorker>());
 builder.Services.Configure<Lots.Shell.Core.Quotas.QuotaOptions>(builder.Configuration.GetSection(Lots.Shell.Core.Quotas.QuotaOptions.Section));
 builder.Services.AddScoped<Lots.Shell.Core.Quotas.QuotaService>();
 builder.Services.AddScoped<Lots.Shell.Core.Config.ConfigService>();

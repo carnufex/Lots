@@ -1,0 +1,29 @@
+# A daily report and an alert-driven check (#101). Apply: lotsctl apply -f examples/schedules/daily-report.yaml
+kind: Schedule
+name: daily-report
+profile: homelab
+prompt: |
+  Give a short morning report: containers that are unhealthy or restarted in the last 24 hours, and anything unusual in their logs.
+identity:                 # a service identity: never a person, only the roles the run needs
+  user: svc-daily-report
+  roles: [operator]
+cron: "0 7 * * 1-5"       # 07:00 on weekdays
+timeZone: Europe/Stockholm
+deliver:
+  viewers: [role:operator]            # who sees the runs on the Runs page (owner and admins always do)
+  email: [ops@example.org]            # needs Notifications:Email (SMTP) configured
+  webhooks: [https://hooks.slack.com/services/T000/B000/XXXX]
+---
+kind: Schedule
+name: on-alert
+profile: homelab
+prompt: |
+  An alert fired. Look at the containers and logs it concerns, say whether it is real and what the likely cause is.
+identity:
+  user: svc-on-alert
+  roles: [operator]
+webhook:                  # POST /triggers/on-alert with Authorization: Bearer <secret>; the body is given to the run as data
+  secretRef: env:LOTS_ALERT_HOOK_SECRET
+  minIntervalSeconds: 120
+deliver:
+  viewers: [role:operator]
