@@ -8,7 +8,7 @@ namespace Lots.Shell.Core.Speech;
 /// Speech provider for any OpenAI-shaped audio API: <c>POST /v1/audio/transcriptions</c> (multipart) and
 /// <c>POST /v1/audio/speech</c>. Our own voice service is the first such provider (ADR 0012).
 /// </summary>
-public sealed class OpenAiCompatibleSpeech(HttpClient http, IOptions<SpeechOptions> options) : ISpeechToText, ITextToSpeech
+public sealed class OpenAiCompatibleSpeech(HttpClient http, IOptions<SpeechOptions> options) : ISpeechToText, ITextToSpeech, IVoiceRegistry
 {
     private readonly SpeechOptions _options = options.Value;
 
@@ -76,13 +76,33 @@ public sealed class OpenAiCompatibleSpeech(HttpClient http, IOptions<SpeechOptio
         return System.Text.RegularExpressions.Regex.IsMatch(bare, @"^[a-z0-9.+-]+/[a-z0-9.+-]+$") ? bare : "application/octet-stream";
     }
 
-    public async Task<SpeechAudio> SynthesizeAsync(string text, string language, CancellationToken ct)
+    public Task<SpeechAudio> SynthesizeAsync(string text, string language, CancellationToken ct) =>
+        SynthesizeAsync(text, language, null, ct);
+
+    public async Task<SpeechAudio> SynthesizeAsync(string text, string language, SpeechVoice? choice, CancellationToken ct)
     {
-        var voice = _options.Voices.GetValueOrDefault(language)
-                    ?? throw new SpeechUnavailableException($"No voice configured for '{language}'.");
+        var fallback = _options.Voices.GetValueOrDefault(language)
+                       ?? throw new SpeechUnavailableException($"No voice configured for '{language}'.");
+        try
+        {
+            return await SendAsync(text, language, choice?.VoiceId ?? fallback, choice, ct);
+        }
+        catch (UnknownVoiceException) when (choice?.VoiceId is not null)
+        {
+            // The provider does not know the user's voice (e.g. it only has the fast voices): speak with the default one.
+            return await SendAsync(text, language, fallback, choice, ct);
+        }
+    }
+
+    private async Task<SpeechAudio> SendAsync(string text, string language, string voice, SpeechVoice? choice, CancellationToken ct)
+    {
         using var request = new HttpRequestMessage(HttpMethod.Post, "audio/speech")
         {
-            Content = JsonContent.Create(new { model = _options.TtsModel, input = text, voice, response_format = "wav" }),
+            Content = JsonContent.Create(new
+            {
+                model = _options.TtsModel, input = text, voice, response_format = "wav", language,
+                expressiveness = choice?.Expressiveness, pace = choice?.Pace,
+            }),
         };
 
         HttpResponseMessage? response = null;
@@ -90,6 +110,8 @@ public sealed class OpenAiCompatibleSpeech(HttpClient http, IOptions<SpeechOptio
         {
             // ResponseHeadersRead: the body is streamed to the caller while the provider is still synthesizing.
             response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+            if (response.StatusCode == System.Net.HttpStatusCode.BadRequest && choice?.VoiceId == voice)
+                throw new UnknownVoiceException();
             if (!response.IsSuccessStatusCode)
                 throw new SpeechUnavailableException($"Text-to-speech provider returned {(int)response.StatusCode}.");
             var contentType = response.Content.Headers.ContentType?.MediaType ?? "audio/wav";
@@ -104,6 +126,47 @@ public sealed class OpenAiCompatibleSpeech(HttpClient http, IOptions<SpeechOptio
         {
             response?.Dispose();
             throw;
+        }
+    }
+
+    private sealed class UnknownVoiceException : Exception;
+
+    public async Task<double> RegisterAsync(string voiceId, AudioInput clip, CancellationToken ct)
+    {
+        using var form = new MultipartFormDataContent();
+        var file = new StreamContent(clip.Content);
+        file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(MediaType(clip.ContentType));
+        form.Add(file, "audio", clip.FileName);
+        try
+        {
+            using var response = await http.PutAsync($"voices/{voiceId}", form, ct);
+            if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+            {
+                using var bad = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+                throw new VoiceRejectedException(bad.RootElement.TryGetProperty("detail", out var d) ? d.GetString() ?? "The clip was rejected." : "The clip was rejected.");
+            }
+            if (!response.IsSuccessStatusCode)
+                throw new SpeechUnavailableException($"Voice registration returned {(int)response.StatusCode}.");
+            using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+            return doc.RootElement.TryGetProperty("seconds", out var sec) ? sec.GetDouble() : 0;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
+        {
+            throw new SpeechUnavailableException("The voice service is unreachable.", ex);
+        }
+    }
+
+    public async Task DeleteAsync(string voiceId, CancellationToken ct)
+    {
+        try
+        {
+            using var response = await http.DeleteAsync($"voices/{voiceId}", ct);
+            if (!response.IsSuccessStatusCode && response.StatusCode != System.Net.HttpStatusCode.NotFound)
+                throw new SpeechUnavailableException($"Voice deletion returned {(int)response.StatusCode}.");
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
+        {
+            throw new SpeechUnavailableException("The voice service is unreachable.", ex);
         }
     }
 }
@@ -127,6 +190,7 @@ public static class SpeechRegistration
 
         services.AddHttpClient<ISpeechToText, OpenAiCompatibleSpeech>(Configure);
         services.AddHttpClient<ITextToSpeech, OpenAiCompatibleSpeech>(Configure);
+        services.AddHttpClient<IVoiceRegistry, OpenAiCompatibleSpeech>(Configure);
         return services;
     }
 }

@@ -3,6 +3,7 @@ using FastEndpoints;
 using Lots.Shell.Core.Policy;
 using Lots.Shell.Core.Speech;
 using Lots.Shell.Features.Runs;
+using Lots.Shell.Features.Settings;
 using System.Text.Json;
 using Lots.Shell.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -143,7 +144,7 @@ public sealed class SpeakRunEndpoint(
         var sw = Stopwatch.StartNew();
         try
         {
-            using var audio = await tts.SynthesizeAsync(text, language, ct);
+            using var audio = await tts.SynthesizeAsync(text, language, UserSettings.VoiceOf(await UserSettings.OfAsync(db, me.UserId, ct)), ct);
             sw.Stop(); // time to first byte available: the body streams from here
             db.VoiceUsage.Add(new VoiceUsageRecord
             {
@@ -261,7 +262,8 @@ public sealed record AckRequest(string? Language = null);
 /// A short fixed acknowledgement ("Jag kollar.") for conversation mode. Phrases come from configuration and the synthesized
 /// audio is cached, so the first word of a reply starts almost instantly and costs nothing after the first use.
 /// </summary>
-public sealed class AcknowledgementEndpoint(ITextToSpeech tts, IOptions<SpeechOptions> options, AcknowledgementCache cache)
+public sealed class AcknowledgementEndpoint(
+    ITextToSpeech tts, IOptions<SpeechOptions> options, AcknowledgementCache cache, LotsDbContext db, ICurrentPrincipal who)
     : Endpoint<AckRequest>
 {
     public override void Configure() => Get("/voice/ack");
@@ -277,11 +279,12 @@ public sealed class AcknowledgementEndpoint(ITextToSpeech tts, IOptions<SpeechOp
         }
 
         var phrase = phrases[Random.Shared.Next(phrases.Length)];
+        var voice = UserSettings.VoiceOf(await UserSettings.OfAsync(db, who.Get(HttpContext).UserId, ct)); // same voice as the answer
         try
         {
-            var bytes = await cache.GetAsync((language, phrase), async () =>
+            var bytes = await cache.GetAsync((language, phrase, voice.VoiceId ?? "", voice.Expressiveness ?? 0, voice.Pace ?? 0), async () =>
             {
-                using var audio = await tts.SynthesizeAsync(phrase, language, ct);
+                using var audio = await tts.SynthesizeAsync(phrase, language, voice, ct);
                 using var ms = new MemoryStream();
                 await audio.Content.CopyToAsync(ms, ct);
                 return (ms.ToArray(), audio.ContentType);
@@ -298,9 +301,9 @@ public sealed class AcknowledgementEndpoint(ITextToSpeech tts, IOptions<SpeechOp
 /// <summary>Synthesized acknowledgement audio, kept in memory (a handful of short clips).</summary>
 public sealed class AcknowledgementCache
 {
-    private readonly System.Collections.Concurrent.ConcurrentDictionary<(string, string), (byte[] Audio, string ContentType)> _items = new();
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<(string, string, string, double, double), (byte[] Audio, string ContentType)> _items = new();
 
-    public async Task<(byte[] Audio, string ContentType)> GetAsync((string Language, string Phrase) key, Func<Task<(byte[], string)>> create)
+    public async Task<(byte[] Audio, string ContentType)> GetAsync((string Language, string Phrase, string Voice, double Expressiveness, double Pace) key, Func<Task<(byte[], string)>> create)
     {
         if (_items.TryGetValue(key, out var hit)) return hit;
         var made = await create();

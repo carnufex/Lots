@@ -29,11 +29,33 @@ public interface ISpeechToText
     Task<Transcript> TranscribeAsync(AudioInput audio, string? language, IReadOnlyList<string>? vocabulary, CancellationToken ct);
 }
 
+/// <summary>
+/// How the answer should sound. <see cref="VoiceId"/> is a voice registered with the provider (the user's own, ADR 0015);
+/// null = the deployment's voice for the language. Expressiveness and pace are 0..1 hints that providers may ignore.
+/// </summary>
+public sealed record SpeechVoice(string? VoiceId = null, double? Expressiveness = null, double? Pace = null);
+
 /// <summary>Provider-neutral text to speech.</summary>
 public interface ITextToSpeech
 {
     Task<SpeechAudio> SynthesizeAsync(string text, string language, CancellationToken ct);
+
+    /// <summary>With a chosen voice. Providers without voice selection simply use their default.</summary>
+    Task<SpeechAudio> SynthesizeAsync(string text, string language, SpeechVoice? voice, CancellationToken ct) =>
+        SynthesizeAsync(text, language, ct);
 }
+
+/// <summary>Reference voices for providers that can speak with a given person's voice (ADR 0015). Personal data.</summary>
+public interface IVoiceRegistry
+{
+    /// <summary>Stores or replaces the reference voice. Returns its length in seconds. Throws <see cref="VoiceRejectedException"/> for an unusable clip.</summary>
+    Task<double> RegisterAsync(string voiceId, AudioInput clip, CancellationToken ct);
+
+    Task DeleteAsync(string voiceId, CancellationToken ct);
+}
+
+/// <summary>The provider refused the reference clip (too short, too quiet, unreadable). The message is safe to show the user.</summary>
+public sealed class VoiceRejectedException(string message) : Exception(message);
 
 public sealed class SpeechOptions
 {

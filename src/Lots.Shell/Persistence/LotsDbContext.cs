@@ -10,6 +10,7 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
     public DbSet<ApprovalRecord> Approvals => Set<ApprovalRecord>();
     public DbSet<AuditRecord> AuditLog => Set<AuditRecord>();
     public DbSet<VoiceUsageRecord> VoiceUsage => Set<VoiceUsageRecord>();
+    public DbSet<UserSettingsRecord> UserSettings => Set<UserSettingsRecord>();
     public DbSet<UserVocabularyRecord> UserVocabulary => Set<UserVocabularyRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -55,6 +56,14 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
             e.ToTable("user_vocabulary");
             e.HasKey(x => x.UserId);
             e.Property(x => x.UserId).HasMaxLength(256);
+        });
+
+        modelBuilder.Entity<UserSettingsRecord>(e =>
+        {
+            e.ToTable("user_settings");
+            e.HasKey(x => x.UserId);
+            e.Property(x => x.UserId).HasMaxLength(256);
+            e.Property(x => x.VoiceId).HasMaxLength(64);
         });
 
         modelBuilder.Entity<VoiceUsageRecord>(e =>
@@ -224,5 +233,26 @@ public sealed class UserVocabularyRecord
     public required string UserId { get; set; }
     /// <summary>JSON array of words.</summary>
     public string WordsJson { get; set; } = "[]";
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
+
+/// <summary>
+/// A user's personal settings (ADR 0015): how the agent behaves in text and voice (0..100 sliders; 50 = no instruction)
+/// and, optionally, the user's own voice. The clip itself lives only in the voice service; here is its id and consent.
+/// </summary>
+public sealed class UserSettingsRecord
+{
+    public required string UserId { get; set; }
+    public int Talkativeness { get; set; } = 50;
+    public int Warmth { get; set; } = 50;
+    public int Formality { get; set; } = 50;
+    public int Expressiveness { get; set; } = 60;
+    public int Pace { get; set; } = 40;
+    /// <summary>Voice registered with the voice service for this user; null = the deployment's voice.</summary>
+    public string? VoiceId { get; set; }
+    public double? VoiceSeconds { get; set; }
+    /// <summary>When the user confirmed that the recording is their own voice.</summary>
+    public DateTimeOffset? VoiceConsentAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }
