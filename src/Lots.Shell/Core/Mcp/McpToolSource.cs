@@ -27,6 +27,7 @@ public sealed class McpToolSource(
 
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly Dictionary<(string Server, string User), State> _states = [];
+    private readonly Dictionary<string, string> _errors = [];
 
     private static bool IsDelegated(McpServerConfig s) => s.Auth == AuthStrategies.Delegated;
 
@@ -51,6 +52,32 @@ public sealed class McpToolSource(
                         catalog.Add(tool);
             }
             return catalog;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public async Task<IReadOnlyList<ServerStatus>> StatusAsync(CancellationToken ct)
+    {
+        await _gate.WaitAsync(ct);
+        try
+        {
+            var result = new List<ServerStatus>();
+            foreach (var server in servers)
+            {
+                if (IsDelegated(server))
+                {
+                    result.Add(new ServerStatus(server.Name, server.Url, server.Auth, "per-user", [], null, null));
+                    continue;
+                }
+                var state = await RefreshAsync(server, "", ct);
+                result.Add(state is null
+                    ? new ServerStatus(server.Name, server.Url, server.Auth, "unavailable", [], _errors.GetValueOrDefault(server.Name), DateTimeOffset.UtcNow)
+                    : new ServerStatus(server.Name, server.Url, server.Auth, "ok", state.Tools, null, state.At));
+            }
+            return result;
         }
         finally
         {
@@ -127,11 +154,13 @@ public sealed class McpToolSource(
                     .ToList();
                 state.At = DateTimeOffset.UtcNow;
             }
+            _errors.Remove(server.Name);
             return state;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             loggers.CreateLogger<McpToolSource>().LogWarning(ex, "MCP server {Server} unavailable", server.Name);
+            _errors[server.Name] = ex.Message;
             _states.Remove(key); // reconnect next time
             return null;
         }

@@ -1,5 +1,6 @@
 import type { Api } from '../api'
 import { Icon } from '../components/Icon'
+import { CatalogTab, ServersTab } from './ServersTab'
 import ToolCallsTab from './ToolCallsTab'
 
 export const INTEGRATION_TABS = [
@@ -26,9 +27,13 @@ export default function IntegrationsPage({ api, tab }: { api: Api; tab: Integrat
       </div>
       {current.slug === 'tool-calls' ? (
         <ToolCallsTab api={api} />
+      ) : current.slug === 'mcp' ? (
+        <ServersTab api={api} />
+      ) : current.slug === 'catalog' ? (
+        <CatalogTab api={api} />
       ) : (
         <div className="placeholder">
-          <Icon name={current.slug === 'mcp' ? 'mcp' : 'tools'} size={56} />
+          <Icon name="tools" size={56} />
           <h2>{current.label}</h2>
           <p className="muted">{current.blurb}</p>
           <p className="muted small">Not built yet. Tracked in milestone M7: Tools and integrations.</p>

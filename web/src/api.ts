@@ -118,6 +118,32 @@ export interface ToolCallFilter {
   to?: string
 }
 
+export interface ServerInfo {
+  name: string
+  url: string
+  auth: string
+  credentialType: string | null
+  profiles: string[]
+  health: 'ok' | 'unavailable' | 'per-user' | 'unknown'
+  error: string | null
+  checkedAt: string | null
+  tools: { name: string; description: string; profiles: string[] }[]
+}
+
+export interface CatalogEntry {
+  tool: string
+  description: string
+  server: string | null
+  profile: string | null
+  risk: string | null
+  status: 'exposed' | 'missing' | 'per-user' | 'unclassified'
+  allowedRoles: string[]
+  approvalRoles: string[]
+  approverRoles: string[]
+  calls: number
+  lastUsed: string | null
+}
+
 export interface Transcription {
   text: string
   language: string | null
@@ -290,6 +316,8 @@ export function createApi(auth: Auth) {
       q.set('limit', '200')
       return request<ToolCallList>(`/tool-calls?${q}`)
     },
+    listServers: () => request<ServerInfo[]>('/integrations/servers'),
+    catalog: () => request<CatalogEntry[]>('/integrations/catalog'),
     startRun: (prompt: string, profile: string, options: { voice?: boolean; conversationId?: string } = {}) =>
       request<{ id: string; status: RunStatus }>('/runs', { method: 'POST', body: JSON.stringify({ prompt, profile, ...options }) }),
     /** A short fixed acknowledgement ("Jag kollar.") to play while the agent works; null when unavailable. */

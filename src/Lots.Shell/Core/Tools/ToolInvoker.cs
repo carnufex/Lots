@@ -9,6 +9,13 @@ public enum ToolRisk { Read, Write, Destructive }
 
 public sealed record ToolDescriptor(string Name, string Description, JsonElement Parameters);
 
+/// <summary>
+/// Health of one tool server as last seen. Health: ok, unavailable, or per-user (delegated servers are reached with each
+/// user's own token, so there is no shared view of them).
+/// </summary>
+public sealed record ServerStatus(
+    string Name, string Url, string Auth, string Health, IReadOnlyList<ToolDescriptor> Tools, string? Error, DateTimeOffset? CheckedAt);
+
 /// <summary>A provider of tools (an MCP server, in-process tools, ...).</summary>
 public interface IToolSource
 {
@@ -17,6 +24,9 @@ public interface IToolSource
 
     /// <summary>Name of the server (as in the profile) that provides the tool, if the source knows it.</summary>
     Task<string?> ServerOfAsync(string toolName, CancellationToken ct) => Task.FromResult<string?>(null);
+
+    /// <summary>Health and discovered tools per server, for operators. Sources without servers return nothing.</summary>
+    Task<IReadOnlyList<ServerStatus>> StatusAsync(CancellationToken ct) => Task.FromResult<IReadOnlyList<ServerStatus>>([]);
 }
 
 /// <summary>
@@ -39,6 +49,14 @@ public sealed class ToolInvoker(IEnumerable<IToolSource> sources, ProfileRegistr
             if (await source.ServerOfAsync(toolName, ct) is { } server)
                 return profile.Servers.FirstOrDefault(s => s.Name == server)?.Auth;
         return null;
+    }
+
+    /// <summary>Health and discovered tools of every server behind this invoker.</summary>
+    public async Task<IReadOnlyList<ServerStatus>> ServerStatusAsync(CancellationToken ct)
+    {
+        var all = new List<ServerStatus>();
+        foreach (var source in _sources) all.AddRange(await source.StatusAsync(ct));
+        return all;
     }
 
     /// <summary>The policy decision for a call, without executing it.</summary>
