@@ -57,6 +57,9 @@ public sealed class IntrospectionToolSource(IServiceScopeFactory scopes, Microso
             Schema("{ \"type\": \"object\", \"properties\": {" + Days + "} }")),
         new("search_logs", "Log lines of the shell from Loki that contain a text, newest first (needs Introspection:LokiUrl).",
             Schema("""{ "type": "object", "properties": { "contains": { "type": "string" }, "level": { "type": "string", "description": "error, warn, info" }, "minutes": { "type": "integer", "description": "1-1440, default 60" } } }""")),
+        new("propose_change", "Proposes a change to a profile's instructions, description, model alias or conflict detection, with the evidence. " +
+            "It only creates a proposal for a person to evaluate and merge; nothing changes in the running shell.",
+            Schema("""{ "type": "object", "properties": { "profile": { "type": "string" }, "title": { "type": "string" }, "rationale": { "type": "string", "description": "Why, citing run ids and numbers" }, "instructions": { "type": "string", "description": "The complete new instructions" }, "description": { "type": "string" }, "model": { "type": "string" }, "run_ids": { "type": "array", "items": { "type": "string" } } }, "required": ["profile", "title", "rationale"] }""")),
         new("promql_query", "A PromQL query over Lots metrics only (names starting with lots_), as a range (needs Introspection:PrometheusUrl).",
             Schema("""{ "type": "object", "properties": { "query": { "type": "string" }, "minutes": { "type": "integer", "description": "1-1440, default 60" } }, "required": ["query"] }""")),
     ];
@@ -87,6 +90,7 @@ public sealed class IntrospectionToolSource(IServiceScopeFactory scopes, Microso
             "retrieval_misses" => await RetrievalMissesAsync(db, a, context, ct),
             "search_logs" => await LogsAsync(a, ct),
             "promql_query" => await PromAsync(a, ct),
+            "propose_change" => await ProposeAsync(db, a, context, scope.ServiceProvider, ct),
             _ => throw new InvalidOperationException($"Unknown tool '{name}'."),
         };
         return text;
@@ -304,6 +308,28 @@ public sealed class IntrospectionToolSource(IServiceScopeFactory scopes, Microso
             sb.AppendLine($"{{{labels}}}: last {values.LastOrDefault()}, min {values.Min(v => Num(v))}, max {values.Max(v => Num(v))} ({values.Count} points)");
         }
         return sb.ToString().TrimEnd();
+    }
+
+    private async Task<string> ProposeAsync(LotsDbContext db, JsonElement a, ToolCallContext context, IServiceProvider services, CancellationToken ct)
+    {
+        var runIds = a.TryGetProperty("run_ids", out var r) && r.ValueKind == JsonValueKind.Array
+            ? r.EnumerateArray().Select(x => Guid.TryParse(x.GetString(), out var g) ? g : Guid.Empty).Where(g => g != Guid.Empty).Take(50).ToList()
+            : [];
+        try
+        {
+            var p = Proposals.ProposalBuilder.Create(Str(a, "profile") ?? "",
+                new Proposals.ProposedChanges(Str(a, "instructions"), Str(a, "description"), Str(a, "model")),
+                Str(a, "title") ?? "", Str(a, "rationale") ?? "", new Proposals.ProposalEvidence(runIds), context.Principal.UserId,
+                services.GetRequiredService<Profiles.ProfileRegistry>(), db, new Proposals.ModelCatalogLike(services.GetService<Models.ModelCatalog>()), clock.GetUtcNow());
+            if (string.IsNullOrWhiteSpace(p.Title) || string.IsNullOrWhiteSpace(p.Rationale)) return "Error: a proposal needs a title and a rationale.";
+            db.Proposals.Add(p);
+            await db.SaveChangesAsync(ct);
+            return $"Proposal {p.Id} created for {p.Profile} v{p.BaseVersion} -> v{p.BaseVersion + 1}. A person evaluates and merges it; nothing is live yet.\n{p.Diff}";
+        }
+        catch (Proposals.ProposalException ex)
+        {
+            return "Error: " + ex.Message;
+        }
     }
 
     private static double Num(string? v) => double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out var d) && !double.IsNaN(d) ? Math.Round(d, 4) : 0;

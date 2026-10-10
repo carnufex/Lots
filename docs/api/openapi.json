@@ -2741,6 +2741,311 @@
         ]
       }
     },
+    "/insights/proposals": {
+      "post": {
+        "tags": [
+          "Insights"
+        ],
+        "operationId": "LotsShellFeaturesInsightsCreateProposalEndpoint",
+        "requestBody": {
+          "x-name": "CreateProposalRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProposalRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "get": {
+        "tags": [
+          "Insights"
+        ],
+        "operationId": "LotsShellFeaturesInsightsListProposalsEndpoint",
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "profile",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProposalDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/insights/proposals/{id}": {
+      "get": {
+        "tags": [
+          "Insights"
+        ],
+        "operationId": "LotsShellFeaturesInsightsGetProposalEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          },
+          {
+            "name": "note",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/insights/proposals/{id}/evaluation": {
+      "post": {
+        "tags": [
+          "Insights"
+        ],
+        "operationId": "LotsShellFeaturesInsightsProposalEvaluationEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "EvaluationRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvaluationRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/insights/proposals/{id}/pr": {
+      "post": {
+        "tags": [
+          "Insights"
+        ],
+        "operationId": "LotsShellFeaturesInsightsProposalPullRequestEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/insights/proposals/{id}/reject": {
+      "post": {
+        "tags": [
+          "Insights"
+        ],
+        "operationId": "LotsShellFeaturesInsightsRejectProposalEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/insights/proposals/{id}/follow-up": {
+      "get": {
+        "tags": [
+          "Insights"
+        ],
+        "operationId": "LotsShellFeaturesInsightsProposalFollowUpEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          },
+          {
+            "name": "note",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FollowUp"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/health": {
       "get": {
         "tags": [
@@ -6887,6 +7192,209 @@
       "OutcomeQuery": {
         "type": "object",
         "additionalProperties": false
+      },
+      "ProposalDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "profile": {
+            "type": "string"
+          },
+          "baseVersion": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "title": {
+            "type": "string"
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "evidence": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ProposalEvidence"
+              }
+            ]
+          },
+          "diff": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "evaluation": {
+            "nullable": true
+          },
+          "regresses": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "prUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "decidedBy": {
+            "type": "string",
+            "nullable": true
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ProposalEvidence": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "runIds": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string",
+              "format": "guid"
+            }
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "CreateProposalRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "profile": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "changes": {
+            "$ref": "#/components/schemas/ProposedChanges"
+          },
+          "evidence": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ProposalEvidence"
+              }
+            ]
+          }
+        }
+      },
+      "ProposedChanges": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "instructions": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "model": {
+            "type": "string",
+            "nullable": true
+          },
+          "detectConflicts": {
+            "type": "boolean",
+            "nullable": true
+          }
+        }
+      },
+      "ProposalQuery": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "ProposalIdRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "EvaluationRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "evaluation": {},
+          "regresses": {
+            "type": "boolean"
+          }
+        }
+      },
+      "FollowUp": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "verdict": {
+            "type": "string"
+          },
+          "before": {
+            "$ref": "#/components/schemas/FollowUpSide"
+          },
+          "after": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/FollowUpSide"
+              }
+            ]
+          },
+          "explanation": {
+            "type": "string"
+          },
+          "revertDiff": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "FollowUpSide": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "runs": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "successRate": {
+            "type": "number",
+            "format": "double"
+          },
+          "p95WallMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "problems": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        }
       },
       "HealthResponse": {
         "type": "object",

@@ -192,6 +192,7 @@ public static class EvalCli
         var historyRoot = Arg(args, "--history") ?? "evals/history";
         switch (Arg(args, "--mode"))
         {
+            case "proposal": return await ProposalEval.RunAsync(http, name => Arg(args, name), Arg(args, "--dev-user") is not null, Arg(args, "--dev-roles") ?? "operator");
             case "voice-stt": return await VoiceCli.SttAsync(http, name => Arg(args, name), historyRoot, !args.Contains("--no-history"));
             case "voice-latency": return await VoiceCli.LatencyAsync(http, name => Arg(args, name), historyRoot, !args.Contains("--no-history"));
             case "voice-tts": return await VoiceCli.TtsAsync(name => Arg(args, name));
@@ -266,7 +267,7 @@ public static class EvalCli
     private static double Number(string[] args, string name, double fallback) =>
         double.TryParse(Arg(args, name), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : fallback;
 
-    private static async Task<RunOutcome> RunAsync(HttpClient http, string question, string? profile, string? roles, string? model, string? effort)
+    internal static async Task<RunOutcome> RunAsync(HttpClient http, string question, string? profile, string? roles, string? model, string? effort)
     {
         HttpResponseMessage res;
         for (var tries = 1; ; tries++)

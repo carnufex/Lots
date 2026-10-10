@@ -88,6 +88,10 @@ builder.Services.Configure<Lots.Shell.Core.Outcomes.OutcomeOptions>(builder.Conf
 builder.Services.AddSingleton<Lots.Shell.Core.Outcomes.RunOutcomeWorker>();
 if (builder.Configuration.GetValue("Outcomes:Enabled", true))
     builder.Services.AddHostedService(sp => sp.GetRequiredService<Lots.Shell.Core.Outcomes.RunOutcomeWorker>()); // #141
+builder.Services.Configure<Lots.Shell.Core.Proposals.ProposalGitOptions>(builder.Configuration.GetSection(Lots.Shell.Core.Proposals.ProposalGitOptions.Section));
+builder.Services.AddHttpClient(nameof(Lots.Shell.Core.Proposals.ProposalGit), h => h.Timeout = TimeSpan.FromSeconds(30))
+    .ConfigurePrimaryHttpMessageHandler(sp => sp.GetRequiredService<Lots.Shell.Core.Net.ShellEgress>().Handler(Lots.Shell.Core.Net.EgressPurpose.Webhook));
+builder.Services.AddSingleton<Lots.Shell.Core.Proposals.ProposalGit>(); // #144
 builder.Services.Configure<Lots.Shell.Core.Mining.MiningOptions>(builder.Configuration.GetSection(Lots.Shell.Core.Mining.MiningOptions.Section));
 if (builder.Configuration.GetValue("Mining:Enabled", true))
     builder.Services.AddHostedService<Lots.Shell.Core.Mining.FailureMiningWorker>(); // #143

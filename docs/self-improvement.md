@@ -9,7 +9,8 @@ is a proposal that a person reviews (ADR 0019). This page covers what exists tod
    Traces, logs and metrics add detail when the observability stack runs.
 2. **Analyse.** The `self-improve` profile gives an agent read-only tools over outcomes, traces, audit, logs and metrics.
 3. **Mine.** Runs that went wrong are clustered and turned into draft eval cases that a person accepts, edits or rejects (below).
-4. **Propose, evaluate, approve.** Proposals as Git changes (#144) build on this.
+4. **Propose, evaluate, approve.** A proposal is a reviewed Git change to a profile, with its eval delta, merged by a person (below).
+5. **Follow up.** After the merge, the new profile version's outcomes are compared with the old one's.
 
 ## The introspection tools
 
@@ -84,4 +85,27 @@ data masked. Its expectations follow the problem:
 A decision stands: mining updates open candidates only. Accepted cases form the dataset `GET /insights/eval-cases`. Save it under
 `evals/` and it runs in Lots.Evals and the regression gate. Readers and reviewers are the roles in `Insights:Roles` (default admin,
 auditor, self-improve).
+
+## Proposals
+
+A proposal changes one profile's `instructions`, `description`, `model` alias or `detectConflicts`, and nothing else. It is rejected
+if the result differs in roles, tools and risk classes, servers and credentials, approval rules, policy tests, sensitivity, personal
+data masking, delegates or telemetry. The change is made as text: comments and layout stay, the version goes up by one, and the
+proposal carries a diff.
+
+1. **Create.** The `self-improve` agent calls `propose_change` with the complete new text and the run ids it rests on. A person can
+   also create one with `POST /insights/proposals`. Nothing changes in the running shell.
+2. **Evaluate.** `dotnet run --project src/Lots.Evals -- --mode proposal --proposal <id> --file evals/<dataset>.json` applies the proposed
+   profile temporarily under its own name (`<profile>-proposal-<id>`) and runs the dataset against both. It records the delta with the
+   proposal: pass rates, metrics, regressed and fixed cases. Then it removes the temporary profile. A proposal that regresses any case is
+   marked so. The identity needs admin rights, because it applies a profile.
+3. **Pull request.** `POST /insights/proposals/{id}/pr` opens a pull request in the configuration repository with the proposed file,
+   the rationale and the eval delta. It needs `Proposals:Git` (`Provider` github or gitea, `ApiUrl`, `Repo`, `BaseBranch`,
+   `PathTemplate`, and the token in the environment variable `TokenEnv`). It is refused if the file on the base branch has moved on.
+   Without Git, apply the diff by hand.
+4. **Merge.** A person reviews and merges, and GitOps applies the new version.
+5. **Follow up.** `GET /insights/proposals/{id}/follow-up` compares the outcomes of the new version with the old once each has
+   `Proposals:FollowUpMinRuns` (20) runs. It answers `improved`, `no-effect` or `regressed`, the last with a revert diff.
+
+`GET /insights/proposals` lists them, and `.../reject` closes one with a note.
 
