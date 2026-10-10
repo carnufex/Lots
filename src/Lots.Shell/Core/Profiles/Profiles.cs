@@ -126,13 +126,19 @@ public sealed class ProfileException(IReadOnlyList<string> errors)
 /// <summary>Parses and validates profile manifests (YAML). All problems are reported together.</summary>
 public static class ProfileParser
 {
-    private static readonly IDeserializer Yaml = new DeserializerBuilder()
-        .WithNamingConvention(CamelCaseNamingConvention.Instance)
-        .IgnoreUnmatchedProperties()
-        .Build();
+    // Strict: an unknown key is an error, so a misspelled policy key cannot silently weaken the profile.
+    private static IDeserializer Yaml => Config.StrictYaml.Deserializer;
 
     public static Profile Parse(string yaml, string source = "profile")
     {
+        var errors = new List<string>();
+        void Err(string m) => errors.Add($"{source}: {m}");
+
+        // Profiles are config as code and end up in Git, ConfigMaps and the admin UI: they name secrets, never contain them (#87).
+        // Checked on the text first, so a secret under an unknown key is still reported as a secret.
+        if (Security.SecretRedactor.LooksLikeSecret(yaml, out var secretLine))
+            Err($"line {secretLine} looks like a secret value; reference it instead (passwordEnv/tokenEnv or env:NAME / file:/path)");
+
         ProfileDocument doc;
         try
         {
@@ -140,15 +146,9 @@ public static class ProfileParser
         }
         catch (Exception ex)
         {
-            throw new ProfileException([$"{source}: not valid YAML: {ex.Message}"]);
+            Err(Config.StrictYaml.Explain(ex, typeof(ProfileDocument)));
+            throw new ProfileException(errors);
         }
-
-        var errors = new List<string>();
-        void Err(string m) => errors.Add($"{source}: {m}");
-
-        // Profiles are config as code and end up in Git, ConfigMaps and the admin UI: they name secrets, never contain them (#87).
-        if (Security.SecretRedactor.LooksLikeSecret(yaml, out var secretLine))
-            Err($"line {secretLine} looks like a secret value; reference it instead (passwordEnv/tokenEnv or env:NAME / file:/path)");
 
         if (string.IsNullOrWhiteSpace(doc.Name)) Err("name is required");
         if (doc.Version < 1) Err("version must be 1 or higher");
@@ -315,6 +315,8 @@ public static class ProfileParser
 
     private sealed class ProfileDocument
     {
+        /// <summary>Resource kind in a multi-document apply (always Profile here).</summary>
+        public string? Kind { get; set; }
         public string? Name { get; set; }
         public int Version { get; set; }
         public string? Description { get; set; }

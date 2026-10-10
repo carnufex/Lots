@@ -26,8 +26,8 @@ public sealed record ScheduleSpec(
 
 public static class ScheduleParser
 {
-    private static readonly IDeserializer Yaml = new DeserializerBuilder().WithNamingConvention(CamelCaseNamingConvention.Instance)
-        .IgnoreUnmatchedProperties().Build();
+    // Strict like profiles: a misspelled key (identity roles, delivery) is an error, not a silent default.
+    private static IDeserializer Yaml => Config.StrictYaml.Deserializer;
 
     /// <summary>Service identities are recognisable everywhere (runs, audit): the user id must start with this.</summary>
     public const string ServicePrefix = "svc-";
@@ -36,7 +36,7 @@ public static class ScheduleParser
     {
         Doc? d;
         try { d = Yaml.Deserialize<Doc>(yaml); }
-        catch (Exception ex) { errors.Add($"not valid YAML: {ex.Message}"); return null; }
+        catch (Exception ex) { errors.Add(Config.StrictYaml.Explain(ex, typeof(Doc))); return null; }
         if (d is null) { errors.Add("empty"); return null; }
 
         var profile = profiles.Find(d.Profile ?? "");

@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Acme.Tickets.Mcp/Acme.Tickets.Mcp.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Acme.Tickets.Mcp.Tests/Acme.Tickets.Mcp.Tests.csproj" />
+  </Folder>
+</Solution>

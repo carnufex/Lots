@@ -1,0 +1,19 @@
+# Runs the MCP server next to a local Lots stack (`docker compose up` in the Lots repository creates the network lots_default).
+# Then point the shell at ./profiles, for example LOTS_PROFILES_DIR=<this folder>/profiles in the Lots .env, and restart it.
+services:
+  acme-tickets-mcp:
+    build:
+      context: .
+      dockerfile: src/Acme.Tickets.Mcp/Dockerfile
+    ports:
+      - "8090:8080"   # local debugging only; the shell reaches it as http://acme-tickets-mcp:8080/mcp
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    networks: [lots]
+
+networks:
+  lots:
+    name: lots_default
+    external: true

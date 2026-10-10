@@ -195,8 +195,8 @@ public sealed class ConfigService(LotsDbContext db, ProfileRegistry profiles, Mo
     private static KnowledgeSource? ParseSource(ResourceDocument doc, List<string> errors)
     {
         SourceDoc? s;
-        try { s = Yaml.Deserialize<SourceDoc>(doc.Spec); }
-        catch (Exception ex) { errors.Add($"not valid YAML: {ex.Message}"); return null; }
+        try { s = StrictYaml.Deserializer.Deserialize<SourceDoc>(doc.Spec); }
+        catch (Exception ex) { errors.Add(StrictYaml.Explain(ex, typeof(SourceDoc))); return null; }
         if (s is null) { errors.Add("empty"); return null; }
         var kind = s.SourceKind ?? SourceKinds.Directory;
         if (!SourceKinds.All.Contains(kind)) errors.Add($"sourceKind must be one of {string.Join(", ", SourceKinds.All)}");
@@ -208,6 +208,7 @@ public sealed class ConfigService(LotsDbContext db, ProfileRegistry profiles, Mo
 
     private sealed class SourceDoc
     {
+        public string? Kind { get; set; }
         public string? Id { get; set; }
         public string? Name { get; set; }
         public string? SourceKind { get; set; }

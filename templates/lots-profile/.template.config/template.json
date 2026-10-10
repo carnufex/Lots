@@ -1,0 +1,75 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "Lots",
+  "classifications": [
+    "Lots",
+    "MCP",
+    "Agent",
+    "Profile"
+  ],
+  "identity": "Lots.Templates.Profile",
+  "name": "Lots profile with an MCP server",
+  "shortName": "lots-profile",
+  "description": "A Lots profile (tools, risk classes, roles, policy tests), the MCP server behind it, its tests and an eval dataset.",
+  "sourceName": "Acme.Tickets",
+  "preferNameDirectory": true,
+  "tags": {
+    "language": "C#",
+    "type": "solution"
+  },
+  "symbols": {
+    "profile": {
+      "type": "parameter",
+      "datatype": "text",
+      "description": "The profile name users pick (lowercase, letters, digits and dashes).",
+      "defaultValue": "tickets",
+      "replaces": "tickets-profile",
+      "fileRename": "tickets-profile"
+    },
+    "port": {
+      "type": "parameter",
+      "datatype": "integer",
+      "description": "Host port for running the MCP server locally.",
+      "defaultValue": "8090",
+      "replaces": "8090"
+    },
+    "serviceName": {
+      "type": "derived",
+      "valueSource": "name",
+      "valueTransform": "lowerDash",
+      "replaces": "acme-tickets",
+      "description": "Container and host name of the MCP server."
+    }
+  },
+  "sources": [
+    {
+      "modifiers": [
+        {
+          "exclude": [
+            "**/bin/**",
+            "**/obj/**",
+            "**/.vs/**"
+          ]
+        }
+      ]
+    }
+  ],
+  "postActions": [],
+  "forms": {
+    "lowerDash": {
+      "identifier": "chain",
+      "steps": [
+        "lowerCaseForm",
+        "dotToDash"
+      ]
+    },
+    "lowerCaseForm": {
+      "identifier": "lowerCase"
+    },
+    "dotToDash": {
+      "identifier": "replace",
+      "pattern": "\\.",
+      "replacement": "-"
+    }
+  }
+}
