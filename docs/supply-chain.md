@@ -28,11 +28,11 @@ issue; an expired entry fails the scan again. Current exceptions: the voice serv
 ## Publishing a release
 
 1. `bash scripts/ci.sh` (build, tests, chart, pinned bases, images, scan).
-2. Build and push as in `CLAUDE.md` (`registry.rosenvall.se/carnufex/<app>:sha-<short>`).
-3. `bash scripts/supply-chain.sh sbom registry.rosenvall.se/carnufex/<app>:sha-<short>` and keep the SBOM with the release.
-4. Sign the pushed digest: `bash scripts/supply-chain.sh sign registry.rosenvall.se/carnufex/<app>@sha256:…`
+2. Build and push (`scripts/release.sh`, or by hand as `registry.example.com/org/<app>:sha-<short>`).
+3. `bash scripts/supply-chain.sh sbom registry.example.com/org/<app>:sha-<short>` and keep the SBOM with the release.
+4. Sign the pushed digest: `bash scripts/supply-chain.sh sign registry.example.com/org/<app>@sha256:…`
    (needs `COSIGN_KEY`, `COSIGN_PASSWORD`, `REGISTRY_USERNAME`, `REGISTRY_PASSWORD`). Signatures are stored in the registry next
    to the image (`sha256-<digest>.sig`, a tagged manifest, so registry GC keeps it); there is no public transparency log.
-5. Anyone can check: `bash scripts/supply-chain.sh verify registry.rosenvall.se/carnufex/<app>@sha256:…` against `cosign.pub`.
+5. Anyone can check: `bash scripts/supply-chain.sh verify registry.example.com/org/<app>@sha256:…` against `cosign.pub`.
 
 Where the signing key lives is an open decision (#148); until it is made, step 4 is skipped and `cosign.pub` does not exist.

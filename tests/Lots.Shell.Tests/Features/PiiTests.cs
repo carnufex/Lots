@@ -32,7 +32,7 @@ public class PiiTests
     [Theory]
     [InlineData("backup 2026-10-10 finished in 41 s")]
     [InlineData("order 12345678 shipped")]
-    [InlineData("container 192.168.1.215:8080 healthy")]
+    [InlineData("container 192.168.1.20:8080 healthy")]
     [InlineData("19121212-1213 has a wrong check digit")]
     [InlineData("build 20261010-1755 deployed")]
     [InlineData("version 10.0.12")]

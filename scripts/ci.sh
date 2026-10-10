@@ -18,6 +18,9 @@ bash scripts/check-chart.sh
 echo "== profile template"
 bash scripts/check-template.sh
 
+echo "== public readiness"
+bash scripts/check-public.sh
+
 echo "== base images pinned"
 bash scripts/pin-base-images.sh --check
 

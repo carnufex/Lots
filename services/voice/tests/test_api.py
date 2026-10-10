@@ -33,7 +33,7 @@ class FakeTts:
         self.calls = []
 
     def voices(self):
-        return {"sv-nst": "sv", "en-lessac": "en"}
+        return {"sv-nst": "sv", "en-ljspeech": "en"}
 
     def register(self, voice, data):
         if data == b"short":
@@ -82,7 +82,7 @@ def test_health_is_open_and_everything_else_needs_the_key(client):
 def test_models_lists_languages_and_voices(client):
     c, auth = client
     ids = [m["id"] for m in c.get("/v1/models", headers=auth).json()["data"]]
-    assert {"stt-sv", "stt-en", "voice:sv-nst", "voice:en-lessac"} <= set(ids)
+    assert {"stt-sv", "stt-en", "voice:sv-nst", "voice:en-ljspeech"} <= set(ids)
 
 
 def test_transcription_json_verbose_and_text(client, parts):
@@ -146,7 +146,7 @@ def test_speech_streams_a_wav_with_header_and_pcm(client, parts):
 def test_speech_raw_pcm_has_no_header_and_speed_is_clamped(client, parts):
     c, auth = client
 
-    r = c.post("/v1/audio/speech", headers=auth, json={"input": "Hi", "voice": "en-lessac", "response_format": "pcm", "speed": 9})
+    r = c.post("/v1/audio/speech", headers=auth, json={"input": "Hi", "voice": "en-ljspeech", "response_format": "pcm", "speed": 9})
 
     assert len(r.content) == (100 + 50) * 2
     assert parts[2].calls[0][2] == 2.0
@@ -233,7 +233,7 @@ class FakeFast:
     sample_rate = 22050
 
     def voices(self):
-        return {"sv-nst": "sv", "en-lessac": "en"}
+        return {"sv-nst": "sv", "en-ljspeech": "en"}
 
 
 class FakeGpu:
@@ -259,7 +259,7 @@ def test_expressive_voice_is_used_when_the_gpu_has_room():
 
 def test_low_vram_before_loading_falls_back_to_the_fast_voice_of_the_language():
     tts, Options = composite(FakeExpressive(loaded=False), free_mb=500)
-    assert tts.resolve("cb-default", Options(language="en")) == ("en-lessac", "vram")
+    assert tts.resolve("cb-default", Options(language="en")) == ("en-ljspeech", "vram")
 
 
 def test_a_full_queue_and_a_cold_model_fall_back_and_loading_starts_in_the_background():

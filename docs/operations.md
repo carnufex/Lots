@@ -40,7 +40,7 @@ The own-voice clips live in the voice service's `/models/refs` volume: back it u
 - Migrations only add tables and columns within a release line, so the previous image keeps working against an upgraded database for a
   rollback of one release. Rolling back further: restore the database backup taken before the upgrade.
 - Knowledge tables are created and upgraded by the shell itself (`knowledge_schema`), also idempotently.
-- Deploy: build and push the image (`registry.rosenvall.se`, see the repo README), bump the tag, let ArgoCD sync. Check
+- Deploy: build and push the image (your registry; `scripts/release.sh`, docs/releasing.md), bump the tag, let ArgoCD sync. Check
   `/health/dependencies` and the dashboard afterwards.
 
 ## High availability

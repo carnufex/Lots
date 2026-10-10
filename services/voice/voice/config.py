@@ -17,9 +17,16 @@ class VoiceDef:
     language: str
 
 
+# Licenses (docs/third-party-licenses.md): nst CC0, alma CC BY 4.0 (attribution), ljspeech public domain.
 DEFAULT_VOICES = {
     "sv-nst": VoiceDef("vits-piper-sv_SE-nst-medium", "sv_SE-nst-medium.onnx", "sv"),
     "sv-alma": VoiceDef("vits-piper-sv_SE-alma-medium", "sv_SE-alma-medium.onnx", "sv"),
+    "en-ljspeech": VoiceDef("vits-piper-en_US-ljspeech-medium", "en_US-ljspeech-medium.onnx", "en"),
+}
+
+# Trained on data licensed for research only (Blizzard 2013 Lessac: no commercial use). Never on by default; enable with
+# VOICE_RESEARCH_VOICES=1 only where that license fits (fetch with scripts/fetch_models.py --research).
+RESEARCH_VOICES = {
     "en-lessac": VoiceDef("vits-piper-en_US-lessac-medium", "en_US-lessac-medium.onnx", "en"),
 }
 
@@ -70,6 +77,8 @@ class Settings:
         voices = base.voices
         if e.get("VOICE_VOICES"):
             voices = {k: VoiceDef(**v) for k, v in json.loads(e["VOICE_VOICES"]).items()}
+        if e.get("VOICE_RESEARCH_VOICES") == "1":
+            voices = {**voices, **RESEARCH_VOICES}
         return Settings(
             api_key=e.get("VOICE_API_KEY") or None,
             allow_anonymous=e.get("VOICE_ALLOW_ANONYMOUS") == "1",

@@ -55,7 +55,7 @@ trend.
 
 ## Listening test (speech output)
 
-`dotnet run --project src/Lots.Evals -- --mode voice-tts [--voices-sv sv-nst,cb-default,<own voice id>] [--voices-en en-lessac,cb-default]`
+`dotnet run --project src/Lots.Evals -- --mode voice-tts [--voices-sv sv-nst,cb-default,<own voice id>] [--voices-en en-ljspeech,cb-default]`
 synthesises every sentence in `tts-sentences.json` with every voice straight from the voice service (`--voice-url`, key from
 `VOICE_API_KEY` or `services/voice/.env`). The output goes to `listening/<time>/` (git-ignored: clips can be a person's own voice):
 

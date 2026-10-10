@@ -12,7 +12,7 @@ public class EgressTests
     [InlineData("127.0.0.1")]
     [InlineData("10.1.2.3")]
     [InlineData("172.20.0.1")]
-    [InlineData("192.168.1.215")]
+    [InlineData("192.168.1.20")]
     [InlineData("169.254.169.254")] // cloud metadata
     [InlineData("100.64.0.1")]
     [InlineData("::1")]

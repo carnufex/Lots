@@ -11,3 +11,4 @@ profiles.local/
 
 # supply-chain output (SBOMs, scan inputs)
 /out/
+.public-patterns

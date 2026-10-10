@@ -65,7 +65,7 @@ spec:
           image: "{{ $v.image.repository }}:{{ $v.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ $v.image.pullPolicy }}
           securityContext: {{- include "lots.containerSecurityContext" . | nindent 12 }}
-          command: ["sh", "-c", "ls /models/piper/*/model.onnx >/dev/null 2>&1 || python scripts/fetch_models.py /models/piper"]
+          command: ["python", "scripts/fetch_models.py", "/models/piper"]   # skips voices already present, no network then
           env:
             - { name: HOME, value: /tmp }
             - { name: PYTHONDONTWRITEBYTECODE, value: "1" }

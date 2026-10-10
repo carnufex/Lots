@@ -5,7 +5,7 @@ using Microsoft.Extensions.Options;
 namespace Lots.Shell.Tests.Features;
 
 /// <summary>
-/// Opt-in: set LOTS_TEST_MODEL_URL (e.g. http://192.168.1.215:11434/v1) and LOTS_TEST_MODEL
+/// Opt-in: set LOTS_TEST_MODEL_URL (e.g. http://ollama.local:11434/v1) and LOTS_TEST_MODEL
 /// to run a real tool-calling round trip. Without them the test is a no-op.
 /// </summary>
 public class ModelClientLiveTests

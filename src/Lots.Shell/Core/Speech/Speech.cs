@@ -72,8 +72,8 @@ public sealed class SpeechOptions
     public string? ApiKeyEnv { get; set; }
     public string SttModel { get; set; } = "whisper";
     public string TtsModel { get; set; } = "piper";
-    /// <summary>Voice per language, e.g. sv -> nst, en -> lessac.</summary>
-    public Dictionary<string, string> Voices { get; set; } = new() { ["sv"] = "sv-nst", ["en"] = "en-lessac" };
+    /// <summary>Voice per language, e.g. sv -> nst, en -> ljspeech.</summary>
+    public Dictionary<string, string> Voices { get; set; } = new() { ["sv"] = "sv-nst", ["en"] = "en-ljspeech" };
     public int MaxAudioBytes { get; set; } = 15 * 1024 * 1024;
     /// <summary>How often a user may (re-)register their own voice per 24 hours (#93): limits probing the cloning with many clips.</summary>
     public int VoiceRegistrationsPerDay { get; set; } = 5;

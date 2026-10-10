@@ -71,7 +71,7 @@ Generated from the comments in `values.yaml` by `python scripts/chart-values-doc
 | `voice.apiKey.key` | `api-key` |  |
 | `voice.defaultLanguage` | `sv` | sv \| en \| auto: the dictation language when the user has not chosen one |
 | `voice.voices.sv` | `sv-nst` | cb-default = the expressive voice (needs chatterbox: true) |
-| `voice.voices.en` | `en-lessac` |  |
+| `voice.voices.en` | `en-ljspeech` | public domain; en-lessac is research-only (VOICE_RESEARCH_VOICES) |
 | `voice.vocabulary` | `""` | deployment-wide dictation words, comma separated (names, products) |
 | `voice.image.repository` | `registry.example.com/lots-voice` | built from services/voice (VOICE_CHATTERBOX=1 for the expressive voice) |
 | `voice.image.tag` | `""` |  |

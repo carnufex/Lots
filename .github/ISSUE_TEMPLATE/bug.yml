@@ -1,0 +1,30 @@
+name: Bug
+description: Something does not work as documented.
+labels: ["type:bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Never paste secrets, tokens, real hostnames or data from your systems. Redact logs before you paste them.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: Steps, the profile (redacted) and the request, if relevant.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: From GET /health, e.g. 0.1.0+1a2b3c4
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [core, policy, mcp, ui, deploy, evals, voice, other]

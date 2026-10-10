@@ -412,11 +412,11 @@ public static class VoiceCli
         if (!string.IsNullOrEmpty(key)) http.DefaultRequestHeaders.Authorization = new("Bearer", key);
 
         var sentences = JsonSerializer.Deserialize<List<Sentence>>(await File.ReadAllTextAsync(arg("--sentences") ?? "evals/voice/tts-sentences.json"), Json) ?? [];
-        // Voices per language: --voices-sv sv-nst,cb-default,<own voice id> and --voices-en en-lessac,cb-default.
+        // Voices per language: --voices-sv sv-nst,cb-default,<own voice id> and --voices-en en-ljspeech,cb-default.
         var voices = new Dictionary<string, List<string>>
         {
             ["sv"] = Csv(arg("--voices-sv") ?? "sv-nst,cb-default"),
-            ["en"] = Csv(arg("--voices-en") ?? "en-lessac,cb-default"),
+            ["en"] = Csv(arg("--voices-en") ?? "en-ljspeech,cb-default"),
         };
         var stamp = DateTimeOffset.UtcNow.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
         var outDir = Path.Combine(arg("--out") ?? "evals/voice/listening", stamp);

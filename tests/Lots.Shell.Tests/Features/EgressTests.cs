@@ -28,7 +28,7 @@ public class EgressTests
 
     [Theory]
     [InlineData("http://localhost:8089/mcp")]
-    [InlineData("http://192.168.1.215:11434/v1")]
+    [InlineData("http://192.168.1.20:11434/v1")]
     [InlineData("http://mcp-homelab:8080/mcp")]
     [InlineData("https://cmdb.example.org/mcp")]
     public void Internal_backends_are_reachable_by_default(string url) => Egress().Check(EgressPurpose.Mcp, url);

@@ -1,0 +1,6 @@
+# Synthetic tokens in tests of the secret detector (SecretRedactor, #87): not real credentials.
+960f14894efc3fd3527acbac092a8e26da66b119:tests/Lots.Shell.Tests/Features/SecretsTests.cs:github-pat:22
+960f14894efc3fd3527acbac092a8e26da66b119:tests/Lots.Shell.Tests/Features/SecretsTests.cs:jwt:19
+960f14894efc3fd3527acbac092a8e26da66b119:tests/Lots.Shell.Tests/Features/SecretsTests.cs:jwt:76
+a9f6122f5c1a55daf01c48e607aa566b2030b8d1:tests/Lots.Shell.Tests/Features/MemoryTests.cs:github-pat:126
+aa5431a577edb95d0e06f279c4ac579b7b11a9da:tests/Lots.Shell.Tests/Features/FeedbackTests.cs:github-pat:82

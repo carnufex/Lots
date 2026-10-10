@@ -1,8 +1,9 @@
 #!/usr/bin/env python
-"""Lists the licenses of all NuGet (restored) and npm dependencies and fails on anything that is not
-permissive/Apache-2.0-compatible. Run after `dotnet restore` and `npm ci`.
+"""Lists the licenses of all NuGet (restored), npm and, with --voice-image, the voice service's Python dependencies, and fails on
+anything that is not permissive/Apache-2.0-compatible. Run after `dotnet restore` and `npm ci`.
 
-Usage: python scripts/license-check.py [--write docs/third-party-licenses.md]
+Usage: python scripts/license-check.py [--voice-image lots-voice:local] [--write docs/third-party-licenses.md]
+The models the services download are listed by hand in docs/model-licenses.md (they are not packages).
 """
 import json
 import os
@@ -20,6 +21,19 @@ ALLOWED = {
     "BlueOak-1.0.0", "Python-2.0", "Zlib", "PostgreSQL", "MS-PL", "CC-BY-4.0",
 }
 COPYLEFT = re.compile(r"\b(A?GPL|LGPL|SSPL|BUSL|EUPL|CPAL|OSL)", re.I)
+
+# Python packages of the voice image whose license is fine to redistribute but not in ALLOWED, with the reason (#131).
+PY_ACCEPTED = {
+    "certifi": "MPL-2.0: file-level copyleft, shipped unmodified",
+    "orjson": "MPL-2.0 AND (Apache-2.0 OR MIT): file-level copyleft, shipped unmodified",
+    "tqdm": "MPL-2.0 AND MIT: file-level copyleft, shipped unmodified",
+    "soxr": "LGPL-2.1-or-later: a dynamically linked library, shipped unmodified, replaceable by the user",
+    "distlib": "PSF-2.0", "typing_extensions": "PSF-2.0", "regex": "Apache-2.0 AND CNRI-Python", "pillow": "MIT-CMU",
+}
+# Python packages without license metadata, checked by hand.
+PY_MANUAL = {"setuptools": "MIT"}
+# NVIDIA CUDA libraries (only in GPU builds): proprietary, redistributable as runtime components under the NVIDIA license.
+PY_NVIDIA = re.compile(r"^nvidia-")
 
 # Packages whose nuspec only has a licenseUrl / no expression, checked by hand against the project's license.
 MANUAL = {
@@ -78,7 +92,44 @@ def npm_packages() -> dict:
     return found
 
 
+def python_packages(image: str) -> dict:
+    """name -> (version, license) from the installed distributions inside the image."""
+    import subprocess
+    code = ("import importlib.metadata as m, json\n"
+            "out = {}\n"
+            "for d in m.distributions():\n"
+            "    md = d.metadata\n"
+            "    cls = [c.split('::')[-1].strip() for c in (md.get_all('Classifier') or []) if c.startswith('License ::')]\n"
+            "    out[md['Name'].lower()] = [d.version, (md.get('License-Expression') or md.get('License') or '').strip(), cls]\n"
+            "print(json.dumps(out))")
+    raw = subprocess.run(["docker", "run", "--rm", "--entrypoint", "python", image, "-c", code], check=True, capture_output=True, text=True).stdout
+    return {n: (v, PY_MANUAL.get(n) or normalise_python(lic, cls)) for n, (v, lic, cls) in json.loads(raw).items()}
+
+
+CLASSIFIER = {
+    "MIT License": "MIT", "BSD License": "BSD-3-Clause", "Apache Software License": "Apache-2.0", "ISC License (ISCL)": "ISC",
+    "Mozilla Public License 2.0 (MPL 2.0)": "MPL-2.0", "Python Software Foundation License": "PSF-2.0",
+    "Other/Proprietary License": "Proprietary",
+}
+
+
+def normalise_python(lic: str, classifiers: list[str]) -> str:
+    """Package metadata is free text: map the common spellings to SPDX ids, fall back to the trove classifiers."""
+    first = lic.splitlines()[0].strip() if lic else ""
+    first = {"apache2.0": "Apache-2.0", "apache 2.0": "Apache-2.0", "apache-2": "Apache-2.0"}.get(first.lower(), first)
+    if re.fullmatch(r"[A-Za-z0-9.+-]+( (AND|OR|WITH) [A-Za-z0-9.+-]+| \(.*\))*", first) and "License" not in first and first not in ("BSD", "Dual"):
+        return first
+    text = first.lower()
+    for words, spdx in [("lgpl", "LGPL"), ("gpl", "GPL"), ("nvidia", "Proprietary"), ("apache", "Apache-2.0"), ("mit", "MIT"),
+                        ("3-clause", "BSD-3-Clause"), ("isc", "ISC")]:
+        if words in text:
+            return spdx
+    mapped = sorted({CLASSIFIER.get(c, c) for c in classifiers})
+    return " OR ".join(mapped) if mapped else (first or "UNKNOWN")
+
+
 def ok(expr: str) -> bool:
+    expr = re.sub(r"\s+WITH\s+[A-Za-z0-9.-]+", "", expr)  # e.g. Apache-2.0 WITH LLVM-exception: the exception only grants more
     if COPYLEFT.search(expr):
         return False
     ids = [t for t in re.split(r"[\s()]+|\bOR\b|\bAND\b", expr) if t and t not in ("OR", "AND")]
@@ -99,6 +150,18 @@ def main() -> int:
         rows.append(("npm", name, version, lic))
         if not ok(lic):
             bad.append(("npm", name, version, lic))
+    notes = []
+    if "--voice-image" in sys.argv:
+        for name, (version, lic) in sorted(python_packages(sys.argv[sys.argv.index("--voice-image") + 1]).items()):
+            rows.append(("pip (voice)", name, version, lic))
+            if name == "lots-voice" or ok(lic):
+                continue
+            if name in PY_ACCEPTED:
+                notes.append(f"- `{name}`: {PY_ACCEPTED[name]}")
+            elif PY_NVIDIA.match(name) and lic == "Proprietary":
+                notes.append(f"- `{name}`: NVIDIA proprietary, redistributable CUDA runtime component (GPU builds only)")
+            else:
+                bad.append(("pip (voice)", name, version, lic))
 
     if "--write" in sys.argv:
         out = Path(sys.argv[sys.argv.index("--write") + 1])
@@ -107,6 +170,10 @@ def main() -> int:
                  "Runtime dependencies of the shipped projects only (test and dev tooling are not distributed).", "",
                  "| Ecosystem | Package | Version | License |", "|---|---|---|---|"]
         lines += [f"| {e} | {n} | {v} | {l} |" for e, n, v, l in rows]
+        if notes:
+            lines += ["", "## Accepted exceptions", "",
+                      "Not on the permissive list, but fine to redistribute in the voice image as shipped:", "", *notes]
+        lines += ["", "Models downloaded at runtime (speech, voices) are listed in [model-licenses.md](model-licenses.md)."]
         out.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     print(f"{len(rows)} dependencies checked")

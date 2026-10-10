@@ -144,7 +144,9 @@ class PiperTts:
         self.sample_rate = 22050
 
     def voices(self) -> dict[str, str]:
-        return {vid: v.language for vid, v in self._settings.voices.items()}
+        """Installed voices only: a configured voice whose model was never fetched is not offered (and cannot fail later)."""
+        return {vid: v.language for vid, v in self._settings.voices.items()
+                if (self._settings.models_dir / v.directory / v.onnx).exists()}
 
     def _engine(self, voice: str):
         with self._lock:
@@ -163,7 +165,10 @@ class PiperTts:
             return self._engines[voice]
 
     def warm_up(self) -> None:
-        for voice in self._settings.voices:
+        missing = sorted(set(self._settings.voices) - set(self.voices()))
+        if missing:
+            print(f"voice: models not installed, not offered: {', '.join(missing)} (run scripts/fetch_models.py)", flush=True)
+        for voice in self.voices():
             self._engine(voice).generate("Warm up.", sid=0)
 
     def synthesize(self, text: str, voice: str, speed: float, options: SynthOptions | None = None) -> Iterator[object]:
