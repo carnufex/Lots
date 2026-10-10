@@ -24,6 +24,8 @@ export interface Step {
   /** Tool steps: the policy decision and its reason (why it ran or was stopped). */
   decision: string | null
   reason: string | null
+  /** Tool steps: the output looked like an injected instruction and was flagged for the model (#85). */
+  flagged?: boolean
 }
 
 export interface RunDetail {

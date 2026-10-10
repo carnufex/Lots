@@ -18,3 +18,15 @@ public static class TestProfiles
                 new ProfileRole("admin", [ToolRisk.Read, ToolRisk.Write], [ToolRisk.Write], [ToolRisk.Write]),
             ])]);
 }
+
+/// <summary>Tool results reach the model inside the untrusted-data envelope (#85); fake models that echo them want the data only.</summary>
+public static class ToolText
+{
+    public static string? Data(string? modelText)
+    {
+        if (modelText is null || !modelText.StartsWith(Lots.Shell.Core.Tools.InjectionGuard.Open, StringComparison.Ordinal)) return modelText;
+        var start = modelText.IndexOf('\n') + 1;
+        var end = modelText.LastIndexOf("\n<<" + Lots.Shell.Core.Tools.InjectionGuard.Close, StringComparison.Ordinal);
+        return end > start ? modelText[start..end] : modelText;
+    }
+}

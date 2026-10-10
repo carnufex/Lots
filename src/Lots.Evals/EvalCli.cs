@@ -67,6 +67,7 @@ public static class EvalCli
             http.DefaultRequestHeaders.Add("X-Dev-Roles", Arg(args, "--dev-roles") ?? "operator");
         }
         if (Arg(args, "--mode") == "retrieval") return await RetrievalCli.RunAsync(http, args, name => Arg(args, name));
+        if (Arg(args, "--mode") == "injection") return await InjectionCli.RunAsync(http, name => Arg(args, name));
 
         var cases = JsonSerializer.Deserialize<List<EvalCase>>(await File.ReadAllTextAsync(file), Json)
                     ?? throw new InvalidOperationException("No eval cases found.");

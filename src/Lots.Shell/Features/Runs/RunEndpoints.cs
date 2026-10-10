@@ -128,7 +128,7 @@ public sealed record GetRunRequest(Guid Id);
 public sealed record StepDto(
     int Seq, string Kind, string Name, string? ToolCallId, string? Arguments, string? Result,
     long LatencyMs, int? PromptTokens, int? CompletionTokens, DateTimeOffset At, string? Endpoint = null,
-    string? Decision = null, string? Reason = null);
+    string? Decision = null, string? Reason = null, bool Flagged = false);
 
 /// <param name="Waiting">What an unfinished run is waiting for: queued, model, tool, approval or cancelling; null when finished.</param>
 public sealed record RunDto(
@@ -162,7 +162,7 @@ public sealed class GetRunEndpoint(LotsDbContext db, ICurrentPrincipal who, ICon
             {
                 var decision = s.Kind == StepKind.ToolCall ? Lots.Shell.Features.ToolCalls.ListToolCallsEndpoint.Match(audit, s) : null;
                 return new StepDto(s.Seq, s.Kind.ToString(), s.Name, s.ToolCallId, s.ArgumentsJson, s.Result,
-                    s.LatencyMs, s.PromptTokens, s.CompletionTokens, s.CreatedAt, s.Endpoint, decision?.Decision.ToString(), decision?.Reason);
+                    s.LatencyMs, s.PromptTokens, s.CompletionTokens, s.CreatedAt, s.Endpoint, decision?.Decision.ToString(), decision?.Reason, s.Flagged);
             }).ToList(),
             WaitingFor(run), run.RetryOf, run.TraceId,
             Math.Round(run.Steps.Where(s => s.Kind == StepKind.ModelCall).Sum(s => prices.Cost(s.Name, s.PromptTokens ?? 0, s.CompletionTokens ?? 0)), 4),

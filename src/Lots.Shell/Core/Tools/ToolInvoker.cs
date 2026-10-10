@@ -84,24 +84,42 @@ public sealed class ToolInvoker(IEnumerable<IToolSource> sources, ProfileRegistr
     /// Executes a tool call if policy allows it. Never throws for denied or failing tools: the model gets an
     /// error string as the tool result. The result is untrusted data and is size-capped.
     /// </summary>
-    public async Task<string> InvokeAsync(ToolCall call, Principal principal, string profileName, CancellationToken ct, bool approved = false)
+    public async Task<string> InvokeAsync(ToolCall call, Principal principal, string profileName, CancellationToken ct, bool approved = false) =>
+        (await InvokeDetailedAsync(call, principal, profileName, ct, approved)).Text;
+
+    /// <summary>
+    /// <see cref="Text"/> is the (size-capped) output as the tool returned it, for the trace and the UI. <see cref="ModelText"/> is what
+    /// the model gets: the same data inside an untrusted-data envelope with hidden text removed and instruction-like lines flagged (#85).
+    /// </summary>
+    public sealed record ToolResult(string Text, string ModelText, bool Suspicious = false, IReadOnlyList<string>? Findings = null)
+    {
+        public static ToolResult Own(string text) => new(text, text);
+
+        public static ToolResult FromTool(string tool, string text)
+        {
+            var guarded = InjectionGuard.Guard(tool, text);
+            return new(text, guarded.Text, guarded.Suspicious, guarded.Findings);
+        }
+    }
+
+    public async Task<ToolResult> InvokeDetailedAsync(ToolCall call, Principal principal, string profileName, CancellationToken ct, bool approved = false)
     {
         var decision = PolicyEngine.Decide(principal, RequireProfile(profileName), call.Name);
         if (decision.Decision == Decision.Deny)
-            return $"Error: tool '{call.Name}' is not available or not permitted.";
+            return ToolResult.Own($"Error: tool '{call.Name}' is not available or not permitted.");
         if (decision.Decision == Decision.RequireApproval && !approved)
-            return $"Error: tool '{call.Name}' requires approval.";
+            return ToolResult.Own($"Error: tool '{call.Name}' requires approval.");
 
         IToolSource? source = null;
         foreach (var s in _sources)
             if ((await s.ListAsync(ct)).Any(t => t.Name == call.Name)) { source = s; break; }
         if (source is null)
-            return $"Error: tool '{call.Name}' is not available or not permitted.";
+            return ToolResult.Own($"Error: tool '{call.Name}' is not available or not permitted.");
 
         try
         {
             using var context = ToolCallContext.Enter(new ToolCallContext(principal, profileName));
-            return Truncate(await source.CallAsync(call.Name, call.ArgumentsJson, ct));
+            return ToolResult.FromTool(call.Name, Truncate(await source.CallAsync(call.Name, call.ArgumentsJson, ct)));
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -109,7 +127,8 @@ public sealed class ToolInvoker(IEnumerable<IToolSource> sources, ProfileRegistr
         }
         catch (Exception ex)
         {
-            return $"Error: tool '{call.Name}' failed: {ex.Message}";
+            // The message can carry text from the tool server, so it is guarded like output.
+            return ToolResult.FromTool(call.Name, $"Error: tool '{call.Name}' failed: {ex.Message}");
         }
     }
 

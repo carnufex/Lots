@@ -614,7 +614,8 @@ input.wide {
   border-color: #5a3430;
 }
 
-.decision.ApprovalRequested {
+.decision.ApprovalRequested,
+.decision.Flagged {
   color: var(--warn);
   border-color: #5a4a26;
 }

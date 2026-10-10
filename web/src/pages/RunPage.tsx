@@ -172,6 +172,11 @@ function StepRow({ step }: { step: Step }) {
               {step.decision === 'Denied' || step.decision === 'ApprovalDenied' ? `denied: ${step.reason ?? ''}` : step.decision}
             </span>
           )}
+          {isTool && step.flagged && (
+            <span className="decision Flagged" title="The output contained text that looked like instructions to the assistant. It was marked as data for the model, and later write actions of this run need an approval.">
+              possible injection
+            </span>
+          )}
           <span className="muted mono">
             {step.latencyMs} ms
             {step.promptTokens != null && ` · ${step.promptTokens}+${step.completionTokens ?? 0} tok`}

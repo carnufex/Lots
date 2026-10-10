@@ -198,10 +198,10 @@ public class AgentRunnerTests
         var toolMessages = lastRequest!.Where(m => m.Role == "tool").ToList();
         Assert.Equal(3, toolMessages.Count);
         Assert.Contains("omitted", toolMessages[0].Content);
-        Assert.Equal(3_000, toolMessages[2].Content!.Length); // newest result survives
+        Assert.Contains(new string('x', 3_000), toolMessages[2].Content); // newest result survives
         Assert.Equal(RunStatus.Completed, (await db.Runs.SingleAsync()).Status);
         var stored = await db.RunMessages.Where(m => m.Role == "tool").ToListAsync();
-        Assert.All(stored, m => Assert.Equal(3_000, m.Content!.Length)); // stored conversation untouched
+        Assert.All(stored, m => Assert.Contains(new string('x', 3_000), m.Content)); // stored conversation untouched
     }
 
     [Fact]

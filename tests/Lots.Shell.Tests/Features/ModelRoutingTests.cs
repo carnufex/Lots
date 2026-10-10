@@ -172,9 +172,11 @@ public class TracingTests
         var registry = TestProfiles.Registry();
         await new AgentRunner(db, new AliasRecorderModel(), new ToolInvoker([], registry), registry, Options.Create(new AgentOptions()), TimeProvider.System).ExecuteAsync(run.Id, default);
 
-        // Other tests run in parallel and emit spans too: pick this run's.
-        var root = spans.ToList().Single(s => (string?)s.GetTagItem("lots.run.id") == run.Id.ToString() && s.OperationName.StartsWith("invoke_agent", StringComparison.Ordinal));
-        Assert.Contains(spans.ToList(), s => s.OperationName.StartsWith("chat", StringComparison.Ordinal) && s.ParentSpanId == root.SpanId);
+        // Other tests run in parallel and keep adding spans: snapshot under the lock, then pick this run's.
+        List<System.Diagnostics.Activity> seen;
+        lock (spans) seen = spans.ToList();
+        var root = seen.Single(s => (string?)s.GetTagItem("lots.run.id") == run.Id.ToString() && s.OperationName.StartsWith("invoke_agent", StringComparison.Ordinal));
+        Assert.Contains(seen, s => s.OperationName.StartsWith("chat", StringComparison.Ordinal) && s.ParentSpanId == root.SpanId);
         Assert.Equal(root.TraceId.ToHexString(), run.TraceId);
         Assert.Equal("Completed", root.GetTagItem("lots.run.status"));
     }

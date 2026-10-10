@@ -36,7 +36,7 @@ public class ApprovalApiTests : IClassFixture<WebApplicationFactory<Program>>
         public Task<ModelResponse> CompleteAsync(IReadOnlyList<ChatMessage> m, IReadOnlyList<ToolDefinition> t, CancellationToken ct)
         {
             var reply = m.Any(x => x.Role == "tool")
-                ? new ChatMessage("assistant", "done: " + m.Last(x => x.Role == "tool").Content)
+                ? new ChatMessage("assistant", "done: " + ToolText.Data(m.Last(x => x.Role == "tool").Content))
                 : new ChatMessage("assistant", null, [new ToolCall("c1", "restart", "{}")]);
             return Task.FromResult(new ModelResponse(reply, "stop", new ModelUsage(1, 1), TimeSpan.FromMilliseconds(1)));
         }

@@ -38,7 +38,7 @@ public class ApprovalRulesTests : IClassFixture<WebApplicationFactory<Program>>
         {
             var tool = m.First(x => x.Role == "user").Content!;
             var reply = m.Any(x => x.Role == "tool")
-                ? new ChatMessage("assistant", "result: " + m.Last(x => x.Role == "tool").Content)
+                ? new ChatMessage("assistant", "result: " + ToolText.Data(m.Last(x => x.Role == "tool").Content))
                 : new ChatMessage("assistant", null, [new ToolCall("c1", tool, "{}")]);
             return Task.FromResult(new ModelResponse(reply, "stop", new ModelUsage(1, 1), TimeSpan.Zero));
         }

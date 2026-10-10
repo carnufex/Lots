@@ -251,6 +251,11 @@ public sealed class RunRecord
     public string? CancelRequestedBy { get; set; }
     /// <summary>The failed or cancelled run this one was started again from.</summary>
     public Guid? RetryOf { get; set; }
+    /// <summary>
+    /// The run has seen tool output that looked like an injected instruction (#85): from then on its write and destructive tool calls
+    /// need an approval even where the role would allow them directly.
+    /// </summary>
+    public bool Tainted { get; set; }
     /// <summary>OpenTelemetry trace of the run's first execution (#76): resumed executions link to it.</summary>
     public string? TraceId { get; set; }
     /// <summary>Worker currently executing the run, and until when (unix ms). See RunLeases.</summary>
@@ -289,6 +294,8 @@ public sealed class RunStepRecord
     public string? ArgumentsJson { get; set; }
     /// <summary>Truncated result (tool output or model reply text).</summary>
     public string? Result { get; set; }
+    /// <summary>For tool calls: the output looked like an injected instruction and was flagged for the model (#85).</summary>
+    public bool Flagged { get; set; }
     /// <summary>For model calls: the configured endpoint that answered (after any fallback).</summary>
     public string? Endpoint { get; set; }
     public long LatencyMs { get; set; }

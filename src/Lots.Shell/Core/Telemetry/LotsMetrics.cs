@@ -26,6 +26,8 @@ public static class LotsMetrics
     public static readonly Counter<long> ModelTokens = Meter.CreateCounter<long>("lots.model.tokens", description: "Tokens by model and kind (prompt, completion)");
 
     public static readonly Counter<long> ToolCalls = Meter.CreateCounter<long>("lots.tool.calls", description: "Tool calls by tool, policy decision and result");
+    public static readonly Counter<long> InjectionsSuspected = Meter.CreateCounter<long>("lots.tool.injections_suspected",
+        description: "Tool results flagged as possibly containing injected instructions (#85)");
     public static readonly Histogram<double> ToolLatency = Meter.CreateHistogram("lots.tool.duration", "s", "Tool call latency",
         advice: new InstrumentAdvice<double> { HistogramBucketBoundaries = LatencyBuckets });
 
