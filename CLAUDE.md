@@ -39,7 +39,10 @@ Design background: see `docs/adr/`. Decisions live there, not in closed issues.
 - **Root-cause fixes** over patches.
 - **Ask before any change to a cluster** or shared homelab infrastructure. Local compose is fine.
 - Small PRs that close one issue. Reference the issue (`Closes #12`).
-- Tests for every slice; policy rules get explicit allow/deny tests.
+- **Testing is judgement, not a ritual.** Not all code needs tests and not every change needs testing. Small changes (copy, styling, a
+  tweak, a small refactor) are not tested or re-tested after each step. Write tests where they carry value: policy rules (explicit
+  allow/deny tests), security and data boundaries, logic that is easy to get wrong, bug fixes that could regress. Run the full suite
+  (`bash scripts/ci.sh`) for larger changes and before a PR, not after every small implementation step.
 
 ## Issues, labels and decisions
 
