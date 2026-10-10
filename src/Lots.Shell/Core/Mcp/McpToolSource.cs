@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
 using Lots.Shell.Core.Profiles;
@@ -33,9 +34,16 @@ public sealed class McpToolSource(
         public DateTimeOffset At { get; set; } = DateTimeOffset.MinValue;
     }
 
-    private readonly SemaphoreSlim _gate = new(1, 1);
-    private readonly Dictionary<(string Server, string User), State> _states = [];
-    private readonly Dictionary<string, string> _errors = [];
+    // Per server (and user, for per-user servers): a slow or dead server never blocks calls to the others.
+    private readonly ConcurrentDictionary<(string Server, string User), SemaphoreSlim> _locks = new();
+    private readonly ConcurrentDictionary<(string Server, string User), State> _states = new();
+    private readonly ConcurrentDictionary<string, (string Error, DateTimeOffset RetryAt, int Failures)> _failures = new();
+
+    /// <summary>After a failure a server is skipped for a while (30 s, doubling to 5 min) instead of being retried on every call.</summary>
+    private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan LockWait = TimeSpan.FromSeconds(2);
+
+    private static TimeSpan Backoff(int failures) => TimeSpan.FromSeconds(Math.Min(300, 30 * Math.Pow(2, Math.Max(0, failures - 1))));
 
     /// <summary>Reached with the run user's own token (exchanged or connected), so clients and catalogs are kept per user.</summary>
     private static bool IsDelegated(McpServerConfig s) => s.Auth is AuthStrategies.Delegated or AuthStrategies.UserConnected;
@@ -45,77 +53,46 @@ public sealed class McpToolSource(
 
     public async Task<IReadOnlyList<ToolDescriptor>> ListAsync(CancellationToken ct)
     {
-        if (servers.Count == 0) return [];
-
-        await _gate.WaitAsync(ct);
-        try
-        {
-            var catalog = new List<ToolDescriptor>();
-            foreach (var server in servers)
-            {
-                if (UserKey(server) is not { } user) continue;
-                var state = await RefreshAsync(server, user, ct);
-                if (state is null) continue;
-                foreach (var tool in state.Tools)
-                    if (catalog.All(t => t.Name != tool.Name)) // first server wins on name clashes
-                        catalog.Add(tool);
-            }
-            return catalog;
-        }
-        finally
-        {
-            _gate.Release();
-        }
+        var list = servers;
+        if (list.Count == 0) return [];
+        var states = await Task.WhenAll(list.Select(s => UserKey(s) is { } user ? RefreshAsync(s, user, ct) : Task.FromResult<State?>(null)));
+        var catalog = new List<ToolDescriptor>();
+        foreach (var state in states.Where(s => s is not null))
+            foreach (var tool in state!.Tools)
+                if (catalog.All(t => t.Name != tool.Name)) // first server wins on name clashes
+                    catalog.Add(tool);
+        return catalog;
     }
 
     public async Task<IReadOnlyList<ServerStatus>> StatusAsync(CancellationToken ct)
     {
-        await _gate.WaitAsync(ct);
-        try
+        var result = new List<ServerStatus>();
+        foreach (var server in servers)
         {
-            var result = new List<ServerStatus>();
-            foreach (var server in servers)
+            if (IsDelegated(server))
             {
-                if (IsDelegated(server))
-                {
-                    result.Add(new ServerStatus(server.Name, server.Url, server.Auth, "per-user", [], null, null));
-                    continue;
-                }
-                var state = await RefreshAsync(server, "", ct);
-                result.Add(state is null
-                    ? new ServerStatus(server.Name, server.Url, server.Auth, "unavailable", [], _errors.GetValueOrDefault(server.Name), DateTimeOffset.UtcNow)
-                    : new ServerStatus(server.Name, server.Url, server.Auth, "ok", state.Tools, null, state.At));
+                result.Add(new ServerStatus(server.Name, server.Url, server.Auth, "per-user", [], null, null));
+                continue;
             }
-            return result;
+            var state = await RefreshAsync(server, "", ct);
+            result.Add(state is null
+                ? new ServerStatus(server.Name, server.Url, server.Auth, "unavailable", [],
+                    _failures.TryGetValue(server.Name, out var f) ? $"{f.Error} (next try {f.RetryAt:HH:mm:ss})" : null, DateTimeOffset.UtcNow)
+                : new ServerStatus(server.Name, server.Url, server.Auth, "ok", state.Tools, null, state.At));
         }
-        finally
-        {
-            _gate.Release();
-        }
+        return result;
     }
 
     public async Task<string?> ServerOfAsync(string toolName, CancellationToken ct)
     {
         await ListAsync(ct);
-        await _gate.WaitAsync(ct);
-        try { return Find(toolName)?.Server.Name; }
-        finally { _gate.Release(); }
+        return Find(toolName)?.Server.Name;
     }
 
     public async Task<string> CallAsync(string name, string argumentsJson, CancellationToken ct)
     {
         await ListAsync(ct); // make sure the catalog of the current user's context is loaded (cheap: cached)
-        McpClient client;
-        await _gate.WaitAsync(ct);
-        try
-        {
-            client = Find(name)?.State.Client
-                     ?? throw new InvalidOperationException($"No MCP server provides tool '{name}'.");
-        }
-        finally
-        {
-            _gate.Release();
-        }
+        var client = Find(name)?.State.Client ?? throw new InvalidOperationException($"No MCP server provides tool '{name}'.");
 
         var args = string.IsNullOrWhiteSpace(argumentsJson)
             ? new Dictionary<string, object?>()
@@ -133,7 +110,6 @@ public sealed class McpToolSource(
         return result.IsError == true ? $"Error from tool '{name}': {output}" : output;
     }
 
-    /// <summary>Caller holds the gate.</summary>
     private (McpServerConfig Server, State State)? Find(string toolName)
     {
         foreach (var server in servers)
@@ -144,34 +120,47 @@ public sealed class McpToolSource(
         return null;
     }
 
-    /// <summary>Caller holds the gate. Returns null if the server is unavailable.</summary>
+    /// <summary>Connects (once) and refreshes the tool list (every 60 s). Returns null if the server is unavailable or backing off.</summary>
     private async Task<State?> RefreshAsync(McpServerConfig server, string user, CancellationToken ct)
     {
         var key = (server.Name, user);
+        if (_failures.TryGetValue(server.Name, out var failed) && DateTimeOffset.UtcNow < failed.RetryAt && !_states.ContainsKey(key)) return null;
+        var gate = _locks.GetOrAdd(key, _ => new SemaphoreSlim(1, 1));
+        // Someone else is connecting or refreshing: use what is cached rather than queue behind a slow server.
+        if (!await gate.WaitAsync(LockWait, ct)) return _states.GetValueOrDefault(key);
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        limit.CancelAfter(ConnectTimeout);
         try
         {
             if (!_states.TryGetValue(key, out var state))
             {
-                state = new State(await ConnectAsync(server, ct));
+                state = new State(await ConnectAsync(server, limit.Token));
                 _states[key] = state;
             }
 
             if (DateTimeOffset.UtcNow - state.At >= CatalogTtl)
             {
-                state.Tools = (await state.Client.ListToolsAsync(cancellationToken: ct))
+                state.Tools = (await state.Client.ListToolsAsync(cancellationToken: limit.Token))
                     .Select(t => new ToolDescriptor(t.Name, t.Description ?? "", t.JsonSchema.Clone()))
                     .ToList();
                 state.At = DateTimeOffset.UtcNow;
             }
-            _errors.Remove(server.Name);
+            _failures.TryRemove(server.Name, out _);
             return state;
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
-            loggers.CreateLogger<McpToolSource>().LogWarning(ex, "MCP server {Server} unavailable", server.Name);
-            _errors[server.Name] = ex.Message;
-            _states.Remove(key); // reconnect next time
+            if (ex is OperationCanceledException) ex = new TimeoutException($"no answer within {ConnectTimeout.TotalSeconds:0} s");
+            var failures = (_failures.TryGetValue(server.Name, out var f) ? f.Failures : 0) + 1;
+            _failures[server.Name] = (ex.Message, DateTimeOffset.UtcNow + Backoff(failures), failures);
+            loggers.CreateLogger<McpToolSource>().LogWarning("MCP server {Server} unavailable (attempt {Attempt}, next in {Delay}): {Error}",
+                server.Name, failures, Backoff(failures), ex.Message);
+            if (_states.TryRemove(key, out var dead)) await dead.Client.DisposeAsync(); // reconnect next time
             return null;
+        }
+        finally
+        {
+            gate.Release();
         }
     }
 
