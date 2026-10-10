@@ -27,11 +27,16 @@ public sealed class AuthClaimNames
 
 public sealed class ClaimsCurrentPrincipal(AuthClaimNames names) : ICurrentPrincipal
 {
-    public Principal Get(HttpContext http)
+    public Principal Get(HttpContext http) =>
+        Map(http.User.Claims, names) ?? throw new InvalidOperationException("Authenticated request without a user claim.");
+
+    /// <summary>The user and roles a set of claims maps to (also used to test a mapping with a sample token); null without a user claim.</summary>
+    public static Principal? Map(IEnumerable<Claim> claims, AuthClaimNames names)
     {
-        var user = http.User.FindFirst(names.User)?.Value
-                   ?? throw new InvalidOperationException("Authenticated request without a user claim.");
-        var roles = http.User.FindAll(names.Roles)
+        var list = claims.ToList();
+        var user = list.FirstOrDefault(c => string.Equals(c.Type, names.User, StringComparison.OrdinalIgnoreCase))?.Value;
+        if (user is null) return null;
+        var roles = list.Where(c => string.Equals(c.Type, names.Roles, StringComparison.OrdinalIgnoreCase))
             .SelectMany(c => c.Value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             .Distinct().ToList();
         if (!string.IsNullOrEmpty(names.RolePrefix))

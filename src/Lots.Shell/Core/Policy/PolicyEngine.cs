@@ -8,7 +8,8 @@ public sealed record Principal(string UserId, IReadOnlyList<string> Roles);
 
 public enum Decision { Allow, RequireApproval, Deny }
 
-public sealed record PolicyResult(Decision Decision, string Reason);
+/// <param name="Rule">The rule that decided, for explanations ("role operator allows read"); null for undeclared tools.</param>
+public sealed record PolicyResult(Decision Decision, string Reason, string? Rule = null);
 
 /// <summary>
 /// Per-call policy. Deny by default: a tool must be declared in the profile, and one of the principal's
@@ -31,9 +32,11 @@ public static class PolicyEngine
             return new(Decision.Deny, $"no role of '{principal.UserId}' grants {tool.Risk} tools in profile '{profile.Name}'");
 
         // The most permissive applicable role wins: if any role allows the call without approval, it is allowed.
-        return grants.Any(r => !r.RequireApproval.Contains(tool.Risk))
-            ? new(Decision.Allow, "allowed")
-            : new(Decision.RequireApproval, $"{tool.Risk} tools need approval");
+        var free = grants.FirstOrDefault(r => !r.RequireApproval.Contains(tool.Risk));
+        return free is not null
+            ? new(Decision.Allow, "allowed", $"role '{free.Name}' allows {tool.Risk} tools")
+            : new(Decision.RequireApproval, $"{tool.Risk} tools need approval",
+                $"role{(grants.Count > 1 ? "s" : "")} {string.Join(", ", grants.Select(g => $"'{g.Name}'"))} allow {tool.Risk} tools only with approval");
     }
 
     /// <summary>True if one of the principal's roles may approve calls of this tool's risk class.</summary>

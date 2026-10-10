@@ -1114,3 +1114,24 @@ ol.hits li {
   content: ' ✓';
   color: var(--accent);
 }
+
+/* Admin pages */
+pre.diff .add {
+  color: var(--accent);
+}
+pre.diff .del {
+  color: var(--danger);
+}
+textarea.code {
+  width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px;
+}
+.card + .card {
+  margin-top: 12px;
+}

@@ -65,7 +65,14 @@ public sealed record Profile(
     IReadOnlyList<ProfileTool> Tools,
     IReadOnlyList<ProfileRole> Roles,
     string? Model = null,
-    bool DetectConflicts = false);
+    bool DetectConflicts = false,
+    IReadOnlyList<PolicyTest>? PolicyTests = null);
+
+/// <summary>
+/// A policy test as code (#70): with these roles, calling this tool must be allowed, need approval or be denied. Run on apply and by
+/// <c>lotsctl validate</c>; a profile whose tests fail is rejected.
+/// </summary>
+public sealed record PolicyTest(IReadOnlyList<string> Roles, string Tool, string Expect);
 
 public sealed class ProfileException(IReadOnlyList<string> errors)
     : Exception("Invalid profile: " + string.Join("; ", errors))
@@ -147,10 +154,22 @@ public static class ProfileParser
         }
         Duplicates(roles.Select(r => r.Name), "role", Err);
 
+        var tests = new List<PolicyTest>();
+        foreach (var (t, i) in (doc.PolicyTests ?? []).Select((t, i) => (t, i + 1)))
+        {
+            var expect = t.Expect?.Trim().ToLowerInvariant();
+            if (string.IsNullOrWhiteSpace(t.Tool) || expect is not ("allow" or "approval" or "deny"))
+                Err($"policy test {i} needs a tool and expect: allow|approval|deny");
+            else tests.Add(new PolicyTest(t.Roles ?? [], t.Tool, expect));
+        }
+
         if (errors.Count > 0) throw new ProfileException(errors);
 
-        return new Profile(doc.Name!, doc.Version, doc.Description ?? "", doc.Instructions?.Trim() ?? "", servers, tools, roles,
-            string.IsNullOrWhiteSpace(doc.Model) ? null : doc.Model.Trim(), doc.DetectConflicts);
+        var profile = new Profile(doc.Name!, doc.Version, doc.Description ?? "", doc.Instructions?.Trim() ?? "", servers, tools, roles,
+            string.IsNullOrWhiteSpace(doc.Model) ? null : doc.Model.Trim(), doc.DetectConflicts, tests);
+        var failures = Policy.PolicyTests.Run(profile).Where(r => !r.Passed).Select(r => $"{source}: policy test failed: {r.Description}").ToList();
+        if (failures.Count > 0) throw new ProfileException(failures);
+        return profile;
     }
 
     private static ServerCredentials? ParseCredentials(ServerDoc s, Action<string> err)
@@ -212,6 +231,7 @@ public static class ProfileParser
         public string? Model { get; set; }
         /// <summary>Check retrieved passages for contradictions and let users vote (#48). Off unless enabled.</summary>
         public bool DetectConflicts { get; set; }
+        public List<PolicyTestDoc>? PolicyTests { get; set; }
         public List<ServerDoc>? Servers { get; set; }
         public List<ToolDoc>? Tools { get; set; }
         public List<RoleDoc>? Roles { get; set; }
@@ -238,6 +258,13 @@ public static class ProfileParser
         public string? Audience { get; set; }
     }
     private sealed class ToolDoc { public string? Name { get; set; } public string? Risk { get; set; } }
+
+    private sealed class PolicyTestDoc
+    {
+        public List<string>? Roles { get; set; }
+        public string? Tool { get; set; }
+        public string? Expect { get; set; }
+    }
 
     private sealed class RoleDoc
     {

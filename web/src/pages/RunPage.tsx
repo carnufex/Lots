@@ -154,6 +154,11 @@ function StepRow({ step }: { step: Step }) {
         <summary>
           <span className="kind">{isTool ? 'tool' : 'model'}</span>
           <span className="name">{step.name}</span>
+          {isTool && step.decision && step.decision !== 'Allowed' && (
+            <span className={`decision ${step.decision}`} title={step.reason ?? undefined}>
+              {step.decision === 'Denied' || step.decision === 'ApprovalDenied' ? `denied: ${step.reason ?? ''}` : step.decision}
+            </span>
+          )}
           <span className="muted mono">
             {step.latencyMs} ms
             {step.promptTokens != null && ` · ${step.promptTokens}+${step.completionTokens ?? 0} tok`}

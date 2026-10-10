@@ -11,10 +11,14 @@ import HistoryPage from './pages/HistoryPage'
 import IntegrationsPage, { INTEGRATION_TABS, type IntegrationTab } from './pages/IntegrationsPage'
 import PlaceholderPage from './pages/Placeholder'
 import KnowledgePage from './pages/KnowledgePage'
+import ProfilesPage from './pages/ProfilesPage'
+import PolicyPage from './pages/PolicyPage'
+import ModelsPage from './pages/ModelsPage'
+import IdentityPage from './pages/IdentityPage'
 import { PLANNED } from './planned'
 import { Icon, type IconName } from './components/Icon'
 
-type Route = { name: 'runs' } | { name: 'run'; id: string } | { name: 'approvals' } | { name: 'audit' } | { name: 'voice' } | { name: 'knowledge' } | { name: 'history'; id?: string } | { name: 'integrations'; tab: IntegrationTab } | { name: 'planned'; slug: string }
+type Route = { name: 'runs' } | { name: 'run'; id: string } | { name: 'approvals' } | { name: 'audit' } | { name: 'voice' } | { name: 'knowledge' } | { name: 'profiles' } | { name: 'policy' } | { name: 'models' } | { name: 'identity' } | { name: 'history'; id?: string } | { name: 'integrations'; tab: IntegrationTab } | { name: 'planned'; slug: string }
 
 type NavItem = { href: string; label: string; icon: IconName; active: (r: Route) => boolean }
 
@@ -33,17 +37,24 @@ const historyNav: NavItem = { href: '#/history', label: 'History', icon: 'transc
 const integrationsNav: NavItem = { href: '#/integrations', label: 'Integrations', icon: 'tools', active: (r) => r.name === 'integrations' }
 const voiceNav: NavItem = { href: '#/voice', label: 'Voice', icon: 'voice', active: (r) => r.name === 'voice' }
 const knowledgeNav: NavItem = { href: '#/knowledge', label: 'Knowledge', icon: 'rag', active: (r) => r.name === 'knowledge' }
+const page = (name: 'profiles' | 'policy' | 'models' | 'identity', label: string, icon: IconName): NavItem => ({
+  href: `#/${name}`,
+  label,
+  icon,
+  active: (r) => r.name === name,
+})
 
 const NAV: { title: string; items: NavItem[] }[] = [
   { title: 'Work', items: [nav('runs', 'Runs', 'runs'), historyNav, nav('approvals', 'Approvals', 'approvals'), nav('audit', 'Audit', 'audit')] },
-  { title: 'Capabilities', items: [knowledgeNav, integrationsNav, voiceNav, planned('transcription'), planned('models')] },
-  { title: 'Administration', items: ['profiles', 'policy', 'identity'].map(planned) },
+  { title: 'Capabilities', items: [knowledgeNav, integrationsNav, voiceNav, planned('transcription'), page('models', 'Models', 'models')] },
+  { title: 'Administration', items: [page('profiles', 'Profiles', 'profiles'), page('policy', 'Policy', 'policy'), page('identity', 'Identity', 'identity')] },
 ]
 
 function useHashRoute(): Route {
   const read = (): Route => {
     const r = window.location.hash.replace(/^#\/?/, '')
-    if (r === 'approvals' || r === 'audit' || r === 'voice' || r === 'knowledge') return { name: r }
+    if (r === 'approvals' || r === 'audit' || r === 'voice' || r === 'knowledge' || r === 'profiles' || r === 'policy' || r === 'models' || r === 'identity')
+      return { name: r }
     if (r === 'history') return { name: 'history' }
     const it = /^integrations(?:\/([a-z-]+))?$/.exec(r)
     if (it) return { name: 'integrations', tab: INTEGRATION_TABS.find((t) => t.slug === it[1])?.slug ?? 'tool-calls' }
@@ -159,6 +170,10 @@ function Shell({ config, auth, session }: { config: ClientConfig; auth: Auth; se
           {route.name === 'integrations' && <IntegrationsPage api={api} tab={route.tab} />}
           {route.name === 'voice' && <VoicePage api={api} voice={config.voice} />}
           {route.name === 'knowledge' && <KnowledgePage api={api} />}
+          {route.name === 'profiles' && <ProfilesPage api={api} />}
+          {route.name === 'policy' && <PolicyPage api={api} />}
+          {route.name === 'models' && <ModelsPage api={api} />}
+          {route.name === 'identity' && <IdentityPage api={api} />}
           {route.name === 'planned' && <PlaceholderPage item={PLANNED.find((p) => p.slug === route.slug)!} />}
         </main>
       </div>

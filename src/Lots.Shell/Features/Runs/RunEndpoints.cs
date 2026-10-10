@@ -117,7 +117,8 @@ public sealed record GetRunRequest(Guid Id);
 
 public sealed record StepDto(
     int Seq, string Kind, string Name, string? ToolCallId, string? Arguments, string? Result,
-    long LatencyMs, int? PromptTokens, int? CompletionTokens, DateTimeOffset At, string? Endpoint = null);
+    long LatencyMs, int? PromptTokens, int? CompletionTokens, DateTimeOffset At, string? Endpoint = null,
+    string? Decision = null, string? Reason = null);
 
 /// <param name="Waiting">What an unfinished run is waiting for: queued, model, tool, approval or cancelling; null when finished.</param>
 public sealed record RunDto(
@@ -143,11 +144,16 @@ public sealed class GetRunEndpoint(LotsDbContext db, ICurrentPrincipal who, ICon
             return;
         }
 
+        // Each tool step with the policy decision that let it run or stopped it ("denied: no role grants Write").
+        var audit = await db.AuditLog.AsNoTracking().Where(a => a.RunId == run.Id && a.Decision != AuditDecision.ApprovalRequested).ToListAsync(ct);
         await Send.OkAsync(new RunDto(
             run.Id, run.Prompt, run.Status.ToString(), run.FinalAnswer, run.Error, run.CreatedAt, run.UpdatedAt,
-            run.Steps.OrderBy(s => s.Seq).Select(s => new StepDto(
-                s.Seq, s.Kind.ToString(), s.Name, s.ToolCallId, s.ArgumentsJson, s.Result,
-                s.LatencyMs, s.PromptTokens, s.CompletionTokens, s.CreatedAt, s.Endpoint)).ToList(),
+            run.Steps.OrderBy(s => s.Seq).Select(s =>
+            {
+                var decision = s.Kind == StepKind.ToolCall ? Lots.Shell.Features.ToolCalls.ListToolCallsEndpoint.Match(audit, s) : null;
+                return new StepDto(s.Seq, s.Kind.ToString(), s.Name, s.ToolCallId, s.ArgumentsJson, s.Result,
+                    s.LatencyMs, s.PromptTokens, s.CompletionTokens, s.CreatedAt, s.Endpoint, decision?.Decision.ToString(), decision?.Reason);
+            }).ToList(),
             WaitingFor(run), run.RetryOf), ct);
     }
 

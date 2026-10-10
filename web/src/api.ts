@@ -20,6 +20,10 @@ export interface Step {
   promptTokens: number | null
   completionTokens: number | null
   at: string
+  endpoint: string | null
+  /** Tool steps: the policy decision and its reason (why it ran or was stopped). */
+  decision: string | null
+  reason: string | null
 }
 
 export interface RunDetail {
@@ -311,7 +315,8 @@ async function describe(res: Response): Promise<string> {
 }
 
 export function createApi(auth: Auth) {
-  async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  /** okStatuses: error statuses whose JSON body is still the answer (e.g. 422 from apply with per-resource errors). */
+  async function request<T>(path: string, init: RequestInit = {}, okStatuses: number[] = []): Promise<T> {
     const res = await fetch(path, {
       ...init,
       headers: {
@@ -321,11 +326,13 @@ export function createApi(auth: Auth) {
         ...init.headers,
       },
     })
-    if (!res.ok) throw new ApiError(res.status, await describe(res))
+    if (!res.ok && !okStatuses.includes(res.status)) throw new ApiError(res.status, await describe(res))
     return res.status === 204 ? (undefined as T) : res.json()
   }
 
   return {
+    /** The authenticated request helper itself, for feature modules with their own endpoints (admin pages). */
+    raw: request,
     listRuns: () => request<RunSummary[]>('/runs'),
     getRun: (id: string) => request<RunDetail>(`/runs/${id}`),
     cancelRun: (id: string) => request<{ id: string; status: RunStatus }>(`/runs/${id}/cancel`, { method: 'POST', body: '{}' }),
