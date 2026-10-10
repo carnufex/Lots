@@ -60,7 +60,7 @@ export interface Simulation {
 }
 
 export interface ModelsInfo {
-  endpoints: { name: string; baseUrl: string; location: string; up: boolean; latencyMs: number; error: string | null; models: string[] }[]
+  endpoints: { name: string; baseUrl: string; location: string; clearance?: string; up: boolean; latencyMs: number; error: string | null; models: string[] }[]
   aliases: { name: string; targets: { endpoint: string; model: string }[]; fastReasoningEffort: string | null; usedBy: string[] }[]
 }
 

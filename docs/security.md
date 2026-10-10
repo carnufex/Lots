@@ -125,3 +125,27 @@ Threat model: `docs/threat-model.md` (STRIDE for the shell, the MCP boundary and
   `Referrer-Policy: no-referrer`, `Cross-Origin-Opener-Policy: same-origin`, a `Permissions-Policy` that allows only the microphone,
   `Cache-Control: no-store` for API responses, and HSTS outside Development (`Security:Hsts`). `Security:CspConnectSrc` adds origins
   to `connect-src` if a deployment needs one.
+
+## Data classification (ADR 0018, #89)
+
+Classes `public < internal < confidential < restricted`. Label data where it comes from: `sensitivity:` on a profile (default for
+its tools, `internal` if unset) and per tool; knowledge sources get a class when created (Knowledge page, API `sensitivity`, or
+`Knowledge:Sources:N:Sensitivity`). Give model endpoints a clearance: `Models:Endpoints:<name>:Clearance` (default `restricted`
+for `Location: local`, `internal` for `hosted`) and name a local fallback with `Models:SensitiveAlias`.
+
+A run's class is the highest class it has read (shown on the run page). Each model call goes only to endpoints cleared for it;
+otherwise to the sensitive alias (step marked "Rerouted", audit `ModelRerouted`), otherwise nowhere (run fails, audit
+`ModelBlocked`). Tools whose class no model of the profile may see are hidden and denied. The Models page shows each endpoint's
+clearance.
+
+```yaml
+# appsettings / env: a hosted model for everyday questions, the local one for anything confidential
+Models:
+  Endpoints:
+    cloud: { BaseUrl: https://api.example/v1, ApiKeyEnv: CLOUD_KEY, Location: hosted }   # cleared for internal
+    gpu:   { BaseUrl: http://ollama:11434/v1 }                                            # local: restricted
+  Aliases:
+    default: { Targets: [ { Endpoint: cloud, Model: big } ] }
+    local:   { Targets: [ { Endpoint: gpu, Model: qwen3.5 } ] }
+  SensitiveAlias: local
+```

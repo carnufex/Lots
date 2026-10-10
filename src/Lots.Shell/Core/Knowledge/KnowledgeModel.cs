@@ -32,7 +32,8 @@ public static class SourceStatus
 public sealed record KnowledgeSource(
     string Id, string Name, string Kind, string? Location, IReadOnlyList<string> Readers, string Owner,
     string Status = SourceStatus.Queued, string? Error = null, DateTimeOffset? IndexedAt = null,
-    int Documents = 0, int Chunks = 0, string? EmbedModel = null, string ManagedBy = "api", DateTimeOffset CreatedAt = default);
+    int Documents = 0, int Chunks = 0, string? EmbedModel = null, string ManagedBy = "api", DateTimeOffset CreatedAt = default,
+    string Sensitivity = "internal");
 
 public sealed record KnowledgeDocument(
     Guid Id, string SourceId, string ExternalId, string Title, string? Url, string Content, string ContentHash, DateTimeOffset UpdatedAt);

@@ -24,14 +24,16 @@ public sealed record ModelResponse(
     ModelUsage Usage,
     TimeSpan Latency,
     string? Model = null,
-    string? Endpoint = null);
+    string? Endpoint = null,
+    string? Rerouted = null);
 
 /// <summary>
 /// Per-call hints. <see cref="Fast"/>: answer without a long reasoning phase (voice needs the first words quickly).
 /// <see cref="ReasoningEffort"/>: an explicit effort ("none", "low", ...) that wins over <see cref="Fast"/>.
 /// <see cref="Alias"/>: which configured model alias to use (default when null or unknown).
 /// </summary>
-public sealed record ModelCallOptions(bool Fast = false, string? ReasoningEffort = null, string? Alias = null);
+public sealed record ModelCallOptions(bool Fast = false, string? ReasoningEffort = null, string? Alias = null,
+    Policy.DataClass Data = Policy.DataClass.Public);
 
 public interface IModelClient
 {

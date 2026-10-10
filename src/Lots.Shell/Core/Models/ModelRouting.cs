@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Net;
+using Lots.Shell.Core.Policy;
 using Microsoft.Extensions.Options;
 
 namespace Lots.Shell.Core.Models;
@@ -13,6 +14,11 @@ public sealed class ModelEndpointOptions
     public int TimeoutSeconds { get; set; } = 300;
     /// <summary>Where data sent to this endpoint goes: local (our own hardware) or hosted. Used by data classification (#89).</summary>
     public string Location { get; set; } = "local";
+    /// <summary>
+    /// Highest data class (public|internal|confidential|restricted) this endpoint may see (#89). Default: restricted for local
+    /// endpoints, internal for hosted ones.
+    /// </summary>
+    public string? Clearance { get; set; }
 }
 
 /// <summary>One step of an alias' fallback chain.</summary>
@@ -38,9 +44,18 @@ public sealed class ModelsOptions
     public const string Section = "Models";
     public Dictionary<string, ModelEndpointOptions> Endpoints { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, ModelAlias> Aliases { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>
+    /// Alias used when a run's data is above the clearance of every target of its own alias (#89), typically a local model.
+    /// Without it such calls are blocked.
+    /// </summary>
+    public string? SensitiveAlias { get; set; }
 }
 
-public sealed record ModelEndpointHealth(string Name, string BaseUrl, string Location, bool Up, long LatencyMs, string? Error, IReadOnlyList<string> Models);
+public sealed record ModelEndpointHealth(string Name, string BaseUrl, string Location, bool Up, long LatencyMs, string? Error, IReadOnlyList<string> Models,
+    string Clearance = "restricted");
+
+/// <summary>The targets a call may use for its data, and why it left its own alias if it did.</summary>
+public sealed record ModelRoute(string Alias, IReadOnlyList<ModelTarget> Targets, string? Rerouted);
 
 /// <summary>
 /// The configured endpoints and aliases. The single legacy <c>Model</c> section becomes endpoint and alias <c>default</c>,
@@ -72,8 +87,47 @@ public sealed class ModelCatalog
             foreach (var t in alias.Targets)
                 if (!endpoints.ContainsKey(t.Endpoint))
                     throw new InvalidOperationException($"Model alias '{name}' refers to unknown endpoint '{t.Endpoint}'.");
+        foreach (var (name, e) in endpoints)
+            if (e.Clearance is not null && !Policy.DataClasses.TryParse(e.Clearance, out _))
+                throw new InvalidOperationException($"Model endpoint '{name}' has unknown clearance '{e.Clearance}' ({Policy.DataClasses.Choices}).");
+        if (models.Value.SensitiveAlias is { Length: > 0 } sensitive && !aliases.ContainsKey(sensitive))
+            throw new InvalidOperationException($"Models:SensitiveAlias '{sensitive}' is not a configured alias.");
         Endpoints = endpoints;
         Aliases = aliases;
+        SensitiveAlias = string.IsNullOrWhiteSpace(models.Value.SensitiveAlias) ? null : models.Value.SensitiveAlias;
+    }
+
+    public string? SensitiveAlias { get; }
+
+    /// <summary>The highest data class an endpoint may see.</summary>
+    public Policy.DataClass ClearanceOf(string endpoint) =>
+        Endpoints.TryGetValue(endpoint, out var e)
+            ? Policy.DataClasses.Parse(e.Clearance, string.Equals(e.Location, "hosted", StringComparison.OrdinalIgnoreCase)
+                ? Policy.DataClass.Internal : Policy.DataClass.Restricted)
+            : Policy.DataClass.Public;
+
+    /// <summary>
+    /// Where a call with data of class <paramref name="data"/> may go (#89): the alias' own targets that are cleared for it, else
+    /// the cleared targets of <see cref="SensitiveAlias"/>. Throws when no endpoint may see the data.
+    /// </summary>
+    public ModelRoute Route(string? alias, Policy.DataClass data)
+    {
+        var name = Resolve(alias);
+        var own = Aliases[name].Targets.Where(t => ClearanceOf(t.Endpoint) >= data).ToList();
+        if (own.Count > 0) return new ModelRoute(name, own, null);
+        if (SensitiveAlias is { } s && s != name && Aliases[s].Targets.Where(t => ClearanceOf(t.Endpoint) >= data).ToList() is { Count: > 0 } safe)
+            return new ModelRoute(s, safe, $"{data.Name()} data: rerouted from '{name}' to '{s}'");
+        throw new Policy.DataClassificationException(
+            $"This run has read {data.Name()} data, and no model endpoint of '{name}'" + (SensitiveAlias is null ? "" : $" or '{SensitiveAlias}'") +
+            $" is cleared for it. Ask an admin to set a clearance or Models:SensitiveAlias.");
+    }
+
+    /// <summary>The highest data class a run on this alias can work with (own targets or the sensitive alias).</summary>
+    public Policy.DataClass MaxClearance(string? alias)
+    {
+        var targets = Aliases[Resolve(alias)].Targets.AsEnumerable();
+        if (SensitiveAlias is { } s) targets = targets.Concat(Aliases[s].Targets);
+        return targets.Select(t => ClearanceOf(t.Endpoint)).DefaultIfEmpty(Policy.DataClass.Public).Max();
     }
 
     /// <summary>The alias to use: the requested one if configured, otherwise default.</summary>
@@ -96,17 +150,18 @@ public sealed class RoutingModelClient(ModelCatalog catalog, IHttpClientFactory 
 
     public async Task<ModelResponse> CompleteAsync(IReadOnlyList<ChatMessage> messages, IReadOnlyList<ToolDefinition> tools, ModelCallOptions options, CancellationToken ct)
     {
-        var aliasName = catalog.Resolve(options.Alias);
+        var route = catalog.Route(options.Alias, options.Data); // data above every endpoint's clearance never leaves (#89)
+        var aliasName = route.Alias;
         var alias = catalog.Aliases[aliasName];
         Exception? last = null;
-        foreach (var target in alias.Targets)
+        foreach (var target in route.Targets)
         {
             var client = new OpenAiCompatibleModelClient(httpFactory.CreateClient(HttpClientName(target.Endpoint)),
                 Options.Create(new ModelOptions { Model = target.Model, FastReasoningEffort = alias.FastReasoningEffort }));
             try
             {
                 var response = await client.CompleteAsync(messages, tools, options, ct);
-                return response with { Model = target.Model, Endpoint = target.Endpoint };
+                return response with { Model = target.Model, Endpoint = target.Endpoint, Rerouted = route.Rerouted };
             }
             catch (Exception ex) when (Retriable(ex, ct))
             {
@@ -146,11 +201,12 @@ public sealed class RoutingModelClient(ModelCatalog catalog, IHttpClientFactory 
                         if (m?["id"]?.GetValue<string>() is { } id) models.Add(id);
                 }
                 return new ModelEndpointHealth(e.Key, e.Value.BaseUrl, e.Value.Location, res.IsSuccessStatusCode, sw.ElapsedMilliseconds,
-                    res.IsSuccessStatusCode ? null : $"HTTP {(int)res.StatusCode}", models);
+                    res.IsSuccessStatusCode ? null : $"HTTP {(int)res.StatusCode}", models, catalog.ClearanceOf(e.Key).Name());
             }
             catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
             {
-                return new ModelEndpointHealth(e.Key, e.Value.BaseUrl, e.Value.Location, false, sw.ElapsedMilliseconds, ex.Message, []);
+                return new ModelEndpointHealth(e.Key, e.Value.BaseUrl, e.Value.Location, false, sw.ElapsedMilliseconds, ex.Message, [],
+                    catalog.ClearanceOf(e.Key).Name());
             }
         });
         return await Task.WhenAll(tasks);

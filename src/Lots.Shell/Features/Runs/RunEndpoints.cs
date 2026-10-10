@@ -134,7 +134,8 @@ public sealed record StepDto(
 public sealed record RunDto(
     Guid Id, string Prompt, string Status, string? FinalAnswer, string? Error,
     DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, IReadOnlyList<StepDto> Steps,
-    string? Waiting = null, Guid? RetryOf = null, string? TraceId = null, double Cost = 0, string? Currency = null);
+    string? Waiting = null, Guid? RetryOf = null, string? TraceId = null, double Cost = 0, string? Currency = null,
+    string Sensitivity = "public");
 
 /// <summary>A run can be read by its owner and by admins (<c>Auth:AdminRoles</c>, default admin). Others get 404.</summary>
 public sealed class GetRunEndpoint(LotsDbContext db, ICurrentPrincipal who, IConfiguration config, Lots.Shell.Features.Usage.PriceTable prices) : Endpoint<GetRunRequest, RunDto>
@@ -161,12 +162,14 @@ public sealed class GetRunEndpoint(LotsDbContext db, ICurrentPrincipal who, ICon
             run.Steps.OrderBy(s => s.Seq).Select(s =>
             {
                 var decision = s.Kind == StepKind.ToolCall ? Lots.Shell.Features.ToolCalls.ListToolCallsEndpoint.Match(audit, s) : null;
+                // Model steps carry their routing decision (#89) where tool steps carry their policy decision.
                 return new StepDto(s.Seq, s.Kind.ToString(), s.Name, s.ToolCallId, s.ArgumentsJson, s.Result,
-                    s.LatencyMs, s.PromptTokens, s.CompletionTokens, s.CreatedAt, s.Endpoint, decision?.Decision.ToString(), decision?.Reason, s.Flagged);
+                    s.LatencyMs, s.PromptTokens, s.CompletionTokens, s.CreatedAt, s.Endpoint,
+                    decision?.Decision.ToString() ?? (s.Routing is null ? null : "Rerouted"), decision?.Reason ?? s.Routing, s.Flagged);
             }).ToList(),
             WaitingFor(run), run.RetryOf, run.TraceId,
             Math.Round(run.Steps.Where(s => s.Kind == StepKind.ModelCall).Sum(s => prices.Cost(s.Name, s.PromptTokens ?? 0, s.CompletionTokens ?? 0)), 4),
-            prices.Currency), ct);
+            prices.Currency, run.Sensitivity.ToString().ToLowerInvariant()), ct);
     }
 
     internal static string? WaitingFor(RunRecord run)

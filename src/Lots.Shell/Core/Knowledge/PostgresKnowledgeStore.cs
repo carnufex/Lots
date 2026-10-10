@@ -64,6 +64,9 @@ public sealed class PostgresKnowledgeStore(NpgsqlDataSource data, TimeProvider c
     public async Task<StoreInfo> InitialiseAsync(CancellationToken ct)
     {
         await using (var cmd = data.CreateCommand(Schema)) await cmd.ExecuteNonQueryAsync(ct);
+        // Data class of the source's passages (#89); added after the first release, so altered in place.
+        await using (var cmd = data.CreateCommand("ALTER TABLE knowledge_sources ADD COLUMN IF NOT EXISTS sensitivity text NOT NULL DEFAULT 'internal'"))
+            await cmd.ExecuteNonQueryAsync(ct);
         await using (var cmd = data.CreateCommand(
             $"DELETE FROM knowledge_schema; INSERT INTO knowledge_schema VALUES ({SchemaVersion});"))
             await cmd.ExecuteNonQueryAsync(ct);
@@ -87,12 +90,13 @@ public sealed class PostgresKnowledgeStore(NpgsqlDataSource data, TimeProvider c
     private static KnowledgeSource ReadSource(NpgsqlDataReader r) => new(
         r.GetString(0), r.GetString(1), r.GetString(2), r.IsDBNull(3) ? null : r.GetString(3), r.GetFieldValue<string[]>(4), r.GetString(5),
         r.GetString(7), r.IsDBNull(8) ? null : r.GetString(8), r.IsDBNull(10) ? null : r.GetFieldValue<DateTimeOffset>(10),
-        r.GetInt32(12), r.GetInt32(13), r.IsDBNull(9) ? null : r.GetString(9), r.GetString(6), r.GetFieldValue<DateTimeOffset>(11));
+        r.GetInt32(12), r.GetInt32(13), r.IsDBNull(9) ? null : r.GetString(9), r.GetString(6), r.GetFieldValue<DateTimeOffset>(11), r.GetString(14));
 
     private const string SourceSelect = """
         SELECT s.id, s.name, s.kind, s.location, s.readers, s.owner, s.managed_by, s.status, s.error, s.embed_model, s.indexed_at, s.created_at,
                (SELECT count(*)::int FROM knowledge_documents d WHERE d.source_id = s.id),
-               (SELECT count(*)::int FROM knowledge_chunks c WHERE c.source_id = s.id)
+               (SELECT count(*)::int FROM knowledge_chunks c WHERE c.source_id = s.id),
+               s.sensitivity
         FROM knowledge_sources s
         """;
 
@@ -116,10 +120,11 @@ public sealed class PostgresKnowledgeStore(NpgsqlDataSource data, TimeProvider c
     public async Task UpsertSourceAsync(KnowledgeSource s, CancellationToken ct)
     {
         await using var cmd = data.CreateCommand("""
-            INSERT INTO knowledge_sources (id, name, kind, location, readers, owner, managed_by, status, created_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, 'queued', $8)
+            INSERT INTO knowledge_sources (id, name, kind, location, readers, owner, managed_by, status, created_at, sensitivity)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, 'queued', $8, $9)
             ON CONFLICT (id) DO UPDATE SET name = excluded.name, kind = excluded.kind, location = excluded.location,
-                readers = excluded.readers, owner = excluded.owner, managed_by = excluded.managed_by, status = 'queued', error = NULL
+                readers = excluded.readers, owner = excluded.owner, managed_by = excluded.managed_by, status = 'queued', error = NULL,
+                sensitivity = excluded.sensitivity
             """);
         cmd.Parameters.AddWithValue(s.Id);
         cmd.Parameters.AddWithValue(s.Name);
@@ -129,6 +134,7 @@ public sealed class PostgresKnowledgeStore(NpgsqlDataSource data, TimeProvider c
         cmd.Parameters.AddWithValue(s.Owner);
         cmd.Parameters.AddWithValue(s.ManagedBy);
         cmd.Parameters.AddWithValue(clock.GetUtcNow());
+        cmd.Parameters.AddWithValue(s.Sensitivity);
         await cmd.ExecuteNonQueryAsync(ct);
     }
 

@@ -8,6 +8,9 @@ namespace Lots.Shell.Core.Tools;
 /// </summary>
 public sealed record ToolCallContext(Principal Principal, string Profile)
 {
+    /// <summary>Set by a tool whose result is more sensitive than the profile declares, e.g. passages from a confidential source (#89).</summary>
+    public DataClass? ResultClass { get; set; }
+
     private static readonly AsyncLocal<ToolCallContext?> Holder = new();
 
     public static ToolCallContext? Current => Holder.Value;

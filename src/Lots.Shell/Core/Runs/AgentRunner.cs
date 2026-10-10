@@ -201,12 +201,26 @@ public sealed class AgentRunner(
                 {
                     response = await model.CompleteAsync(FitToBudget(ToMessages(run)), definitions, callOptions, ct);
                 }
+                catch (DataClassificationException ex)
+                {
+                    // Nothing was sent: the run stops, and the decision is on record (#89).
+                    AuditModel(run, principal, callOptions.Alias, AuditDecision.ModelBlocked, ex.Message);
+                    LotsMetrics.ModelCalls.Add(1, new("model", modelName), new("endpoint", ""), new("outcome", "blocked"));
+                    throw;
+                }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
                     LotsMetrics.ModelCalls.Add(1, new("model", modelName), new("endpoint", ""), new("outcome", "error"));
                     throw;
                 }
                 activity?.SetTag("gen_ai.response.model", response.Model);
+                if (response.Rerouted is { } why)
+                {
+                    activity?.SetTag("lots.model.rerouted", why);
+                    // Once per run and reason; later calls with the same routing are visible on their steps.
+                    if (!run.Steps.Any(s => s.Kind == StepKind.ModelCall && s.Routing == why))
+                        AuditModel(run, principal, callOptions.Alias, AuditDecision.ModelRerouted, why + $" (answered by {response.Endpoint})");
+                }
                 var modelTags = new TagList { { "model", response.Model ?? modelName }, { "endpoint", response.Endpoint ?? "" } };
                 LotsMetrics.ModelCalls.Add(1, new("model", response.Model ?? modelName), new("endpoint", response.Endpoint ?? ""), new("outcome", "ok"));
                 LotsMetrics.ModelLatency.Record(response.Latency.TotalSeconds, modelTags);
@@ -226,6 +240,7 @@ public sealed class AgentRunner(
                     Kind = StepKind.ModelCall,
                     Name = response.Model ?? modelName,
                     Endpoint = response.Endpoint,
+                    Routing = response.Rerouted,
                     Result = Cut(response.Message.Content) ?? DescribeEmpty(response),
                     ArgumentsJson = response.Message.ToolCalls is null ? null : JsonSerializer.Serialize(response.Message.ToolCalls, Json),
                     LatencyMs = (long)response.Latency.TotalMilliseconds,
@@ -288,8 +303,8 @@ public sealed class AgentRunner(
 
     private ModelCallOptions CallOptions(RunRecord run, int modelCallsSoFar) =>
         !run.Voice
-            ? new ModelCallOptions(Alias: AliasFor(run))
-            : new ModelCallOptions(Fast: true, Alias: AliasFor(run),
+            ? new ModelCallOptions(Alias: AliasFor(run), Data: run.Sensitivity)
+            : new ModelCallOptions(Fast: true, Alias: AliasFor(run), Data: run.Sensitivity,
                 ReasoningEffort: modelCallsSoFar == 0
                     ? _options.VoiceFirstCallEffort
                     : run.Messages.OrderBy(m => m.Seq).Last().Content == VoiceToolNudge
@@ -415,6 +430,7 @@ public sealed class AgentRunner(
         try
         {
             var result = await tools.InvokeDetailedAsync(call, principal, profile, limit.Token, approved);
+            run.Sensitivity = DataClasses.Max(run.Sensitivity, result.Data); // from now on the model calls of this run must be cleared for it
             if (result.Suspicious)
             {
                 run.Tainted = true;
@@ -460,6 +476,15 @@ public sealed class AgentRunner(
             Profile = run.Profile, ProfileVersion = profiles.Find(run.Profile)?.Version ?? 0, RunId = run.Id,
             Tool = call.Name, ToolCallId = call.Id, ArgumentsJson = call.ArgumentsJson, Decision = decision, Reason = reason,
             ApproverId = approver, ResultStatus = resultStatus, BackendAuth = backendAuth,
+        });
+
+    private void AuditModel(RunRecord run, Principal principal, string? alias, AuditDecision decision, string reason) =>
+        db.AuditLog.Add(new AuditRecord
+        {
+            Id = Guid.NewGuid(), At = clock.GetUtcNow(), UserId = principal.UserId, Roles = run.Roles,
+            Profile = run.Profile, ProfileVersion = profiles.Find(run.Profile)?.Version ?? 0, RunId = run.Id,
+            Tool = "model:" + (catalog?.Resolve(alias) ?? alias ?? ModelCatalog.Default), Decision = decision,
+            Reason = reason,
         });
 
     private static int NextStepSeq(RunRecord run) => run.Steps.Count == 0 ? 0 : run.Steps.Max(x => x.Seq) + 1;

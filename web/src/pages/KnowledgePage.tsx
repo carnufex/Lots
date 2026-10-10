@@ -70,6 +70,7 @@ export default function KnowledgePage({ api }: { api: Api }) {
                   <th>Documents</th>
                   <th>Chunks</th>
                   <th>Readers</th>
+                  <th>Data</th>
                   <th>Indexed</th>
                   <th />
                 </tr>
@@ -118,6 +119,7 @@ function SourceRow({ api, source: s, open, onToggle, onChange }: { api: Api; sou
         <td>{s.documents}</td>
         <td>{s.chunks}</td>
         <td className="muted small">{s.readers.join(', ')}</td>
+        <td className="muted small">{s.sensitivity ?? 'internal'}</td>
         <td className="muted">{s.indexedAt ? new Date(s.indexedAt).toLocaleString() : ''}</td>
         <td>
           {(s.canManage || s.managedBy === 'config') && (
@@ -141,14 +143,14 @@ function SourceRow({ api, source: s, open, onToggle, onChange }: { api: Api; sou
       </tr>
       {s.error && (
         <tr>
-          <td colSpan={8} className="error small">
+          <td colSpan={9} className="error small">
             {s.error}
           </td>
         </tr>
       )}
       {open && (
         <tr>
-          <td colSpan={8}>
+          <td colSpan={9}>
             <Documents api={api} source={s} onChange={onChange} />
           </td>
         </tr>
@@ -259,6 +261,7 @@ function NewSource({ api, onCreated }: { api: Api; onCreated: () => void }) {
   const [kind, setKind] = useState<'personal' | 'upload' | 'directory' | 'url'>('personal')
   const [location, setLocation] = useState('')
   const [readers, setReaders] = useState('role:operator')
+  const [sensitivity, setSensitivity] = useState('internal')
   const [error, setError] = useState<string | null>(null)
 
   return (
@@ -271,8 +274,8 @@ function NewSource({ api, onCreated }: { api: Api; onCreated: () => void }) {
           setError(null)
           const body =
             kind === 'personal'
-              ? { name, personal: true }
-              : { name, kind, location: location || undefined, readers: readers.split(',').map((r) => r.trim()).filter(Boolean) }
+              ? { name, personal: true, sensitivity }
+              : { name, kind, location: location || undefined, readers: readers.split(',').map((r) => r.trim()).filter(Boolean), sensitivity }
           api
             .createSource(body)
             .then(() => {
@@ -312,6 +315,16 @@ function NewSource({ api, onCreated }: { api: Api; onCreated: () => void }) {
             <input value={readers} onChange={(e) => setReaders(e.target.value)} title="*, role:<name> or user:<id>, comma separated" />
           </label>
         )}
+        <label title="Data class of the passages: runs that read them only use models cleared for it">
+          Data class
+          <select value={sensitivity} onChange={(e) => setSensitivity(e.target.value)}>
+            {['public', 'internal', 'confidential', 'restricted'].map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </label>
         <button className="btn" type="submit">
           Create
         </button>

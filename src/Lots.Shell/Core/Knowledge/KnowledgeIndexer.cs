@@ -31,6 +31,8 @@ public sealed class SourceConfig
     public string Kind { get; set; } = SourceKinds.Directory;
     public string? Location { get; set; }
     public List<string> Readers { get; set; } = [];
+    /// <summary>Data class of the passages (#89): public|internal|confidential|restricted.</summary>
+    public string Sensitivity { get; set; } = "internal";
 }
 
 public sealed record IndexResult(int Documents, int Embedded, int Unchanged, int Removed, int Chunks);

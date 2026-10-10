@@ -41,6 +41,8 @@ export interface RunDetail {
   waiting: 'queued' | 'model' | 'tool' | 'approval' | 'cancelling' | null
   retryOf: string | null
   traceId: string | null
+  /** The highest data class the run has read (#89): public, internal, confidential or restricted. */
+  sensitivity?: string
 }
 
 export const isTerminal = (s: RunStatus) => s === 'Completed' || s === 'Failed' || s === 'Cancelled'
@@ -173,6 +175,8 @@ export interface KnowledgeSource {
   kind: 'upload' | 'directory' | 'url'
   location: string | null
   readers: string[]
+  /** Data class of the source's passages (#89). */
+  sensitivity?: string
   owner: string
   status: 'queued' | 'indexing' | 'ready' | 'failed'
   error: string | null

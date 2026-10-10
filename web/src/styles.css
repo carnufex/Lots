@@ -621,7 +621,8 @@ input.wide {
 }
 
 .decision.ApprovalRequested,
-.decision.Flagged {
+.decision.Flagged,
+.decision.Rerouted {
   color: var(--warn);
   border-color: #5a4a26;
 }

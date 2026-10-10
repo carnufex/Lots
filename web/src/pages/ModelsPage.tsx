@@ -36,6 +36,7 @@ export default function ModelsPage({ api }: { api: Api }) {
                 <th>Endpoint</th>
                 <th>URL</th>
                 <th>Where</th>
+                <th title="Highest data class this endpoint may see (#89)">Cleared for</th>
                 <th>Health</th>
                 <th>Models served</th>
               </tr>
@@ -46,6 +47,7 @@ export default function ModelsPage({ api }: { api: Api }) {
                   <td>{e.name}</td>
                   <td className="mono small">{e.baseUrl}</td>
                   <td>{e.location}</td>
+                  <td>{e.clearance ?? ''}</td>
                   <td title={e.error ?? undefined}>
                     <span className={`decision ${e.up ? 'Allowed' : 'Denied'}`}>{e.up ? `up · ${e.latencyMs} ms` : 'down'}</span>
                   </td>

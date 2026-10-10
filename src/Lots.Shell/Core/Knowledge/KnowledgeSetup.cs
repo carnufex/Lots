@@ -52,12 +52,14 @@ public static class KnowledgeSetup
         {
             var errors = new List<string>();
             var readers = KnowledgeAccess.Normalise(c.Readers, errors.Add);
+            if (!Policy.DataClasses.TryParse(c.Sensitivity, out var sensitivity)) errors.Add($"unknown sensitivity '{c.Sensitivity}'");
             if (string.IsNullOrWhiteSpace(c.Id) || !SourceKinds.All.Contains(c.Kind) || readers.Count == 0 || errors.Count > 0)
                 throw new InvalidOperationException($"Knowledge source '{c.Id}' in configuration is invalid: needs id, kind ({string.Join('|', SourceKinds.All)}) and readers. {string.Join("; ", errors)}");
-            var wanted = new KnowledgeSource(c.Id, c.Name ?? c.Id, c.Kind, c.Location, readers, "config", ManagedBy: "config");
+            var wanted = new KnowledgeSource(c.Id, c.Name ?? c.Id, c.Kind, c.Location, readers, "config", ManagedBy: "config",
+                Sensitivity: Policy.DataClasses.Name(sensitivity));
             // Re-queue only when the definition changed; an unchanged source keeps its index (re-index from the page).
             if (existing.TryGetValue(c.Id, out var old) && old.ManagedBy == "config" && old.Name == wanted.Name && old.Kind == wanted.Kind
-                && old.Location == wanted.Location && old.Readers.SequenceEqual(wanted.Readers))
+                && old.Location == wanted.Location && old.Readers.SequenceEqual(wanted.Readers) && old.Sensitivity == wanted.Sensitivity)
                 continue;
             await store.UpsertSourceAsync(wanted, ct);
         }

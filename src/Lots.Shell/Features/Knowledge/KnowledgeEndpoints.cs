@@ -9,7 +9,8 @@ namespace Lots.Shell.Features.Knowledge;
 
 public sealed record SourceDto(
     string Id, string Name, string Kind, string? Location, IReadOnlyList<string> Readers, string Owner, string Status, string? Error,
-    DateTimeOffset? IndexedAt, int Documents, int Chunks, string? EmbedModel, string ManagedBy, bool CanManage, bool Personal);
+    DateTimeOffset? IndexedAt, int Documents, int Chunks, string? EmbedModel, string ManagedBy, bool CanManage, bool Personal,
+    string Sensitivity = "internal");
 
 public sealed record KnowledgeOverview(string Backend, bool VectorExtension, string? Note, bool EmbeddingsConfigured, string EmbedModel, IReadOnlyList<SourceDto> Sources);
 
@@ -32,7 +33,7 @@ internal static partial class KnowledgeRules
 
     public static SourceDto ToDto(KnowledgeSource s, Principal me, IConfiguration config) => new(
         s.Id, s.Name, s.Kind, ConversationViews.IsAdmin(me, config) ? s.Location : null, s.Readers, s.Owner, s.Status, s.Error, s.IndexedAt,
-        s.Documents, s.Chunks, s.EmbedModel, s.ManagedBy, CanManage(s, me, config) && !IsAsCode(s), IsPersonal(s));
+        s.Documents, s.Chunks, s.EmbedModel, s.ManagedBy, CanManage(s, me, config) && !IsAsCode(s), IsPersonal(s), s.Sensitivity);
 
     public static HitDto ToDto(KnowledgeHit h) =>
         new(h.ChunkId, h.SourceId, h.SourceName, h.Title, h.Url, h.UpdatedAt, h.Heading, h.Text, h.Score, h.VectorRank, h.TextRank);
@@ -62,7 +63,8 @@ public sealed class KnowledgeOverviewEndpoint(IKnowledgeStore store, KnowledgeSt
     }
 }
 
-public sealed record CreateSourceRequest(string? Id, string Name, string Kind = SourceKinds.Upload, string? Location = null, List<string>? Readers = null, bool Personal = false);
+public sealed record CreateSourceRequest(string? Id, string Name, string Kind = SourceKinds.Upload, string? Location = null, List<string>? Readers = null,
+    bool Personal = false, string? Sensitivity = null);
 
 /// <summary>
 /// Creates or redefines a source. Admins may create any source; everyone else only a personal upload source that only they can read
@@ -79,6 +81,8 @@ public sealed class CreateSourceEndpoint(IKnowledgeStore store, KnowledgeIndexer
         var admin = ConversationViews.IsAdmin(me, config);
         if (string.IsNullOrWhiteSpace(req.Name)) AddError(x => x.Name, "Name is required.");
         if (!SourceKinds.All.Contains(req.Kind)) AddError(x => x.Kind, $"Kind must be one of {string.Join(", ", SourceKinds.All)}.");
+        if (req.Sensitivity is not null && !Lots.Shell.Core.Policy.DataClasses.TryParse(req.Sensitivity, out _))
+            AddError(x => x.Sensitivity!, $"Sensitivity must be one of {Lots.Shell.Core.Policy.DataClasses.Choices}.");
 
         List<string> readers;
         string id;
@@ -114,7 +118,9 @@ public sealed class CreateSourceEndpoint(IKnowledgeStore store, KnowledgeIndexer
         }
 
         await store.UpsertSourceAsync(new KnowledgeSource(id, req.Name!.Trim(), req.Kind, req.Personal ? null : req.Location, readers,
-            existing?.Owner ?? me.UserId), ct);
+            existing?.Owner ?? me.UserId,
+            Sensitivity: Lots.Shell.Core.Policy.DataClasses.Parse(req.Sensitivity ?? existing?.Sensitivity, Lots.Shell.Core.Policy.DataClass.Internal)
+                .ToString().ToLowerInvariant()), ct);
         await Send.OkAsync(KnowledgeRules.ToDto((await store.GetSourceAsync(id, ct))!, me, config), ct);
     }
 }

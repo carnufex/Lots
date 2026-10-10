@@ -87,6 +87,11 @@ function Detail({ run, api, voice, reconnecting, traceUrl }: { run: RunDetail; a
         {live && <span className="muted">{run.waiting ? WAITING[run.waiting] : 'working…'}</span>}
         {reconnecting && <span className="warn">connection problem, retrying…</span>}
         <span className="muted mono">{run.steps.length} steps · {tokens} tokens</span>
+        {run.sensitivity && run.sensitivity !== 'public' && (
+          <span className="decision ApprovalRequested" title="The highest data class this run has read. Its model calls only go to endpoints cleared for it.">
+            {run.sensitivity} data
+          </span>
+        )}
         {run.traceId && (
           <span className="muted mono small">
             trace{' '}

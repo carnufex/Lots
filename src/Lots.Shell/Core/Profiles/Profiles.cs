@@ -1,3 +1,4 @@
+using Lots.Shell.Core.Policy;
 using Lots.Shell.Core.Tools;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
@@ -47,7 +48,8 @@ public static class AuthStrategies
 }
 
 /// <summary>A tool the profile exposes, with the risk class an administrator assigned to it.</summary>
-public sealed record ProfileTool(string Name, ToolRisk Risk);
+/// <summary>A tool the profile allows. <see cref="Sensitivity"/>: the data class of its results; null = the profile's (#89).</summary>
+public sealed record ProfileTool(string Name, ToolRisk Risk, DataClass? Sensitivity = null);
 
 /// <summary>
 /// What a role may do within a profile. <see cref="Allow"/> lists risk classes the role may use;
@@ -73,9 +75,13 @@ public sealed record Profile(
     string? Model = null,
     bool DetectConflicts = false,
     IReadOnlyList<PolicyTest>? PolicyTests = null,
-    ApprovalRules? Approvals = null)
+    ApprovalRules? Approvals = null,
+    DataClass Sensitivity = DataClass.Internal)
 {
     public ApprovalRules ApprovalRules => Approvals ?? ApprovalRules.Default;
+
+    /// <summary>The data class of a tool's results: its own, else the profile's (#89).</summary>
+    public DataClass SensitivityOf(string tool) => Tools.FirstOrDefault(t => t.Name == tool)?.Sensitivity ?? Sensitivity;
 }
 
 /// <summary>
@@ -167,7 +173,13 @@ public static class ProfileParser
         {
             if (string.IsNullOrWhiteSpace(t.Name)) { Err("a tool has no name"); continue; }
             if (!TryRisk(t.Risk, out var risk)) { Err($"tool '{t.Name}' has unknown risk '{t.Risk}' (read|write|destructive)"); continue; }
-            tools.Add(new ProfileTool(t.Name, risk));
+            DataClass? toolClass = null;
+            if (t.Sensitivity is not null)
+            {
+                if (DataClasses.TryParse(t.Sensitivity, out var c)) toolClass = c;
+                else Err($"tool '{t.Name}' has unknown sensitivity '{t.Sensitivity}' ({DataClasses.Choices})");
+            }
+            tools.Add(new ProfileTool(t.Name, risk, toolClass));
         }
         Duplicates(tools.Select(t => t.Name), "tool", Err);
 
@@ -193,6 +205,10 @@ public static class ProfileParser
             else tests.Add(new PolicyTest(t.Roles ?? [], t.Tool, expect));
         }
 
+        var profileClass = DataClass.Internal;
+        if (doc.Sensitivity is not null && !DataClasses.TryParse(doc.Sensitivity, out profileClass))
+            Err($"unknown sensitivity '{doc.Sensitivity}' ({DataClasses.Choices})");
+
         if (errors.Count > 0) throw new ProfileException(errors);
 
         ApprovalRules? approvalRules = null;
@@ -206,7 +222,7 @@ public static class ProfileParser
         }
 
         var profile = new Profile(doc.Name!, doc.Version, doc.Description ?? "", doc.Instructions?.Trim() ?? "", servers, tools, roles,
-            string.IsNullOrWhiteSpace(doc.Model) ? null : doc.Model.Trim(), doc.DetectConflicts, tests, approvalRules);
+            string.IsNullOrWhiteSpace(doc.Model) ? null : doc.Model.Trim(), doc.DetectConflicts, tests, approvalRules, profileClass);
         var failures = Policy.PolicyTests.Run(profile).Where(r => !r.Passed).Select(r => $"{source}: policy test failed: {r.Description}").ToList();
         if (failures.Count > 0) throw new ProfileException(failures);
         return profile;
@@ -279,6 +295,8 @@ public static class ProfileParser
         public string? Model { get; set; }
         /// <summary>Check retrieved passages for contradictions and let users vote (#48). Off unless enabled.</summary>
         public bool DetectConflicts { get; set; }
+        /// <summary>Default data class of the profile's tool results (#89); internal when not set.</summary>
+        public string? Sensitivity { get; set; }
         public List<PolicyTestDoc>? PolicyTests { get; set; }
         public ApprovalsDoc? Approvals { get; set; }
         public List<ServerDoc>? Servers { get; set; }
@@ -307,7 +325,7 @@ public static class ProfileParser
         public string? Audience { get; set; }
         public string? AuthorizeUrl { get; set; }
     }
-    private sealed class ToolDoc { public string? Name { get; set; } public string? Risk { get; set; } }
+    private sealed class ToolDoc { public string? Name { get; set; } public string? Risk { get; set; } public string? Sensitivity { get; set; } }
 
     private sealed class ApprovalsDoc
     {

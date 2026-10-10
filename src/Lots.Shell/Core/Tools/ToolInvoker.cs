@@ -39,7 +39,7 @@ public interface IToolSource
 /// risk class. Calls that need approval are executed only when the caller passes <c>approved: true</c>, which the
 /// agent runner does after a recorded approval.
 /// </summary>
-public sealed class ToolInvoker(IEnumerable<IToolSource> sources, ProfileRegistry profiles)
+public sealed class ToolInvoker(IEnumerable<IToolSource> sources, ProfileRegistry profiles, ModelCatalog? catalog = null)
 {
     public const int MaxOutputChars = 8_000;
 
@@ -64,14 +64,27 @@ public sealed class ToolInvoker(IEnumerable<IToolSource> sources, ProfileRegistr
     }
 
     /// <summary>The policy decision for a call, without executing it.</summary>
-    public PolicyResult Evaluate(ToolCall call, Principal principal, string profileName) =>
-        PolicyEngine.Decide(principal, RequireProfile(profileName), call.Name);
+    public PolicyResult Evaluate(ToolCall call, Principal principal, string profileName)
+    {
+        var profile = RequireProfile(profileName);
+        return AboveClearance(profile, call.Name) is { } why ? new PolicyResult(Decision.Deny, why, "data classification (#89)")
+            : PolicyEngine.Decide(principal, profile, call.Name);
+    }
+
+    /// <summary>Why a tool is unusable because no model the profile can use may see its results (#89), or null.</summary>
+    private string? AboveClearance(Profile profile, string tool)
+    {
+        if (catalog is null) return null;
+        var data = profile.SensitivityOf(tool);
+        var max = catalog.MaxClearance(profile.Model);
+        return data > max ? $"denied: '{tool}' returns {data.Name()} data and no model of this profile is cleared above {max.Name()}" : null;
+    }
 
     /// <summary>Tools the model may see for this principal and profile. Everything else is not shown at all.</summary>
     public async Task<IReadOnlyList<ToolDefinition>> DefinitionsAsync(Principal principal, string profileName, CancellationToken ct)
     {
         var profile = RequireProfile(profileName);
-        var visible = PolicyEngine.VisibleTools(principal, profile).ToHashSet();
+        var visible = PolicyEngine.VisibleTools(principal, profile).Where(t => AboveClearance(profile, t) is null).ToHashSet();
         var result = new List<ToolDefinition>();
         foreach (var source in _sources)
             foreach (var tool in await source.ListAsync(ct))
@@ -93,6 +106,9 @@ public sealed class ToolInvoker(IEnumerable<IToolSource> sources, ProfileRegistr
     /// </summary>
     public sealed record ToolResult(string Text, string ModelText, bool Suspicious = false, IReadOnlyList<string>? Findings = null)
     {
+        /// <summary>The data class of the result: the tool's declared class, raised by the tool itself if needed (#89).</summary>
+        public DataClass Data { get; init; } = DataClass.Public;
+
         public static ToolResult Own(string text) => new(text, text);
 
         public static ToolResult FromTool(string tool, string text)
@@ -106,7 +122,7 @@ public sealed class ToolInvoker(IEnumerable<IToolSource> sources, ProfileRegistr
 
     public async Task<ToolResult> InvokeDetailedAsync(ToolCall call, Principal principal, string profileName, CancellationToken ct, bool approved = false)
     {
-        var decision = PolicyEngine.Decide(principal, RequireProfile(profileName), call.Name);
+        var decision = Evaluate(call, principal, profileName);
         if (decision.Decision == Decision.Deny)
             return ToolResult.Own($"Error: tool '{call.Name}' is not available or not permitted.");
         if (decision.Decision == Decision.RequireApproval && !approved)
@@ -120,8 +136,11 @@ public sealed class ToolInvoker(IEnumerable<IToolSource> sources, ProfileRegistr
 
         try
         {
-            using var context = ToolCallContext.Enter(new ToolCallContext(principal, profileName));
-            return ToolResult.FromTool(call.Name, Truncate(await source.CallAsync(call.Name, call.ArgumentsJson, ct)));
+            var callContext = new ToolCallContext(principal, profileName);
+            using var context = ToolCallContext.Enter(callContext);
+            var text = Truncate(await source.CallAsync(call.Name, call.ArgumentsJson, ct));
+            var declared = RequireProfile(profileName).SensitivityOf(call.Name);
+            return ToolResult.FromTool(call.Name, text) with { Data = DataClasses.Max(declared, callContext.ResultClass ?? declared) };
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {

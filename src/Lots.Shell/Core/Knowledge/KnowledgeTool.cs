@@ -56,6 +56,10 @@ public sealed class KnowledgeToolSource(IKnowledgeStore store, IEmbeddingModel e
         var source = args.RootElement.TryGetProperty("source", out var s) && s.ValueKind == JsonValueKind.String ? s.GetString() : null;
 
         var hits = await SearchAsync(store, embeddings, query, KnowledgeAccess.TokensOf(context.Principal), k, source, ct);
+        // The result is as sensitive as the most sensitive source it quotes (#89).
+        foreach (var id in hits.Select(h => h.SourceId).Distinct())
+            if (await store.GetSourceAsync(id, ct) is { } src && Policy.DataClasses.TryParse(src.Sensitivity, out var c))
+                context.ResultClass = Policy.DataClasses.Max(context.ResultClass ?? Policy.DataClass.Public, c);
         var conflict = conflicts is not null && profiles?.Find(context.Profile)?.DetectConflicts == true
             ? await conflicts.CheckAsync(query, hits, ct)
             : null;

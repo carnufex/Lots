@@ -37,6 +37,7 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
             e.HasIndex(x => x.UserId);
             e.HasIndex(x => x.ConversationId);
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
+            e.Property(x => x.Sensitivity).HasConversion<string>().HasMaxLength(16);
             e.HasIndex(x => x.Status);
             e.Property(x => x.LeaseOwner).HasMaxLength(256);
             e.Property(x => x.CancelRequestedBy).HasMaxLength(256);
@@ -271,6 +272,8 @@ public sealed class RunRecord
     /// need an approval even where the role would allow them directly.
     /// </summary>
     public bool Tainted { get; set; }
+    /// <summary>The highest data class the run has read (#89). Model calls go only to endpoints cleared for it.</summary>
+    public Lots.Shell.Core.Policy.DataClass Sensitivity { get; set; }
     /// <summary>OpenTelemetry trace of the run's first execution (#76): resumed executions link to it.</summary>
     public string? TraceId { get; set; }
     /// <summary>Worker currently executing the run, and until when (unix ms). See RunLeases.</summary>
@@ -313,6 +316,8 @@ public sealed class RunStepRecord
     public bool Flagged { get; set; }
     /// <summary>For model calls: the configured endpoint that answered (after any fallback).</summary>
     public string? Endpoint { get; set; }
+    /// <summary>For model calls: why the call left the run's model alias (data classification, #89).</summary>
+    public string? Routing { get; set; }
     public long LatencyMs { get; set; }
     public int? PromptTokens { get; set; }
     public int? CompletionTokens { get; set; }
@@ -425,7 +430,14 @@ public sealed class NotificationRecord
     public string? LastError { get; set; }
 }
 
-public enum AuditDecision { Allowed, Denied, ApprovalRequested, ApprovalGranted, ApprovalRefused, ApprovalDenied }
+public enum AuditDecision
+{
+    Allowed, Denied, ApprovalRequested, ApprovalGranted, ApprovalRefused, ApprovalDenied,
+    /// <summary>A model call went to another alias because of the run's data class (#89); Tool is "model:&lt;alias&gt;".</summary>
+    ModelRerouted,
+    /// <summary>No model endpoint was cleared for the run's data; the run stopped (#89).</summary>
+    ModelBlocked,
+}
 
 /// <summary>
 /// Append-only accountability record: who did what under which profile version, what policy decided and
