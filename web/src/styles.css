@@ -1055,3 +1055,45 @@ dl.meta {
 .btn.small {
   font-size: 0.85rem;
 }
+
+/* Knowledge */
+.filters .grow {
+  flex: 1 1 280px;
+}
+.filters textarea {
+  width: 100%;
+  font: inherit;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 5px 8px;
+}
+.filters select {
+  font: inherit;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px 6px;
+}
+ul.plain {
+  list-style: none;
+  padding: 0;
+}
+ol.hits li {
+  margin-bottom: 12px;
+}
+.citations {
+  margin: 12px 0 4px;
+}
+.citations ol {
+  padding-left: 0;
+  list-style: none;
+}
+.citations li {
+  margin: 4px 0;
+}
+.citations details {
+  display: inline;
+}

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { isTerminal, type Api, type RunDetail, type Step } from '../api'
 import type { VoiceConfig } from '../config'
 import SpeakButton from '../components/SpeakButton'
+import Citations from '../components/Citations'
 
 const POLL_MS = 1500
 
@@ -116,6 +117,7 @@ function Detail({ run, api, voice, reconnecting }: { run: RunDetail; api: Api; v
           <div className="answer" aria-label="Answer">
             {run.finalAnswer}
           </div>
+          {run.finalAnswer && <Citations api={api} answer={run.finalAnswer} steps={run.steps} />}
           {voice.enabled && run.finalAnswer && <SpeakButton api={api} runId={run.id} />}
         </>
       )}

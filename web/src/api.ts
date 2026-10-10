@@ -144,6 +144,56 @@ export interface CatalogEntry {
   lastUsed: string | null
 }
 
+export interface KnowledgeSource {
+  id: string
+  name: string
+  kind: 'upload' | 'directory' | 'url'
+  location: string | null
+  readers: string[]
+  owner: string
+  status: 'queued' | 'indexing' | 'ready' | 'failed'
+  error: string | null
+  indexedAt: string | null
+  documents: number
+  chunks: number
+  embedModel: string | null
+  managedBy: string
+  canManage: boolean
+  personal: boolean
+}
+
+export interface KnowledgeOverview {
+  backend: string
+  vectorExtension: boolean
+  note: string | null
+  embeddingsConfigured: boolean
+  embedModel: string
+  sources: KnowledgeSource[]
+}
+
+export interface KnowledgeDoc {
+  id: string
+  externalId: string
+  title: string
+  url: string | null
+  chars: number
+  updatedAt: string
+}
+
+export interface KnowledgeHit {
+  chunkId: string
+  sourceId: string
+  sourceName: string
+  title: string
+  url: string | null
+  updatedAt: string
+  heading: string
+  text: string
+  score: number
+  vectorRank: number | null
+  textRank: number | null
+}
+
 export interface Transcription {
   text: string
   language: string | null
@@ -235,6 +285,18 @@ export class ApiError extends Error {
   }
 }
 
+/** The server's validation messages when it sent some (FastEndpoints: {errors: {field: [..]}}), else the status. */
+async function describe(res: Response): Promise<string> {
+  try {
+    const body = (await res.json()) as { errors?: Record<string, string[]> }
+    const messages = Object.values(body.errors ?? {}).flat()
+    if (messages.length) return messages.join(' ')
+  } catch {
+    // not JSON
+  }
+  return `${res.status} ${res.statusText}`
+}
+
 export function createApi(auth: Auth) {
   async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const res = await fetch(path, {
@@ -246,7 +308,7 @@ export function createApi(auth: Auth) {
         ...init.headers,
       },
     })
-    if (!res.ok) throw new ApiError(res.status, `${res.status} ${res.statusText}`)
+    if (!res.ok) throw new ApiError(res.status, await describe(res))
     return res.status === 204 ? (undefined as T) : res.json()
   }
 
@@ -318,6 +380,23 @@ export function createApi(auth: Auth) {
     },
     listServers: () => request<ServerInfo[]>('/integrations/servers'),
     catalog: () => request<CatalogEntry[]>('/integrations/catalog'),
+    knowledge: () => request<KnowledgeOverview>('/knowledge'),
+    createSource: (body: object) => request<KnowledgeSource>('/knowledge/sources', { method: 'POST', body: JSON.stringify(body) }),
+    deleteSource: (id: string) => request<void>(`/knowledge/sources/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+    reindexSource: (id: string) => request<unknown>(`/knowledge/sources/${encodeURIComponent(id)}/reindex`, { method: 'POST', body: '{}' }),
+    listDocuments: (id: string) => request<KnowledgeDoc[]>(`/knowledge/sources/${encodeURIComponent(id)}/documents`),
+    addText: (id: string, title: string, text: string) =>
+      request<KnowledgeDoc>(`/knowledge/sources/${encodeURIComponent(id)}/documents`, { method: 'POST', body: JSON.stringify({ title, text }) }),
+    uploadFile: (id: string, file: File) => {
+      const form = new FormData()
+      form.append('file', file)
+      return request<KnowledgeDoc>(`/knowledge/sources/${encodeURIComponent(id)}/files`, { method: 'POST', body: form })
+    },
+    deleteDocument: (id: string, doc: string) =>
+      request<void>(`/knowledge/sources/${encodeURIComponent(id)}/documents/${doc}`, { method: 'DELETE' }),
+    searchKnowledge: (q: string, source?: string) =>
+      request<KnowledgeHit[]>(`/knowledge/search?${new URLSearchParams({ q, ...(source ? { source } : {}) })}`),
+    chunk: (id: string) => request<KnowledgeHit>(`/knowledge/chunks/${encodeURIComponent(id)}`),
     startRun: (prompt: string, profile: string, options: { voice?: boolean; conversationId?: string } = {}) =>
       request<{ id: string; status: RunStatus }>('/runs', { method: 'POST', body: JSON.stringify({ prompt, profile, ...options }) }),
     /** A short fixed acknowledgement ("Jag kollar.") to play while the agent works; null when unavailable. */
