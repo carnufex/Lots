@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/Lots.Ctl/Lots.Ctl.csproj" />
     <Project Path="src/Lots.Evals/Lots.Evals.csproj" />
     <Project Path="src/Lots.Mcp.Homelab/Lots.Mcp.Homelab.csproj" />
     <Project Path="src/Lots.Shell/Lots.Shell.csproj" />
