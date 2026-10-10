@@ -31,6 +31,7 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
     public DbSet<MemoryRecord> Memories => Set<MemoryRecord>();
     public DbSet<FeedbackRecord> Feedback => Set<FeedbackRecord>();
     public DbSet<Lots.Shell.Core.Outcomes.RunOutcomeRecord> RunOutcomes => Set<Lots.Shell.Core.Outcomes.RunOutcomeRecord>();
+    public DbSet<Lots.Shell.Core.Mining.EvalCandidateRecord> EvalCandidates => Set<Lots.Shell.Core.Mining.EvalCandidateRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -203,6 +204,21 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
             e.Property(x => x.JudgeRubric).HasMaxLength(64);
             e.Property(x => x.TraceId).HasMaxLength(32);
             e.HasOne<RunRecord>().WithMany().HasForeignKey(x => x.RunId).OnDelete(DeleteBehavior.Cascade); // goes with its run
+        });
+
+        modelBuilder.Entity<Lots.Shell.Core.Mining.EvalCandidateRecord>(e =>
+        {
+            e.ToTable("eval_candidates");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.ClusterKey).IsUnique();
+            e.HasIndex(x => new { x.State, x.Impact });
+            e.Property(x => x.ClusterKey).HasMaxLength(512);
+            e.Property(x => x.Signature).HasMaxLength(400);
+            e.Property(x => x.Profile).HasMaxLength(128);
+            e.Property(x => x.Problem).HasMaxLength(64);
+            e.Property(x => x.ReviewedBy).HasMaxLength(256);
+            e.Property(x => x.ReviewNote).HasMaxLength(2000);
+            e.Property(x => x.State).HasConversion<string>().HasMaxLength(16);
         });
 
         modelBuilder.Entity<FeedbackRecord>(e =>

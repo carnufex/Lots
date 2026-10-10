@@ -8,7 +8,8 @@ is a proposal that a person reviews (ADR 0019). This page covers what exists tod
 1. **Observe.** Every finished run gets an outcome row: problems, signals and timing, without content (see [Operating Lots](operations.md#run-outcomes)).
    Traces, logs and metrics add detail when the observability stack runs.
 2. **Analyse.** The `self-improve` profile gives an agent read-only tools over outcomes, traces, audit, logs and metrics.
-3. **Propose, evaluate, approve.** Failure mining (#143) and proposals as Git changes (#144) build on this.
+3. **Mine.** Runs that went wrong are clustered and turned into draft eval cases that a person accepts, edits or rejects (below).
+4. **Propose, evaluate, approve.** Proposals as Git changes (#144) build on this.
 
 ## The introspection tools
 
@@ -52,3 +53,35 @@ call is an audit row (empty run id, reason "via /mcp/introspect").
 
 **Evals.** `evals/self-improve.json` checks that the agent cites run ids, compares versions with numbers, refuses to change anything,
 and that an operator gets no access.
+
+## Failure mining
+
+Once a day (`Mining:IntervalHours`), or on demand with `POST /insights/mine`, Lots looks at the run outcomes of the last
+`Mining:WindowDays` days. It selects the runs with a signal:
+
+- failed, timed out or hit the step limit;
+- a policy denial or a refused approval;
+- a tool error, an empty answer, or a voice run that skipped the tools;
+- rated bad, asked again by the user, or more than three times slower than usual.
+
+**Clustering.** Runs are grouped by signature: profile version, problem, and for tool problems the tool and the kind of error.
+With an embedding model, a signature is split further by how alike the prompts are (`Mining:Similarity`, default 0.82). Clusters are
+ranked by impact, which is the number of runs times the severity.
+
+**Drafts.** Each cluster gets a draft eval case. Its question comes from the most recent run, with secrets and every kind of personal
+data masked. Its expectations follow the problem:
+
+- forbidden tools for a denial;
+- the expected tool for a tool error;
+- the tools to use for a voice run that skipped them;
+- judge criteria in every case.
+
+**Review.** `GET /insights/candidates?state=open` is the queue. For each candidate, a person:
+
+- accepts it as is or edited (`POST /insights/candidates/{id}/accept`, body `{"case": {...}}`);
+- or rejects it with a note (`.../reject`).
+
+A decision stands: mining updates open candidates only. Accepted cases form the dataset `GET /insights/eval-cases`. Save it under
+`evals/` and it runs in Lots.Evals and the regression gate. Readers and reviewers are the roles in `Insights:Roles` (default admin,
+auditor, self-improve).
+

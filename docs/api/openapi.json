@@ -2422,6 +2422,228 @@
         ]
       }
     },
+    "/insights/candidates": {
+      "get": {
+        "tags": [
+          "Insights"
+        ],
+        "operationId": "LotsShellFeaturesInsightsListCandidatesEndpoint",
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "profile",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 100,
+              "nullable": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CandidateDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/insights/mine": {
+      "post": {
+        "tags": [
+          "Insights"
+        ],
+        "operationId": "LotsShellFeaturesInsightsMineEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MiningSummary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/insights/candidates/{id}/accept": {
+      "post": {
+        "tags": [
+          "Insights"
+        ],
+        "operationId": "LotsShellFeaturesInsightsAcceptCandidateEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "CandidateDecision",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CandidateDecision"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CandidateDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/insights/candidates/{id}/reject": {
+      "post": {
+        "tags": [
+          "Insights"
+        ],
+        "operationId": "LotsShellFeaturesInsightsRejectCandidateEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "CandidateDecision",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CandidateDecision"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CandidateDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/insights/eval-cases": {
+      "get": {
+        "tags": [
+          "Insights"
+        ],
+        "operationId": "LotsShellFeaturesInsightsMinedDatasetEndpoint",
+        "parameters": [
+          {
+            "name": "profile",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/insights/outcomes": {
       "get": {
         "tags": [
@@ -6326,6 +6548,164 @@
             "nullable": true
           }
         }
+      },
+      "CandidateDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "signature": {
+            "type": "string"
+          },
+          "profile": {
+            "type": "string"
+          },
+          "profileVersion": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "problem": {
+            "type": "string"
+          },
+          "runs": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "impact": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "runIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "guid"
+            }
+          },
+          "draft": {
+            "$ref": "#/components/schemas/MinedCase"
+          },
+          "case": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MinedCase"
+              }
+            ]
+          },
+          "state": {
+            "type": "string"
+          },
+          "reviewedBy": {
+            "type": "string",
+            "nullable": true
+          },
+          "reviewedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "reviewNote": {
+            "type": "string",
+            "nullable": true
+          },
+          "firstSeen": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastSeen": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "MinedCase": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "question": {
+            "type": "string"
+          },
+          "profile": {
+            "type": "string",
+            "nullable": true
+          },
+          "expectedTools": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "forbiddenTools": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "expectRefusal": {
+            "type": "boolean"
+          },
+          "judge": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "CandidateQuery": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "MiningSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "runsWithSignals": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "clusters": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "newCandidates": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "updatedCandidates": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "CandidateDecision": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "case": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MinedCase"
+              }
+            ]
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "DatasetRequest": {
+        "type": "object",
+        "additionalProperties": false
       },
       "OutcomeReport": {
         "type": "object",

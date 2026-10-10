@@ -88,6 +88,9 @@ builder.Services.Configure<Lots.Shell.Core.Outcomes.OutcomeOptions>(builder.Conf
 builder.Services.AddSingleton<Lots.Shell.Core.Outcomes.RunOutcomeWorker>();
 if (builder.Configuration.GetValue("Outcomes:Enabled", true))
     builder.Services.AddHostedService(sp => sp.GetRequiredService<Lots.Shell.Core.Outcomes.RunOutcomeWorker>()); // #141
+builder.Services.Configure<Lots.Shell.Core.Mining.MiningOptions>(builder.Configuration.GetSection(Lots.Shell.Core.Mining.MiningOptions.Section));
+if (builder.Configuration.GetValue("Mining:Enabled", true))
+    builder.Services.AddHostedService<Lots.Shell.Core.Mining.FailureMiningWorker>(); // #143
 builder.Services.AddSingleton<Lots.Shell.Core.Speech.IAudioStore, Lots.Shell.Core.Speech.FileAudioStore>();
 builder.Services.AddHostedService<Lots.Shell.Core.Speech.AudioRetentionWorker>();
 builder.Services.Configure<Lots.Shell.Features.Privacy.RetentionOptions>(builder.Configuration.GetSection(Lots.Shell.Features.Privacy.RetentionOptions.Section));
