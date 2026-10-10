@@ -1,3 +1,4 @@
+using Lots.Shell.Core.Knowledge;
 using Lots.Shell.Core.Mcp;
 using Microsoft.AspNetCore.DataProtection;
 using Lots.Shell.Core.Policy;
@@ -38,6 +39,7 @@ builder.Services.AddScoped<ToolInvoker>();
 builder.Services.AddScoped<AgentRunner>();
 builder.Services.AddScoped<RunLeases>();
 builder.Services.AddScoped<RunControl>();
+builder.Services.AddKnowledge(builder.Configuration);
 if (builder.Configuration.GetValue("Agent:RunWorkerEnabled", true))
     builder.Services.AddHostedService<RunWorker>();
 builder.Services.AddDbContext<LotsDbContext>(o =>

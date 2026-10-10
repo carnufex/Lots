@@ -21,9 +21,18 @@ services:
       Model__BaseUrl: ${LOTS_MODEL_URL:-http://host.docker.internal:11434/v1}
       Model__Model: ${LOTS_MODEL:-}
       Model__ApiKeyEnv: ${LOTS_MODEL_KEY_ENV:-}
+      # Knowledge (ADR 0016): embeddings on the same endpoint; the repo's docs are a sample source everyone may read
+      Models__Aliases__embed__Targets__0__Endpoint: default
+      Models__Aliases__embed__Targets__0__Model: ${LOTS_EMBED_MODEL:-nomic-embed-text}
+      Knowledge__Sources__0__Id: lots-docs
+      Knowledge__Sources__0__Name: Lots documentation
+      Knowledge__Sources__0__Kind: directory
+      Knowledge__Sources__0__Location: /knowledge/lots-docs
+      Knowledge__Sources__0__Readers__0: "*"
       ConnectionStrings__Lots: Host=postgres;Database=lots;Username=lots;Password=${POSTGRES_PASSWORD:-lots-dev}
     volumes:
       - ${LOTS_PROFILES_DIR:-./profiles}:/profiles:ro
+      - ${LOTS_KNOWLEDGE_DIR:-./docs}:/knowledge/lots-docs:ro
     ports:
       - "${LOTS_PORT:-8088}:8080"
     depends_on:
@@ -53,7 +62,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
   postgres:
-    image: postgres:17
+    image: pgvector/pgvector:0.8.1-pg17-trixie   # same glibc as postgres:17 (no collation mismatch); postgres:17 plus the vector extension (ADR 0016)
     environment:
       POSTGRES_DB: lots
       POSTGRES_USER: lots

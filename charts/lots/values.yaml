@@ -34,6 +34,18 @@ model:
   apiKey:
     existingSecret: ""
     key: api-key
+  # Embedding model on the same endpoint (knowledge, ADR 0016), e.g. nomic-embed-text or bge-m3. Empty: knowledge search is off.
+  embedModel: ""
+
+# Knowledge sources of kind "directory" read files under /knowledge. Mount a PVC there (synced from Git by your own job/sidecar).
+# Sources themselves are config as code: Knowledge__Sources__0__Id etc. through extraEnv, or created on the Knowledge page.
+knowledge:
+  existingClaim: ""
+
+# Plain extra environment variables (non-secret configuration such as Models__Aliases__voice__..., Knowledge__Sources__...).
+extraEnv: []
+#  - name: Models__Aliases__voice__Targets__0__Endpoint
+#    value: default
 
 # Profiles. Empty: use the profiles baked into the image. Otherwise: file name -> YAML manifest, mounted as a ConfigMap.
 profiles:

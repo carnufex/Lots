@@ -14,7 +14,11 @@ public sealed record ToolDescriptor(string Name, string Description, JsonElement
 /// user's own token, so there is no shared view of them).
 /// </summary>
 public sealed record ServerStatus(
-    string Name, string Url, string Auth, string Health, IReadOnlyList<ToolDescriptor> Tools, string? Error, DateTimeOffset? CheckedAt);
+    string Name, string Url, string Auth, string Health, IReadOnlyList<ToolDescriptor> Tools, string? Error, DateTimeOffset? CheckedAt)
+{
+    /// <summary>Auth value of tool sources built into the shell: available to every profile that declares their tools.</summary>
+    public const string BuiltIn = "builtin";
+}
 
 /// <summary>A provider of tools (an MCP server, in-process tools, ...).</summary>
 public interface IToolSource
@@ -96,6 +100,7 @@ public sealed class ToolInvoker(IEnumerable<IToolSource> sources, ProfileRegistr
 
         try
         {
+            using var context = ToolCallContext.Enter(new ToolCallContext(principal, profileName));
             return Truncate(await source.CallAsync(call.Name, call.ArgumentsJson, ct));
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)

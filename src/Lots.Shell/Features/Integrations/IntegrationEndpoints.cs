@@ -65,6 +65,10 @@ public sealed class ListServersEndpoint(ToolInvoker tools, ProfileRegistry profi
                 seen?.Health ?? "unknown", seen?.Error, seen?.CheckedAt, offered);
         }).ToList();
 
+        foreach (var builtIn in status.Where(s => s.Auth == ServerStatus.BuiltIn))
+            result.Add(new ServerDto(builtIn.Name, builtIn.Url, builtIn.Auth, null, profiles.All.Select(p => p.Name).ToList(), builtIn.Health,
+                builtIn.Error, builtIn.CheckedAt, builtIn.Tools.Select(t => new ServerToolDto(t.Name, t.Description,
+                    profiles.All.SelectMany(p => p.Tools.Where(d => d.Name == t.Name).Select(d => $"{p.Name}:{d.Risk}")).ToList())).ToList()));
         await Send.OkAsync(result, ct);
     }
 }
@@ -98,7 +102,7 @@ public sealed class CatalogEndpoint(ToolInvoker tools, ProfileRegistry profiles,
         var rows = new List<CatalogEntry>();
         foreach (var profile in profiles.All)
         {
-            var mine = status.Where(s => profile.Servers.Any(p => p.Name == s.Name)).ToList();
+            var mine = status.Where(s => s.Auth == ServerStatus.BuiltIn || profile.Servers.Any(p => p.Name == s.Name)).ToList();
             foreach (var tool in profile.Tools)
             {
                 var server = mine.FirstOrDefault(s => s.Tools.Any(t => t.Name == tool.Name));
@@ -118,7 +122,7 @@ public sealed class CatalogEndpoint(ToolInvoker tools, ProfileRegistry profiles,
         foreach (var server in status)
             foreach (var tool in server.Tools)
             {
-                var declared = profiles.All.Any(p => p.Servers.Any(s => s.Name == server.Name) && p.Tools.Any(t => t.Name == tool.Name));
+                var declared = profiles.All.Any(p => (server.Auth == ServerStatus.BuiltIn || p.Servers.Any(s => s.Name == server.Name)) && p.Tools.Any(t => t.Name == tool.Name));
                 if (!declared)
                     rows.Add(new CatalogEntry(tool.Name, tool.Description, server.Name, null, null, "unclassified", [], [], [], 0, null));
             }

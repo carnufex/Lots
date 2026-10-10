@@ -51,6 +51,13 @@ spec:
             - { name: Database__MigrateOnStartup, value: {{ .Values.database.migrateOnStartup | quote }} }
             - { name: Model__BaseUrl, value: {{ .Values.model.baseUrl | quote }} }
             - { name: Model__Model, value: {{ .Values.model.name | quote }} }
+            {{- if .Values.model.embedModel }}
+            - { name: Models__Aliases__embed__Targets__0__Endpoint, value: default }
+            - { name: Models__Aliases__embed__Targets__0__Model, value: {{ .Values.model.embedModel | quote }} }
+            {{- end }}
+            {{- range .Values.extraEnv }}
+            - { name: {{ .name }}, value: {{ .value | quote }} }
+            {{- end }}
             {{- if .Values.profiles.files }}
             - { name: Profiles__Path, value: /profiles }
             {{- end }}
@@ -102,6 +109,9 @@ spec:
             {{- if .Values.dataProtection.existingClaim }}
             - { name: keys, mountPath: /keys }
             {{- end }}
+            {{- if .Values.knowledge.existingClaim }}
+            - { name: knowledge, mountPath: /knowledge, readOnly: true }
+            {{- end }}
       volumes:
         - name: tmp
           emptyDir: {}
@@ -114,6 +124,11 @@ spec:
         - name: keys
           persistentVolumeClaim:
             claimName: {{ .Values.dataProtection.existingClaim }}
+        {{- end }}
+        {{- if .Values.knowledge.existingClaim }}
+        - name: knowledge
+          persistentVolumeClaim:
+            claimName: {{ .Values.knowledge.existingClaim }}
         {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector: {{- toYaml . | nindent 8 }}
