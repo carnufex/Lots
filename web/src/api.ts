@@ -341,6 +341,84 @@ export interface FeedbackItem {
   case: FeedbackCase | null
 }
 
+/** Insights (#141, #143, #144, #146). */
+export interface OutcomeGroup {
+  key: string
+  runs: number
+  successRate: number
+  p50WallMs: number
+  p95WallMs: number
+  cost: number
+  toolErrors: number
+  denials: number
+  thumbsDown: number
+  problems: Record<string, number>
+}
+
+export interface OutcomeReport {
+  from: string
+  to: string
+  total: OutcomeGroup
+  byProfileVersion: OutcomeGroup[]
+  byModel: OutcomeGroup[]
+  byChannel: OutcomeGroup[]
+  byTool: { tool: string; calls: number; errors: number; errorRate: number }[]
+  items: { runId: string; endedAt: string; profile: string; profileVersion: number; model: string | null; channel: string; status: string; problem: string; wallMs: number; feedbackRating: number | null; traceId: string | null }[]
+  byDay?: OutcomeGroup[]
+}
+
+export interface MinedCase {
+  id: string
+  question: string
+  profile?: string
+  expectedTools?: string[]
+  forbiddenTools?: string[]
+  expectRefusal?: boolean
+  judge?: string
+}
+
+export interface Candidate {
+  id: string
+  signature: string
+  profile: string
+  profileVersion: number
+  problem: string
+  runs: number
+  impact: number
+  runIds: string[]
+  draft: MinedCase
+  case: MinedCase | null
+  state: 'Open' | 'Accepted' | 'Rejected'
+  reviewedBy: string | null
+  reviewNote: string | null
+  lastSeen: string
+}
+
+export interface Proposal {
+  id: string
+  profile: string
+  baseVersion: number
+  title: string
+  rationale: string
+  evidence: { runIds?: string[]; notes?: string } | null
+  diff: string
+  state: 'Draft' | 'Evaluated' | 'PrOpened' | 'Merged' | 'Rejected'
+  evaluation: { current: { passRate: number; passed: number; cases: number }; proposed: { passRate: number; passed: number; cases: number }; regressions: string[]; improvements: string[] } | null
+  regresses: boolean | null
+  prUrl: string | null
+  createdBy: string
+  createdAt: string
+  note: string | null
+}
+
+export interface FollowUp {
+  verdict: 'not-applied' | 'too-early' | 'improved' | 'no-effect' | 'regressed'
+  before: { version: number; runs: number; successRate: number; p95WallMs: number }
+  after: { version: number; runs: number; successRate: number; p95WallMs: number } | null
+  explanation: string
+  revertDiff: string | null
+}
+
 export interface ConversationDetail {
   conversation: ConversationSummary
   turns: ConversationTurn[]
@@ -481,6 +559,17 @@ export function createApi(auth: Auth) {
       request<FeedbackCase>(`/feedback/${id}/eval-case`, { method: 'POST', body: JSON.stringify(body) }),
     feedbackExport: (kind: 'eval-cases' | 'labels', profile?: string) =>
       request<unknown>(`/feedback/${kind}${profile ? `?profile=${encodeURIComponent(profile)}` : ''}`),
+    outcomes: (days: number) => request<OutcomeReport>(`/insights/outcomes?from=${encodeURIComponent(new Date(Date.now() - days * 86400000).toISOString())}&limit=50`),
+    candidates: (state: string) => request<Candidate[]>(`/insights/candidates?state=${state}`),
+    mine: () => request<{ runsWithSignals: number; clusters: number; newCandidates: number; updatedCandidates: number }>('/insights/mine', { method: 'POST', body: '{}' }),
+    acceptCandidate: (id: string, c: MinedCase, note?: string) =>
+      request<Candidate>(`/insights/candidates/${id}/accept`, { method: 'POST', body: JSON.stringify({ case: c, note: note || null }) }),
+    rejectCandidate: (id: string, note?: string) => request<Candidate>(`/insights/candidates/${id}/reject`, { method: 'POST', body: JSON.stringify({ note: note || null }) }),
+    minedDataset: () => request<unknown>('/insights/eval-cases'),
+    proposals: () => request<Proposal[]>('/insights/proposals'),
+    openPullRequest: (id: string) => request<Proposal>(`/insights/proposals/${id}/pr`, { method: 'POST', body: '{}' }),
+    rejectProposal: (id: string, note?: string) => request<Proposal>(`/insights/proposals/${id}/reject`, { method: 'POST', body: JSON.stringify({ note: note || null }) }),
+    followUp: (id: string) => request<FollowUp>(`/insights/proposals/${id}/follow-up`),
     listApprovals: () => request<Approval[]>('/approvals'),
     decide: (id: string, outcome: 'approve' | 'deny', comment: string) =>
       request<Approval>(`/approvals/${id}/${outcome}`, { method: 'POST', body: JSON.stringify({ comment: comment || null }) }),

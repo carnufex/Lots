@@ -12,6 +12,19 @@ is a proposal that a person reviews (ADR 0019). This page covers what exists tod
 4. **Propose, evaluate, approve.** A proposal is a reviewed Git change to a profile, with its eval delta, merged by a person (below).
 5. **Follow up.** After the merge, the new profile version's outcomes are compared with the old one's.
 
+## The Insights page
+
+**Insights** (Administration) gives people the same view, for the roles in `Insights:Roles`:
+
+- **Overview:** run outcomes with success rate, p95, tool errors, bad ratings and cost, a daily trend, and tables per profile version,
+  model, channel and tool. The latest runs with a problem link to their run and, when `traceUrl` is set, to their trace.
+- **Failures:** the mining queue. Accept a candidate, edit it first, or reject it with a note, run the mining now, or download the
+  accepted cases.
+- **Proposals:** each proposal with its rationale, diff and eval delta. Open its pull request, or reject it. After a merge, check the
+  effect: the follow-up verdict, and a revert diff when it regressed.
+
+It works with only PostgreSQL. The trace links appear when a tracing UI is configured.
+
 ## The introspection tools
 
 | Tool | Answers |

@@ -1640,3 +1640,26 @@ p.summary {
 .casebox textarea {
   width: 100%;
 }
+
+/* Insights (#146) */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.stat strong {
+  font-size: 20px;
+  font-weight: 600;
+}

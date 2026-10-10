@@ -27,8 +27,10 @@ public sealed record ToolGroup(string Tool, int Calls, int Errors, double ErrorR
 public sealed record OutcomeItem(Guid RunId, DateTimeOffset EndedAt, string Profile, int ProfileVersion, string? Model, string Channel, string Status,
     string Problem, long WallMs, int ToolCalls, int ToolErrors, int? FeedbackRating, bool FollowUp, bool UserRetried, string? TraceId);
 
+/// <param name="ByDay">Per UTC day (key yyyy-MM-dd), oldest first: the trend.</param>
 public sealed record OutcomeReport(DateTimeOffset From, DateTimeOffset To, OutcomeGroup Total, IReadOnlyList<OutcomeGroup> ByProfileVersion,
-    IReadOnlyList<OutcomeGroup> ByModel, IReadOnlyList<OutcomeGroup> ByChannel, IReadOnlyList<ToolGroup> ByTool, IReadOnlyList<OutcomeItem> Items);
+    IReadOnlyList<OutcomeGroup> ByModel, IReadOnlyList<OutcomeGroup> ByChannel, IReadOnlyList<ToolGroup> ByTool, IReadOnlyList<OutcomeItem> Items,
+    IReadOnlyList<OutcomeGroup>? ByDay = null);
 
 /// <summary>
 /// Run outcomes and their aggregates (#141): success rate and p50/p95 wall time per profile version, model, channel and tool.
@@ -70,7 +72,9 @@ public sealed class OutcomesEndpoint(LotsDbContext db, ICurrentPrincipal who, IC
             all.GroupBy(o => o.Channel).Select(g => Aggregate(g.Key, g.ToList())).OrderByDescending(g => g.Runs).ToList(),
             tools,
             all.Take(Math.Clamp(q.Limit ?? 100, 1, 1000)).Select(o => new OutcomeItem(o.RunId, o.EndedAt, o.Profile, o.ProfileVersion, o.Model, o.Channel,
-                o.Status, RunOutcomes.Problem(o), o.WallMs, o.ToolCalls, o.ToolErrors, o.FeedbackRating, o.FollowUp, o.UserRetried, o.TraceId)).ToList()), ct);
+                o.Status, RunOutcomes.Problem(o), o.WallMs, o.ToolCalls, o.ToolErrors, o.FeedbackRating, o.FollowUp, o.UserRetried, o.TraceId)).ToList(),
+            all.GroupBy(o => o.EndedAt.UtcDateTime.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)).OrderBy(g => g.Key)
+                .Select(g => Aggregate(g.Key, g.ToList())).ToList()), ct);
     }
 
     /// <summary>Success = completed, with a non-empty answer, and not rated bad.</summary>

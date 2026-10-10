@@ -7056,6 +7056,13 @@
             "items": {
               "$ref": "#/components/schemas/OutcomeItem"
             }
+          },
+          "byDay": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/OutcomeGroup"
+            }
           }
         }
       },

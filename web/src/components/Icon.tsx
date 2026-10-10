@@ -2,6 +2,11 @@ import type { ReactElement } from 'react'
 
 /** Lots icon set (48 grid). Strokes follow currentColor; the accent is the brand teal. Sources: public/icons/*.svg. */
 const PATHS = {
+  insights: (
+    <>
+      <path d="M5 38l10-12 8 7 9-11"/><circle cx="37" cy="17" r="6" stroke="#2DD4BF"/><path d="m41.500 21.500 4 4" stroke="#2DD4BF"/><path d="M5 43h38"/>
+    </>
+  ),
   approvals: (
     <>
       <circle cx="24" cy="24" r="17"/><path d="m16 24.500 6 6 11-12" stroke="#2DD4BF"/><path d="M24 7V3M24 45v-4"/>

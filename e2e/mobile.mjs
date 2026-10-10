@@ -18,7 +18,7 @@ const page = await context.newPage()
 let failed = false
 const ok = (c, m) => { console.log(`${c ? 'ok  ' : 'FAIL'} ${m}`); if (!c) failed = true }
 
-for (const route of ['chat', 'runs', 'approvals', 'history', 'usage', 'voice', 'knowledge', 'integrations', 'audit', 'profiles']) {
+for (const route of ['chat', 'runs', 'approvals', 'history', 'usage', 'voice', 'knowledge', 'integrations', 'audit', 'profiles', 'insights', 'feedback']) {
   await page.goto(`${base}/#/${route}`)
   await page.waitForTimeout(900)
   const m = await page.evaluate(() => ({

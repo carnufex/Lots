@@ -18,12 +18,13 @@ import ModelsPage from './pages/ModelsPage'
 import IdentityPage from './pages/IdentityPage'
 import UsagePage from './pages/UsagePage'
 import FeedbackPage from './pages/FeedbackPage'
+import InsightsPage from './pages/InsightsPage'
 import { PLANNED } from './planned'
 import { Icon, type IconName } from './components/Icon'
 import { language, setLanguage, t, type UiLanguage } from './i18n'
 import { saveLanguage } from './voice/language'
 
-type Route = { name: 'chat'; id?: string } | { name: 'runs' } | { name: 'run'; id: string } | { name: 'approvals' } | { name: 'audit' } | { name: 'voice' } | { name: 'knowledge' } | { name: 'profiles' } | { name: 'policy' } | { name: 'models' } | { name: 'identity' } | { name: 'usage' } | { name: 'feedback' } | { name: 'history'; id?: string } | { name: 'integrations'; tab: IntegrationTab } | { name: 'planned'; slug: string }
+type Route = { name: 'chat'; id?: string } | { name: 'runs' } | { name: 'run'; id: string } | { name: 'approvals' } | { name: 'audit' } | { name: 'voice' } | { name: 'knowledge' } | { name: 'profiles' } | { name: 'policy' } | { name: 'models' } | { name: 'identity' } | { name: 'usage' } | { name: 'feedback' } | { name: 'insights' } | { name: 'history'; id?: string } | { name: 'integrations'; tab: IntegrationTab } | { name: 'planned'; slug: string }
 
 type NavItem = { href: string; label: string; icon: IconName; active: (r: Route) => boolean }
 
@@ -43,7 +44,7 @@ const historyNav: NavItem = { href: '#/history', label: 'History', icon: 'transc
 const integrationsNav: NavItem = { href: '#/integrations', label: 'Integrations', icon: 'tools', active: (r) => r.name === 'integrations' }
 const voiceNav: NavItem = { href: '#/voice', label: 'Voice', icon: 'voice', active: (r) => r.name === 'voice' }
 const knowledgeNav: NavItem = { href: '#/knowledge', label: 'Knowledge', icon: 'rag', active: (r) => r.name === 'knowledge' }
-const page = (name: 'profiles' | 'policy' | 'models' | 'identity' | 'usage' | 'feedback', label: string, icon: IconName): NavItem => ({
+const page = (name: 'profiles' | 'policy' | 'models' | 'identity' | 'usage' | 'feedback' | 'insights', label: string, icon: IconName): NavItem => ({
   href: `#/${name}`,
   label,
   icon,
@@ -53,13 +54,13 @@ const page = (name: 'profiles' | 'policy' | 'models' | 'identity' | 'usage' | 'f
 const NAV: { title: string; items: NavItem[] }[] = [
   { title: 'Work', items: [chatNav, nav('runs', 'Runs', 'runs'), historyNav, nav('approvals', 'Approvals', 'approvals'), nav('audit', 'Audit', 'audit'), page('usage', 'Usage', 'models')] },
   { title: 'Capabilities', items: [knowledgeNav, integrationsNav, voiceNav, planned('transcription'), page('models', 'Models', 'models')] },
-  { title: 'Administration', items: [page('profiles', 'Profiles', 'profiles'), page('policy', 'Policy', 'policy'), page('identity', 'Identity', 'identity'), page('feedback', 'Feedback', 'approvals')] },
+  { title: 'Administration', items: [page('profiles', 'Profiles', 'profiles'), page('policy', 'Policy', 'policy'), page('identity', 'Identity', 'identity'), page('feedback', 'Feedback', 'approvals'), page('insights', 'Insights', 'insights')] },
 ]
 
 function useHashRoute(): Route {
   const read = (): Route => {
     const r = window.location.hash.replace(/^#\/?/, '').split('?')[0] // a page may carry its own query (e.g. ?connected=)
-    if (r === 'approvals' || r === 'audit' || r === 'voice' || r === 'knowledge' || r === 'profiles' || r === 'policy' || r === 'models' || r === 'identity' || r === 'usage' || r === 'feedback')
+    if (r === 'approvals' || r === 'audit' || r === 'voice' || r === 'knowledge' || r === 'profiles' || r === 'policy' || r === 'models' || r === 'identity' || r === 'usage' || r === 'feedback' || r === 'insights')
       return { name: r }
     if (r === 'history') return { name: 'history' }
     if (r === 'chat') return { name: 'chat' }
@@ -202,6 +203,7 @@ function Shell({ config, auth, session }: { config: ClientConfig; auth: Auth; se
           {route.name === 'identity' && <IdentityPage api={api} />}
           {route.name === 'usage' && <UsagePage api={api} profiles={config.profiles} />}
           {route.name === 'feedback' && <FeedbackPage api={api} />}
+          {route.name === 'insights' && <InsightsPage api={api} traceUrl={config.traceUrl} />}
           {route.name === 'planned' && <PlaceholderPage item={PLANNED.find((p) => p.slug === route.slug)!} />}
         </main>
       </div>
