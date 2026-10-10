@@ -41,6 +41,7 @@ nav:
       - Schedules and webhooks: schedules.md
       - Channels: channels.md
       - Evals: evals.md
+      - Self-improvement: self-improvement.md
   - Operations:
       - Operating Lots: operations.md
       - Helm chart: helm.md

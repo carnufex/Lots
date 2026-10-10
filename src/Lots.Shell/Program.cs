@@ -74,6 +74,12 @@ builder.Services.AddSingleton<Lots.Shell.Core.Channels.SlackClient>();
 builder.Services.Configure<Lots.Shell.Core.Memory.MemoryOptions>(builder.Configuration.GetSection(Lots.Shell.Core.Memory.MemoryOptions.Section));
 builder.Services.AddSingleton<IToolSource, Lots.Shell.Core.Memory.MemoryToolSource>(); // remember (#99): only where a profile declares it
 builder.Services.Configure<DelegationOptions>(builder.Configuration.GetSection(DelegationOptions.Section));
+builder.Services.Configure<Lots.Shell.Core.Introspection.IntrospectionOptions>(builder.Configuration.GetSection(Lots.Shell.Core.Introspection.IntrospectionOptions.Section));
+builder.Services.AddHttpClient(Lots.Shell.Core.Introspection.IntrospectionToolSource.ServerName, h => h.Timeout = TimeSpan.FromSeconds(15));
+builder.Services.AddSingleton<IToolSource, Lots.Shell.Core.Introspection.IntrospectionToolSource>(); // #142: only where a profile declares the tools
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<Lots.Shell.Features.Introspection.IntrospectionGateway>();
+builder.Services.AddMcpServer().WithHttpTransport(o => o.Stateless = true).WithTools<Lots.Shell.Features.Introspection.IntrospectionMcpTools>();
 builder.Services.AddSingleton<IToolSource, DelegateToolSource>(); // delegate (#103): only where a profile declares it and lists delegates
 builder.Services.Configure<Lots.Shell.Core.Attachments.AttachmentOptions>(builder.Configuration.GetSection(Lots.Shell.Core.Attachments.AttachmentOptions.Section));
 builder.Services.AddKnowledge(builder.Configuration);
@@ -194,6 +200,8 @@ app.UseMiddleware<Lots.Shell.Core.Security.ApiTokenScopeMiddleware>(); // API to
 app.UseAuthorization();
 app.UseMiddleware<Lots.Shell.Core.Notifications.UserDirectoryMiddleware>(); // e-mail and roles from the login, for approval routing (#136)
 app.UseFastEndpoints();
+// Introspection for external agents (#142): signed-in callers only; the self-improve profile decides per tool.
+app.MapMcp("/mcp/introspect").RequireAuthorization();
 app.UseOpenApi(c => c.Path = "/openapi/{documentName}.json"); // anonymous: the contract is not a secret
 // Metrics carry no user identities; restrict who can reach /metrics with a network policy (the chart's ServiceMonitor scrapes in-cluster).
 if (app.Configuration.GetValue("Metrics:Enabled", true))

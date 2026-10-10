@@ -917,6 +917,7 @@
           "FastEndpoints.Swagger": "[8.3.0, )",
           "Microsoft.AspNetCore.Authentication.JwtBearer": "[10.0.12, )",
           "ModelContextProtocol": "[2.2.0, )",
+          "ModelContextProtocol.AspNetCore": "[2.2.0, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
           "OpenTelemetry.Exporter.OpenTelemetryProtocol": "[1.19.1, )",
           "OpenTelemetry.Exporter.Prometheus.AspNetCore": "[1.19.1-beta.1, )",

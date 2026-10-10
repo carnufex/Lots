@@ -52,6 +52,7 @@ public static class ApiTokens
     {
         if (path.StartsWithSegments("/me/tokens")) return null; // not with a token: tokens are made by a person in the UI
         if (HttpMethods.IsGet(method) || HttpMethods.IsHead(method) || HttpMethods.IsOptions(method)) return ScopeRead;
+        if (path.StartsWithSegments("/mcp/introspect")) return ScopeRead; // MCP posts, but these tools only read (#142)
         if (path.StartsWithSegments("/runs") || path.StartsWithSegments("/voice") || path.StartsWithSegments("/conversations")
             || path.StartsWithSegments("/v1/chat") || path.StartsWithSegments("/attachments")) return ScopeRuns;
         if (path.StartsWithSegments("/approvals")) return ScopeApprovals;

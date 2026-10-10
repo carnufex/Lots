@@ -1,0 +1,54 @@
+# Self-improvement
+
+Lots records how every run went, and an agent can read those records to find what goes wrong. That agent can only read: its output
+is a proposal that a person reviews (ADR 0019). This page covers what exists today.
+
+## The loop
+
+1. **Observe.** Every finished run gets an outcome row: problems, signals and timing, without content (see [Operating Lots](operations.md#run-outcomes)).
+   Traces, logs and metrics add detail when the observability stack runs.
+2. **Analyse.** The `self-improve` profile gives an agent read-only tools over outcomes, traces, audit, logs and metrics.
+3. **Propose, evaluate, approve.** Failure mining (#143) and proposals as Git changes (#144) build on this.
+
+## The introspection tools
+
+| Tool | Answers |
+|---|---|
+| `outcomes_summary` | success rate, p50/p95, cost and top problems per profile version and channel |
+| `list_failed_runs` | runs with a problem (timeout, denied, tool error, refused, rated bad, ...), with run ids |
+| `get_run_trace` | one run's steps with time, tokens and policy decisions |
+| `get_run_audit` | one run's audit rows |
+| `tool_error_breakdown` | calls, errors and kinds of errors per tool |
+| `slow_stages` | model, tool and total time per profile version and channel, the slowest runs |
+| `compare_profile_versions` | the versions of one profile side by side |
+| `retrieval_misses` | knowledge searches that found nothing |
+| `search_logs` | shell log lines from Loki (`Introspection:LokiUrl`) |
+| `promql_query` | PromQL over Lots metrics only (`Introspection:PrometheusUrl`) |
+
+**Bounded.** At most 30 days, 25 rows per answer, and the tool output cap.
+
+**Content.** Prompts, tool arguments and results and error text are shown only for runs the caller may read anyway (their own, or
+any run as admin). Other runs show metadata only.
+
+**Untrusted.** Everything comes back inside the untrusted-data envelope, and injected instructions are flagged like any tool output.
+A run that read them needs an approval for writes, and this profile has no writes.
+
+## Using it
+
+Apply [`examples/profiles/self-improve.yaml`](https://github.com/carnufex/Lots/blob/main/examples/profiles/self-improve.yaml) and
+give the analysts the `self-improve` role (admins have it implicitly through the profile).
+
+**In Lots.** Chat with the `self-improve` profile: "Why did voice runs fail yesterday?"
+
+**From Claude Code or another MCP client.** The same tools are an MCP server at `/mcp/introspect`. Sign in with an API token with the
+`read` scope:
+
+```bash
+claude mcp add --transport http lots-introspect https://lots.example.com/mcp/introspect --header "Authorization: Bearer lots_pat_..."
+```
+
+Calls from outside go through the same policy as runs. The token's user needs a role that the `self-improve` profile grants, and every
+call is an audit row (empty run id, reason "via /mcp/introspect").
+
+**Evals.** `evals/self-improve.json` checks that the agent cites run ids, compares versions with numbers, refuses to change anything,
+and that an operator gets no access.
