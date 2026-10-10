@@ -5,6 +5,7 @@ import SpeakButton from '../components/SpeakButton'
 import Citations from '../components/Citations'
 import ToolResult from '../components/ToolResult'
 import { ConflictVote, conflictIds } from '../components/ConflictVote'
+import { fmt, statusText, t } from '../i18n'
 
 const POLL_MS = 1500
 
@@ -40,14 +41,14 @@ export default function RunPage({ api, id, voice, traceUrl }: { api: Api; id: st
   return (
     <section>
       <p>
-        <a href="#/runs">← Runs</a>
+        <a href="#/runs">← {t('Runs')}</a>
       </p>
       {error && !run && (
         <p role="alert" className="error">
-          Could not load this run: {error}
+          {t('Could not load this run:')} {error}
         </p>
       )}
-      {!run && !error && <p className="muted">Loading…</p>}
+      {!run && !error && <p className="muted">{t('Loading…')}</p>}
       {run && <Detail run={run} api={api} voice={voice} reconnecting={error !== null} traceUrl={traceUrl ?? null} />}
     </section>
   )
@@ -83,18 +84,18 @@ function Detail({ run, api, voice, reconnecting, traceUrl }: { run: RunDetail; a
     <>
       <h1 className="runtitle">{run.prompt}</h1>
       <div className="meta">
-        <span className={`status ${run.status}`}>{run.status}</span>
-        {live && <span className="muted">{run.waiting ? WAITING[run.waiting] : 'working…'}</span>}
-        {reconnecting && <span className="warn">connection problem, retrying…</span>}
-        <span className="muted mono">{run.steps.length} steps · {tokens} tokens</span>
+        <span className={`status ${run.status}`}>{statusText(run.status)}</span>
+        {live && <span className="muted">{t(run.waiting ? WAITING[run.waiting] : 'working…')}</span>}
+        {reconnecting && <span className="warn">{t('connection problem, retrying…')}</span>}
+        <span className="muted mono">{t('{steps} steps · {tokens} tokens', { steps: run.steps.length, tokens: fmt.number(tokens) })}</span>
         {run.sensitivity && run.sensitivity !== 'public' && (
-          <span className="decision ApprovalRequested" title="The highest data class this run has read. Its model calls only go to endpoints cleared for it.">
-            {run.sensitivity} data
+          <span className="decision ApprovalRequested" title={t('The highest data class this run has read. Its model calls only go to endpoints cleared for it.')}>
+            {t('{class} data', { class: t(run.sensitivity) })}
           </span>
         )}
         {run.traceId && (
           <span className="muted mono small">
-            trace{' '}
+            {t('trace')}{' '}
             {traceUrl ? (
               <a href={traceUrl.replace('{traceId}', run.traceId)} target="_blank" rel="noreferrer noopener">
                 {run.traceId.slice(0, 12)}
@@ -106,7 +107,7 @@ function Detail({ run, api, voice, reconnecting, traceUrl }: { run: RunDetail; a
         )}
         {live && run.waiting !== 'cancelling' && (
           <button type="button" className="btn" disabled={busy} onClick={() => void act(async () => void (await api.cancelRun(run.id)))}>
-            Cancel
+            {t('Cancel')}
           </button>
         )}
         {(run.status === 'Failed' || run.status === 'Cancelled') && (
@@ -116,22 +117,22 @@ function Detail({ run, api, voice, reconnecting, traceUrl }: { run: RunDetail; a
             disabled={busy}
             onClick={() => void act(async () => void (window.location.hash = `#/runs/${(await api.retryRun(run.id)).id}`))}
           >
-            Retry
+            {t('Retry')}
           </button>
         )}
         {run.parentRunId && (
           <a className="muted small" href={`#/runs/${run.parentRunId}`}>
-            sub-run of an earlier run
+            {t('sub-run of an earlier run')}
           </a>
         )}
         {(run.subRuns ?? []).map((id, i) => (
           <a key={id} className="muted small" href={`#/runs/${id}`}>
-            sub-run {i + 1}
+            {t('sub-run {n}', { n: i + 1 })}
           </a>
         ))}
         {run.retryOf && (
           <a className="muted small" href={`#/runs/${run.retryOf}`}>
-            retry of an earlier run
+            {t('retry of an earlier run')}
           </a>
         )}
       </div>
@@ -143,7 +144,7 @@ function Detail({ run, api, voice, reconnecting, traceUrl }: { run: RunDetail; a
 
       {run.status === 'Completed' && (
         <>
-          <div className="answer" aria-label="Answer">
+          <div className="answer" aria-label={t('Answer')}>
             {run.finalAnswer}
           </div>
           {run.finalAnswer && <Citations api={api} answer={run.finalAnswer} steps={run.steps} />}
@@ -155,14 +156,14 @@ function Detail({ run, api, voice, reconnecting, traceUrl }: { run: RunDetail; a
       )}
       {run.status === 'Failed' && (
         <div className="answer failed" role="alert">
-          {run.error ?? 'The run failed.'}
+          {run.error ?? t('The run failed.')}
         </div>
       )}
-      {run.status === 'Cancelled' && <div className="answer muted">{run.error ?? 'The run was cancelled.'}</div>}
+      {run.status === 'Cancelled' && <div className="answer muted">{run.error ?? t('The run was cancelled.')}</div>}
 
-      <h2>Trace</h2>
+      <h2>{t('Trace')}</h2>
       {run.steps.length === 0 ? (
-        <p className="muted">No steps yet.</p>
+        <p className="muted">{t('No steps yet.')}</p>
       ) : (
         <ol className="trace">
           {run.steps.map((s) => (
@@ -180,16 +181,16 @@ function StepRow({ step }: { step: Step }) {
     <li className={`step ${isTool ? 'tool' : 'model'}`}>
       <details>
         <summary>
-          <span className="kind">{isTool ? 'tool' : 'model'}</span>
+          <span className="kind">{isTool ? t('tool') : t('model')}</span>
           <span className="name">{step.name}</span>
           {isTool && step.decision && step.decision !== 'Allowed' && (
             <span className={`decision ${step.decision}`} title={step.reason ?? undefined}>
-              {step.decision === 'Denied' || step.decision === 'ApprovalDenied' ? `denied: ${step.reason ?? ''}` : step.decision}
+              {step.decision === 'Denied' || step.decision === 'ApprovalDenied' ? `${t('denied:')} ${step.reason ?? ''}` : t(step.decision)}
             </span>
           )}
           {isTool && step.flagged && (
-            <span className="decision Flagged" title="The output contained text that looked like instructions to the assistant. It was marked as data for the model, and later write actions of this run need an approval.">
-              possible injection
+            <span className="decision Flagged" title={t('The output contained text that looked like instructions to the assistant. It was marked as data for the model, and later write actions of this run need an approval.')}>
+              {t('possible injection')}
             </span>
           )}
           <span className="muted mono">
@@ -199,17 +200,17 @@ function StepRow({ step }: { step: Step }) {
         </summary>
         {step.arguments && (
           <>
-            <div className="label">{isTool ? 'Arguments' : 'Tool calls requested'}</div>
+            <div className="label">{isTool ? t('Arguments') : t('Tool calls requested')}</div>
             <pre>{pretty(step.arguments)}</pre>
           </>
         )}
         {step.result && (
           <>
-            <div className="label">{isTool ? 'Result' : 'Reply'}</div>
+            <div className="label">{isTool ? t('Result') : t('Reply')}</div>
             {isTool ? <ToolResult text={step.result} /> : <pre>{step.result}</pre>}
           </>
         )}
-        {!step.arguments && !step.result && <p className="muted">No content.</p>}
+        {!step.arguments && !step.result && <p className="muted">{t('No content.')}</p>}
       </details>
     </li>
   )

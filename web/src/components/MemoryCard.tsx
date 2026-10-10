@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Api } from '../api'
+import { t } from '../i18n'
 
 interface Memory {
   id: string
@@ -40,24 +41,23 @@ export default function MemoryCard({ api }: { api: Api }) {
 
   return (
     <section className="card">
-      <h2>Memory</h2>
+      <h2>{t('Memory')}</h2>
       <p className="muted small">
-        Facts and preferences Lots keeps about you, used as your own notes in every conversation. They never change what you or the
-        agent may do. The agent can only suggest; you decide.
+        {t('Facts and preferences Lots keeps about you, used as your own notes in every conversation. They never change what you or the agent may do. The agent can only suggest; you decide.')}
       </p>
       {suggestions.length > 0 && (
         <>
-          <h3 className="small">Suggested in conversations</h3>
+          <h3 className="small">{t('Suggested in conversations')}</h3>
           <ul className="memory-list">
             {suggestions.map((m) => (
               <li key={m.id}>
                 <span>{m.text}</span>
                 <span className="row">
                   <button type="button" className="btn small primary" onClick={() => void act(() => api.raw(`/me/memories/${m.id}/confirm`, { method: 'POST', body: '{}' }))}>
-                    Keep
+                    {t('Keep')}
                   </button>
                   <button type="button" className="btn small" onClick={() => void act(() => api.raw(`/me/memories/${m.id}`, { method: 'DELETE' }))}>
-                    Discard
+                    {t('Discard')}
                   </button>
                 </span>
               </li>
@@ -69,7 +69,7 @@ export default function MemoryCard({ api }: { api: Api }) {
         {kept.map((m) => (
           <li key={m.id}>
             {editing?.id === m.id ? (
-              <input value={editing.text} onChange={(e) => setEditing({ id: m.id, text: e.target.value })} aria-label="Edit memory" maxLength={400} />
+              <input value={editing.text} onChange={(e) => setEditing({ id: m.id, text: e.target.value })} aria-label={t('Edit memory')} maxLength={400} />
             ) : (
               <span>{m.text}</span>
             )}
@@ -79,15 +79,15 @@ export default function MemoryCard({ api }: { api: Api }) {
                   await api.raw(`/me/memories/${m.id}`, { method: 'PUT', body: JSON.stringify({ text: editing.text }) })
                   setEditing(null)
                 })}>
-                  Save
+                  {t('Save')}
                 </button>
               ) : (
                 <button type="button" className="btn ghost small" onClick={() => setEditing({ id: m.id, text: m.text })}>
-                  Edit
+                  {t('Edit')}
                 </button>
               )}
               <button type="button" className="btn ghost small" onClick={() => void act(() => api.raw(`/me/memories/${m.id}`, { method: 'DELETE' }))}>
-                Delete
+                {t('Delete')}
               </button>
             </span>
           </li>
@@ -104,13 +104,13 @@ export default function MemoryCard({ api }: { api: Api }) {
           })
         }}
       >
-        <input className="grow" value={text} onChange={(e) => setText(e.target.value)} placeholder="e.g. I run Talos Linux at home" maxLength={400} aria-label="New memory" />
+        <input className="grow" value={text} onChange={(e) => setText(e.target.value)} placeholder={t('e.g. I run Talos Linux at home')} maxLength={400} aria-label={t('New memory')} />
         <button type="submit" className="btn small" disabled={!text.trim()}>
-          Remember
+          {t('Remember')}
         </button>
         {kept.length > 0 && (
-          <button type="button" className="btn ghost small" onClick={() => window.confirm('Forget everything?') && void act(() => api.raw('/me/memories', { method: 'DELETE' }))}>
-            Forget all
+          <button type="button" className="btn ghost small" onClick={() => window.confirm(t('Forget everything?')) && void act(() => api.raw('/me/memories', { method: 'DELETE' }))}>
+            {t('Forget all')}
           </button>
         )}
       </form>

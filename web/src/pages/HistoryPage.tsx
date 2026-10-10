@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import AudioClip from '../components/AudioClip'
 import { ApiError, type Api, type ConversationDetail, type ConversationList, type ConversationSummary, type StageTotals, type TimelineEvent } from '../api'
+import { t } from '../i18n'
 
 const KINDS = [
-  { kind: 'stt', label: 'Speech to text', key: 'sttMs' },
-  { kind: 'llm', label: 'Model (LLM)', key: 'llmMs' },
-  { kind: 'tool', label: 'Tools', key: 'toolMs' },
-  { kind: 'tts', label: 'Text to speech', key: 'ttsMs' },
-  { kind: 'other', label: 'Other (queue, network, orchestration)', key: 'otherMs' },
+  { kind: 'stt', label: t('Speech to text'), key: 'sttMs' },
+  { kind: 'llm', label: t('Model (LLM)'), key: 'llmMs' },
+  { kind: 'tool', label: t('Tools'), key: 'toolMs' },
+  { kind: 'tts', label: t('Text to speech'), key: 'ttsMs' },
+  { kind: 'other', label: t('Other (queue, network, orchestration)'), key: 'otherMs' },
 ] as const
 
 const fmt = (ms: number) => (ms < 1000 ? `${Math.round(ms)} ms` : ms < 60_000 ? `${(ms / 1000).toFixed(1)} s` : `${Math.floor(ms / 60_000)} min ${Math.round((ms % 60_000) / 1000)} s`)
@@ -18,7 +19,7 @@ const total = (s: StageTotals) => s.sttMs + s.llmMs + s.toolMs + s.ttsMs + s.oth
 function StageBar({ stages }: { stages: StageTotals }) {
   const sum = total(stages) || 1
   return (
-    <div className="stagebar" role="img" aria-label="Time per stage">
+    <div className="stagebar" role="img" aria-label={t('Time per stage')}>
       <div className="stagetrack">
         {KINDS.map((k) => (
           <div key={k.kind} className={`stageseg ${k.kind}`} style={{ width: `${(stages[k.key] / sum) * 100}%` }} title={`${k.label}: ${fmt(stages[k.key])}`} />
@@ -50,8 +51,8 @@ function DailyChart({ api }: { api: Api }) {
   const max = Math.max(...days.map((d) => d.sttMs + d.llmMs + d.toolMs + d.ttsMs), 1)
   return (
     <div className="card">
-      <h2>Last 30 days: time per stage and day</h2>
-      <div className="bars stacked" role="img" aria-label="Time per stage and day">
+      <h2>{t('Last 30 days: time per stage and day')}</h2>
+      <div className="bars stacked" role="img" aria-label={t('Time per stage and day')}>
         {days.map((d) => (
           <div key={d.day} className="bar" title={`${d.day}: ${d.conversations} conversations, ${d.turns} turns, avg turn ${fmt(d.avgTurnMs)}`}>
             {(['tts', 'tool', 'llm', 'stt'] as const).map((k) => (
@@ -79,7 +80,7 @@ function List({ api }: { api: Api }) {
     api
       .listConversations(applied)
       .then((d) => !cancelled && (setData(d), setError(null)))
-      .catch(() => !cancelled && setError('Could not load the history.'))
+      .catch(() => !cancelled && setError(t('Could not load the history.')))
     return () => {
       cancelled = true
     }
@@ -87,11 +88,11 @@ function List({ api }: { api: Api }) {
 
   return (
     <section>
-      <h1>Conversation history</h1>
-      <p className="muted small">Voice conversations are recorded (both sides) and the audio is kept for 30 days; you can delete it any time.</p>
+      <h1>{t('Conversation history')}</h1>
+      <p className="muted small">{t('Voice conversations are recorded (both sides) and the audio is kept for 30 days; you can delete it any time.')}</p>
       {data && data.count > 0 && (
         <div className="card">
-          <h2>Where the time goes ({data.count} conversations)</h2>
+          <h2>{t('Where the time goes ({n} conversations)', { n: data.count })}</h2>
           <StageBar stages={data.stages} />
         </div>
       )}
@@ -104,44 +105,44 @@ function List({ api }: { api: Api }) {
         }}
       >
         <label>
-          Search
-          <input className="wide" value={q} placeholder="Search what was said" onChange={(e) => setQ(e.target.value)} />
+          {t('Search')}
+          <input className="wide" value={q} placeholder={t('Search what was said')} onChange={(e) => setQ(e.target.value)} />
         </label>
         <label>
-          Status
+          {t('Status')}
           <select value={status} onChange={(e) => setStatus(e.target.value)}>
-            <option value="">All</option>
-            <option value="Completed">Completed</option>
-            <option value="Failed">Failed</option>
-            <option value="Running">Running</option>
+            <option value="">{t('All')}</option>
+            <option value="Completed">{t('Completed')}</option>
+            <option value="Failed">{t('Failed')}</option>
+            <option value="Running">{t('Running')}</option>
           </select>
         </label>
         <label>
-          Profile
+          {t('Profile')}
           <input value={profile} onChange={(e) => setProfile(e.target.value)} />
         </label>
         <label>
-          From
+          {t('From')}
           <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
         </label>
         <button className="btn" type="submit">
-          Apply
+          {t('Apply')}
         </button>
       </form>
       {error && <p className="error">{error}</p>}
-      {data && data.count === 0 && <p className="muted">No conversations yet. Start one from the Runs page.</p>}
+      {data && data.count === 0 && <p className="muted">{t('No conversations yet. Start one from the Runs page.')}</p>}
       {data && data.count > 0 && (
         <table>
           <thead>
             <tr>
-              <th>Conversation</th>
-              <th>User</th>
-              <th>Date</th>
-              <th>Duration</th>
-              <th>Messages</th>
-              <th>LLM share</th>
-              <th>Tokens</th>
-              <th>Status</th>
+              <th>{t('Conversation')}</th>
+              <th>{t('User')}</th>
+              <th>{t('Date')}</th>
+              <th>{t('Duration')}</th>
+              <th>{t('Messages')}</th>
+              <th>{t('LLM share')}</th>
+              <th>{t('Tokens')}</th>
+              <th>{t('Status')}</th>
             </tr>
           </thead>
           <tbody>
@@ -191,20 +192,20 @@ function Detail({ api, id }: { api: Api; id: string }) {
     api
       .getConversation(id)
       .then((x) => !cancelled && setD(x))
-      .catch((e) => !cancelled && setError(e instanceof ApiError && e.status === 404 ? 'Conversation not found.' : 'Could not load the conversation.'))
+      .catch((e) => !cancelled && setError(e instanceof ApiError && e.status === 404 ? t('Conversation not found.') : t('Could not load the conversation.')))
     return () => {
       cancelled = true
     }
   }, [api, id])
 
   if (error) return <p className="error">{error}</p>
-  if (!d) return <p className="muted">Loading…</p>
+  if (!d) return <p className="muted">{t('Loading…')}</p>
   const c = d.conversation
 
   return (
     <section>
       <p>
-        <a href="#/history">← All conversations</a>
+        <a href="#/history">{t('← All conversations')}</a>
       </p>
       <h1>{c.title}</h1>
       {c.summary ? <p className="summary">{c.summary}</p> : null}
@@ -213,51 +214,51 @@ function Detail({ api, id }: { api: Api; id: string }) {
           setBusy(true)
           void api.summarizeConversation(id).then((s) => setD({ ...d, conversation: { ...c, title: s.title, summary: s.summary } })).finally(() => setBusy(false))
         }}>
-          {c.summary ? 'Summarise again' : 'Summarise'}
+          {c.summary ? t('Summarise again') : 'Summarise'}
         </button>{' '}
         {audio.length > 0 && (
           <button type="button" className="btn small" onClick={() => {
-            if (window.confirm('Delete the recorded audio of this conversation?')) void api.deleteConversationAudio(id).then(() => setAudio([]))
+            if (window.confirm(t('Delete the recorded audio of this conversation?'))) void api.deleteConversationAudio(id).then(() => setAudio([]))
           }}>
-            Delete audio
+            {t('Delete audio')}
           </button>
         )}{' '}
         <button type="button" className="btn small" onClick={() => {
-          if (window.confirm('Delete this whole conversation (turns, trace and audio)? The audit log is kept.')) void api.deleteConversation(id).then(() => (window.location.hash = '#/history'))
+          if (window.confirm(t('Delete this whole conversation (turns, trace and audio)? The audit log is kept.'))) void api.deleteConversation(id).then(() => (window.location.hash = '#/history'))
         }}>
-          Delete conversation
+          {t('Delete conversation')}
         </button>
       </p>
       <dl className="meta">
-        <div><dt>Date</dt><dd>{when(c.startedAt)}</dd></div>
-        <div><dt>Duration</dt><dd>{fmt(c.durationMs)}</dd></div>
-        <div><dt>User</dt><dd>{c.userId}</dd></div>
-        <div><dt>Profile</dt><dd>{c.profile}</dd></div>
-        <div><dt>Status</dt><dd><span className={`status ${c.status}`}>{c.status}</span></dd></div>
-        <div><dt>Conversation id</dt><dd className="mono small">{c.id}</dd></div>
-        <div><dt>Tokens</dt><dd>{c.promptTokens} in · {c.completionTokens} out</dd></div>
+        <div><dt>{t('Date')}</dt><dd>{when(c.startedAt)}</dd></div>
+        <div><dt>{t('Duration')}</dt><dd>{fmt(c.durationMs)}</dd></div>
+        <div><dt>{t('User')}</dt><dd>{c.userId}</dd></div>
+        <div><dt>{t('Profile')}</dt><dd>{c.profile}</dd></div>
+        <div><dt>{t('Status')}</dt><dd><span className={`status ${c.status}`}>{c.status}</span></dd></div>
+        <div><dt>{t('Conversation id')}</dt><dd className="mono small">{c.id}</dd></div>
+        <div><dt>{t('Tokens')}</dt><dd>{c.promptTokens} in · {c.completionTokens} out</dd></div>
       </dl>
 
       <div className="card">
-        <h2>Where the time went</h2>
+        <h2>{t('Where the time went')}</h2>
         <StageBar stages={c.stages} />
       </div>
 
-      <h2>Timeline</h2>
-      {d.turns.map((t, i) => (
-        <div key={t.runId} className="turn card">
+      <h2>{t('Timeline')}</h2>
+      {d.turns.map((it, i) => (
+        <div key={it.runId} className="turn card">
           <div className="turnhead">
-            <strong>Turn {i + 1}</strong>
-            <span className="muted small">{fmt(t.durationMs)} · <a href={`#/runs/${t.runId}`}>run details</a></span>
+            <strong>{t('Turn {n}', { n: i + 1 })}</strong>
+            <span className="muted small">{fmt(it.durationMs)} · <a href={`#/runs/${it.runId}`}>{t('run details')}</a></span>
           </div>
           <p className="said you">
-            <span className="who">You</span> {t.prompt}{' '}
+            <span className="who">{t('You')}</span> {it.prompt}{' '}
             {audioFor(audio, d.turns, i, 'user').map((a) => <AudioClip key={a.id} api={api} id={a.id} label="your voice" />)}
           </p>
-          <Timeline events={t.events} />
-          <p className={`said agent ${t.status === 'Failed' ? 'failed' : ''}`}>
-            <span className="who">Agent</span> {t.answer ?? t.error ?? '…'}{' '}
-            {audio.filter((a) => a.kind === 'agent' && a.runId === t.runId).map((a) => <AudioClip key={a.id} api={api} id={a.id} label="spoken answer" />)}
+          <Timeline events={it.events} />
+          <p className={`said agent ${it.status === 'Failed' ? 'failed' : ''}`}>
+            <span className="who">{t('Agent')}</span> {it.answer ?? it.error ?? '…'}{' '}
+            {audio.filter((a) => a.kind === 'agent' && a.runId === it.runId).map((a) => <AudioClip key={a.id} api={api} id={a.id} label="spoken answer" />)}
           </p>
         </div>
       ))}
@@ -277,7 +278,7 @@ function Timeline({ events }: { events: TimelineEvent[] }) {
   const end = Math.max(...events.map((e) => e.startMs + e.durationMs))
   const span = Math.max(1, end - start)
   return (
-    <ol className="timeline" aria-label="Timeline of this turn">
+    <ol className="timeline" aria-label={t('Timeline of this turn')}>
       {events.map((e, i) => (
         <li key={i}>
           <span className="tlabel">

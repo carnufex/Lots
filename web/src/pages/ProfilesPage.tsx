@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ApiError, type Api } from '../api'
 import { adminApi, type ApplyOutcome, type GitOpsInfo, type Resource, type ResourceVersion } from '../adminApi'
+import { fmt, t } from '../i18n'
 
 const NEW_PROFILE = `kind: Profile
 name: my-profile
@@ -33,7 +34,7 @@ function Outcome({ outcome }: { outcome: ApplyOutcome }) {
   return (
     <div className="outcome">
       <p className={outcome.hasErrors ? 'error' : 'muted'}>
-        {outcome.hasErrors ? 'Not applied: fix the errors below.' : outcome.applied ? 'Applied.' : 'Dry run: nothing changed yet.'}
+        {outcome.hasErrors ? t('Not applied: fix the errors below.') : outcome.applied ? t('Applied.') : t('Dry run: nothing changed yet.')}
       </p>
       {outcome.results.map((r) => (
         <div key={`${r.kind}:${r.name}`}>
@@ -66,31 +67,31 @@ export default function ProfilesPage({ api }: { api: Api }) {
     admin
       .resources()
       .then((r) => setResources(r.filter((x) => x.kind === 'Profile')))
-      .catch((e: unknown) => setError(e instanceof ApiError && e.status === 403 ? 'Profiles are managed by admins.' : String(e)))
+      .catch((e: unknown) => setError(e instanceof ApiError && e.status === 403 ? t('Profiles are managed by admins.') : String(e)))
     admin.gitops().then(setGitops).catch(() => setGitops(null))
   }, [admin])
   useEffect(load, [load])
 
   return (
     <section>
-      <h1>Profiles</h1>
+      <h1>{t('Profiles')}</h1>
       {error && <p className="error">{error}</p>}
       {gitops?.state.enabled && (
         <div className="card">
-          <strong>GitOps</strong>{' '}
+          <strong>{t('GitOps')}</strong>{' '}
           <span className="muted small">
             {gitops.state.path} · revision {gitops.state.revision ?? 'unknown'} · last sync{' '}
-            {gitops.state.lastSyncAt ? new Date(gitops.state.lastSyncAt).toLocaleString() : 'never'}: {gitops.state.lastResult}
+            {gitops.state.lastSyncAt ? fmt.dateTime(gitops.state.lastSyncAt) : 'never'}: {gitops.state.lastResult}
           </span>{' '}
           <button type="button" className="btn small" onClick={() => void admin.syncGitops().then(load)}>
-            Sync now
+            {t('Sync now')}
           </button>
           {gitops.state.error && <p className="error small">{gitops.state.error}</p>}
           {gitops.drift.length === 0 ? (
-            <p className="muted small">In sync with Git.</p>
+            <p className="muted small">{t('In sync with Git.')}</p>
           ) : (
             <>
-              <p className="warn small">Differs from Git ({gitops.drift.length}): the next sync applies this.</p>
+              <p className="warn small">{t('Differs from Git ({n}): the next sync applies this.', { n: gitops.drift.length })}</p>
               {gitops.drift.map((d) => (
                 <details key={`${d.kind}:${d.name}`}>
                   <summary>
@@ -108,10 +109,10 @@ export default function ProfilesPage({ api }: { api: Api }) {
         <table>
           <thead>
             <tr>
-              <th>Profile</th>
-              <th>Version</th>
-              <th>Managed by</th>
-              <th>Last applied</th>
+              <th>{t('Profile')}</th>
+              <th>{t('Version')}</th>
+              <th>{t('Managed by')}</th>
+              <th>{t('Last applied')}</th>
               <th />
             </tr>
           </thead>
@@ -128,11 +129,11 @@ export default function ProfilesPage({ api }: { api: Api }) {
                   {r.managedBy}
                   {!r.editable && <span className="muted small"> (read-only)</span>}
                 </td>
-                <td className="muted">{r.appliedAt ? `${new Date(r.appliedAt).toLocaleString()} by ${r.appliedBy}` : ''}</td>
+                <td className="muted">{r.appliedAt ? `${fmt.dateTime(r.appliedAt)} by ${r.appliedBy}` : ''}</td>
                 <td>
                   {r.editable && (
                     <button type="button" className="btn small" onClick={() => void admin.resource('Profile', r.name).then((x) => setEditing(x.spec))}>
-                      Edit
+                      {t('Edit')}
                     </button>
                   )}
                 </td>
@@ -145,7 +146,7 @@ export default function ProfilesPage({ api }: { api: Api }) {
 
       <p>
         <button type="button" className="btn" onClick={() => setEditing(NEW_PROFILE)}>
-          New profile
+          {t('New profile')}
         </button>
       </p>
       {editing !== null && (
@@ -202,22 +203,22 @@ function Schedules({ api }: { api: Api }) {
 
   return (
     <>
-      <h2 className="section-title">Schedules</h2>
+      <h2 className="section-title">{t('Schedules')}</h2>
       <p className="muted small">
-        Runs without a person: on a cron schedule or from a webhook, as a service identity with its own roles. Apply them like
-        profiles (<code>kind: Schedule</code>); see docs/schedules.md.
+        {t('Runs without a person: on a cron schedule or from a webhook, as a service identity with its own roles. Apply them like profiles')}{' '}
+        (<code>kind: Schedule</code>); {t('see')} docs/schedules.md.
       </p>
       {list.length === 0 ? (
-        <p className="muted small">No schedules applied.</p>
+        <p className="muted small">{t('No schedules applied.')}</p>
       ) : (
         <table>
           <thead>
             <tr>
-              <th>Name</th>
-              <th>Runs as</th>
-              <th>When</th>
-              <th>Next</th>
-              <th>Last run</th>
+              <th>{t('Name')}</th>
+              <th>{t('Runs as')}</th>
+              <th>{t('When')}</th>
+              <th>{t('Next')}</th>
+              <th>{t('Last run')}</th>
               <th />
             </tr>
           </thead>
@@ -226,7 +227,7 @@ function Schedules({ api }: { api: Api }) {
               <tr key={s.name}>
                 <td>
                   {s.name}
-                  {!s.enabled && <span className="muted small"> disabled</span>}
+                  {!s.enabled && <span className="muted small"> {t('disabled')}</span>}
                   <div className="muted small">{s.profile}</div>
                 </td>
                 <td className="small">
@@ -236,21 +237,21 @@ function Schedules({ api }: { api: Api }) {
                 <td className="mono small">
                   {s.cron ?? ''}
                   {s.cron && s.timeZone !== 'UTC' && <div className="muted">{s.timeZone}</div>}
-                  {s.webhook && <div className="muted">webhook</div>}
+                  {s.webhook && <div className="muted">{t('webhook')}</div>}
                 </td>
-                <td className="small">{s.next ? new Date(s.next).toLocaleString() : ''}</td>
+                <td className="small">{s.next ? fmt.dateTime(s.next) : ''}</td>
                 <td className="small">
                   {s.lastRunId ? (
                     <a href={`#/runs/${s.lastRunId}`}>
-                      {s.lastStatus} · {new Date(s.lastRunAt!).toLocaleString()}
+                      {s.lastStatus} · {fmt.dateTime(s.lastRunAt!)}
                     </a>
                   ) : (
-                    <span className="muted">never</span>
+                    <span className="muted">{t('never')}</span>
                   )}
                 </td>
                 <td>
                   <button type="button" className="btn small" onClick={() => void runNow(s.name)}>
-                    Run now
+                    {t('Run now')}
                   </button>
                 </td>
               </tr>
@@ -277,11 +278,11 @@ function ProfileDetail({ api, name }: { api: Api; name: string }) {
       {spec !== null && <pre>{spec}</pre>}
       {versions.length > 0 && (
         <>
-          <h3 className="section-title">History</h3>
+          <h3 className="section-title">{t('History')}</h3>
           {versions.map((v) => (
             <details key={v.id}>
               <summary>
-                v{v.version} {v.action} by {v.appliedBy} ({v.managedBy}) · {new Date(v.appliedAt).toLocaleString()}
+                v{v.version} {v.action} by {v.appliedBy} ({v.managedBy}) · {fmt.dateTime(v.appliedAt)}
               </summary>
               <DiffView diff={v.diff} />
             </details>
@@ -311,20 +312,20 @@ function Editor({ api, initial, onDone }: { api: Api; initial: string; onDone: (
   const bump = () => setYaml(yaml.replace(/^version:\s*(\d+)/m, (_, v: string) => `version: ${Number(v) + 1}`))
   return (
     <div className="card">
-      <h2 className="section-title">Edit</h2>
-      <textarea className="code" rows={22} value={yaml} onChange={(e) => setYaml(e.target.value)} spellCheck={false} aria-label="Profile YAML" />
+      <h2 className="section-title">{t('Edit')}</h2>
+      <textarea className="code" rows={22} value={yaml} onChange={(e) => setYaml(e.target.value)} spellCheck={false} aria-label={t('Profile YAML')} />
       <p>
         <button type="button" className="btn" disabled={busy} onClick={bump}>
-          Bump version
+          {t('Bump version')}
         </button>{' '}
         <button type="button" className="btn" disabled={busy} onClick={() => void run(true)}>
-          Validate and diff
+          {t('Validate and diff')}
         </button>{' '}
         <button type="button" className="btn primary" disabled={busy || !outcome || outcome.hasErrors || !outcome.dryRun} onClick={() => void run(false)}>
-          Apply
+          {t('Apply')}
         </button>{' '}
         <button type="button" className="btn ghost" onClick={onDone}>
-          Cancel
+          {t('Cancel')}
         </button>
       </p>
       {outcome && <Outcome outcome={outcome} />}

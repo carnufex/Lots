@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Api } from '../api'
+import { t } from '../i18n'
 
 /** Your data (#79): download everything Lots keeps about you, or delete it. */
 export default function MyData({ api }: { api: Api }) {
@@ -17,11 +18,11 @@ export default function MyData({ api }: { api: Api }) {
   }
 
   const remove = async () => {
-    const typed = window.prompt('This deletes your runs, conversations and recordings, settings, own voice, vocabulary, personal knowledge and connected accounts. The audit log is kept. Type "delete my data" to confirm.')
+    const typed = window.prompt(t('This deletes your runs, conversations and recordings, settings, own voice, vocabulary, personal knowledge and connected accounts. The audit log is kept. Type "delete my data" to confirm.'))
     if (typed !== 'delete my data') return
     try {
       const r = await api.raw<{ deleted: Record<string, number> }>('/me/data', { method: 'DELETE', body: JSON.stringify({ confirm: typed }) })
-      setMessage('Deleted: ' + Object.entries(r.deleted).map(([k, v]) => `${k} ${v}`).join(', '))
+      setMessage(t('Deleted: ') + Object.entries(r.deleted).map(([k, v]) => `${k} ${v}`).join(', '))
     } catch (e) {
       setMessage(String(e))
     }
@@ -29,12 +30,12 @@ export default function MyData({ api }: { api: Api }) {
 
   return (
     <div className="card small">
-      <strong>Your data</strong>{' '}
+      <strong>{t('Your data')}</strong>{' '}
       <button type="button" className="btn small" onClick={() => void download()}>
-        Download everything (zip)
+        {t('Download everything (zip)')}
       </button>{' '}
       <button type="button" className="btn small" onClick={() => void remove()}>
-        Delete my data
+        {t('Delete my data')}
       </button>
       {message && <p className="muted">{message}</p>}
     </div>

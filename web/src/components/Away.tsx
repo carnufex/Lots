@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Api } from '../api'
+import { fmt, t } from '../i18n'
 
 type Coverage = { user: string; until: string; delegateTo: string | null }
 type Away = { until: string | null; delegateTo: string | null }
@@ -31,21 +32,21 @@ export default function AwayPanel({ api }: { api: Api }) {
     <div className="card small">
       {coverage.length > 0 && (
         <p>
-          Away:{' '}
+          {t('Away:')}{' '}
           {coverage.map((c) => (
             <span key={c.user}>
-              {c.user} until {new Date(c.until).toLocaleDateString()}
-              {c.delegateTo ? ` (covered by ${c.delegateTo})` : ' (no delegate)'}{' '}
+              {t('{user} until {when}', { user: c.user, when: fmt.date(c.until) })}
+              {c.delegateTo ? ` (${t('covered by {who}', { who: c.delegateTo })})` : ` (${t('no delegate')})`}{' '}
             </span>
           ))}
         </p>
       )}
       {mine.until ? (
         <p>
-          You are away until {new Date(mine.until).toLocaleString()}
-          {mine.delegateTo ? `; approval notifications go to ${mine.delegateTo}` : ''}.{' '}
+          {t('You are away until {when}', { when: fmt.dateTime(mine.until) })}
+          {mine.delegateTo ? `; ${t('approval notifications go to {who}', { who: mine.delegateTo })}` : ''}.{' '}
           <button type="button" className="btn small" onClick={() => void save({ until: null, delegateTo: null })}>
-            I'm back
+            {t("I'm back")}
           </button>
         </p>
       ) : (
@@ -57,17 +58,17 @@ export default function AwayPanel({ api }: { api: Api }) {
           }}
         >
           <label>
-            Away until
+            {t('Away until')}
             <input type="datetime-local" value={until} onChange={(e) => setUntil(e.target.value)} required />
           </label>
           <label>
-            Delegate (user id)
+            {t('Delegate (user id)')}
             <input value={delegate} onChange={(e) => setDelegate(e.target.value)} />
           </label>
           <button className="btn" type="submit">
-            Set out of office
+            {t('Set out of office')}
           </button>
-          <span className="muted">Your delegate can only decide what their own roles allow.</span>
+          <span className="muted">{t('Your delegate can only decide what their own roles allow.')}</span>
         </form>
       )}
       {error && <p className="error">{error}</p>}

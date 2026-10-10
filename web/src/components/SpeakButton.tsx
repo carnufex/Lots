@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ApiError, type Api } from '../api'
+import { t } from '../i18n'
 
 type State = 'idle' | 'loading' | 'playing'
 
@@ -50,10 +51,10 @@ export default function SpeakButton({ api, runId }: { api: Api; runId: string })
       setState('idle')
       setError(
         e instanceof ApiError && e.status === 503
-          ? 'Voice is unavailable right now. The answer is above in text.'
+          ? t('Voice is unavailable right now. The answer is above in text.')
           : e instanceof DOMException && e.name === 'NotAllowedError'
-            ? 'The browser blocked playback. Press Listen once to allow it.'
-            : 'Could not read the answer aloud.',
+            ? t('The browser blocked playback. Press Listen once to allow it.')
+            : t('Could not read the answer aloud.'),
       )
     }
   }
@@ -82,7 +83,7 @@ export default function SpeakButton({ api, runId }: { api: Api; runId: string })
     <div className="speak">
       <button type="button" className="btn" disabled={state === 'loading'} onClick={() => (state === 'playing' ? stop() : void play())}>
         {state === 'idle' && 'Listen'}
-        {state === 'loading' && 'Preparing…'}
+        {state === 'loading' && t('Preparing…')}
         {state === 'playing' && 'Stop'}
       </button>
       <label className="muted">

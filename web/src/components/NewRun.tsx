@@ -5,6 +5,7 @@ import MicButton from './MicButton'
 import VocabularyEditor from './VocabularyEditor'
 import { initialLanguage, saveLanguage } from '../voice/language'
 import { AttachPicker, type UploadedAttachment } from './Attachments'
+import { t } from '../i18n'
 
 export default function NewRun({ api, profiles, voice }: { api: Api; profiles: ProfileInfo[]; voice: VoiceConfig }) {
   const [prompt, setPrompt] = useState('')
@@ -35,12 +36,12 @@ export default function NewRun({ api, profiles, voice }: { api: Api; profiles: P
   return (
     <form className="newrun" onSubmit={(e) => void submit(e)}>
       <label className="sr" htmlFor="prompt">
-        Question
+        {t('Question')}
       </label>
       <textarea
         id="prompt"
         rows={2}
-        placeholder="Ask something, e.g. which containers are unhealthy?"
+        placeholder={t('Ask something, e.g. which containers are unhealthy?')}
         value={prompt}
         onChange={(e) => setPrompt(e.target.value)}
         onKeyDown={(e) => {
@@ -49,7 +50,7 @@ export default function NewRun({ api, profiles, voice }: { api: Api; profiles: P
       />
       <div className="row">
         {profiles.length > 1 ? (
-          <select aria-label="Profile" value={profile} onChange={(e) => setProfile(e.target.value)}>
+          <select aria-label={t('Profile')} value={profile} onChange={(e) => setProfile(e.target.value)}>
             {profiles.map((p) => (
               <option key={p.name} value={p.name}>
                 {p.name}
@@ -63,12 +64,12 @@ export default function NewRun({ api, profiles, voice }: { api: Api; profiles: P
         <span className="grow" />
         {voice.enabled && (
           <>
-            <select aria-label="Speech language" value={language} onChange={(e) => setLanguage(e.target.value as VoiceLanguage)}>
-              <option value="auto">Auto</option>
+            <select aria-label={t('Speech language')} value={language} onChange={(e) => setLanguage(e.target.value as VoiceLanguage)}>
+              <option value="auto">{t('Auto')}</option>
               <option value="sv">Svenska</option>
               <option value="en">English</option>
             </select>
-            <MicButton api={api} language={language} onText={(t) => setPrompt((p) => (p.trim() ? `${p.trim()} ${t}` : t))} />
+            <MicButton api={api} language={language} onText={(text) => setPrompt((p) => (p.trim() ? `${p.trim()} ${text}` : text))} />
           </>
         )}
         {error && (
@@ -77,7 +78,7 @@ export default function NewRun({ api, profiles, voice }: { api: Api; profiles: P
           </span>
         )}
         <button className="btn primary" type="submit" disabled={busy || !prompt.trim()}>
-          {busy ? 'Starting…' : 'Start run'}
+          {busy ? t('Starting…') : t('Start run')}
         </button>
       </div>
       {voice.enabled && <VocabularyEditor api={api} />}

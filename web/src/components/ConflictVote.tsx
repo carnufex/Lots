@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Api, Conflict, Step } from '../api'
+import { fmt, t } from '../i18n'
 
 /** Conflict ids announced by search_knowledge results ("Conflict: <id> options=k1,k3"). */
 export function conflictIds(steps: Step[]): string[] {
@@ -30,9 +31,9 @@ export function ConflictVote({ api, id }: { api: Api; id: string }) {
   const votes = (option: string) => conflict.tally.options.find((o) => o.option === option)?.votes ?? 0
 
   return (
-    <div className="conflict" role="group" aria-label="Sources disagree">
-      <div className="label">The sources disagree{conflict.summary ? `: ${conflict.summary}` : ''}</div>
-      {conflict.status === 'resolved' && <p className="small">An owner marked one option as authoritative ({conflict.resolvedBy}).</p>}
+    <div className="conflict" role="group" aria-label={t('Sources disagree')}>
+      <div className="label">{t('The sources disagree')}{conflict.summary ? `: ${conflict.summary}` : ''}</div>
+      {conflict.status === 'resolved' && <p className="small">{t('An owner marked one option as authoritative ({who}).', { who: conflict.resolvedBy ?? '' })}</p>}
       <ul>
         {conflict.options.map((o) => (
           <li key={o.chunkId} className={conflict.resolvedOption === o.chunkId ? 'authoritative' : undefined}>
@@ -41,7 +42,7 @@ export function ConflictVote({ api, id }: { api: Api; id: string }) {
                 <strong>{o.title}</strong>
                 <span className="muted small">
                   {' '}
-                  · {o.sourceName} · updated {new Date(o.updatedAt).toLocaleDateString()}
+                  · {o.sourceName} · updated {fmt.date(o.updatedAt)}
                   {o.changed ? ' · changed since detected' : ''}
                 </span>
               </summary>
@@ -71,15 +72,15 @@ export function ConflictList({ api }: { api: Api }) {
   if (!list || list.length === 0) return null
   return (
     <>
-      <h2 className="section-title">Conflicting sources</h2>
+      <h2 className="section-title">{t('Conflicting sources')}</h2>
       <table>
         <thead>
           <tr>
-            <th>Question</th>
-            <th>What differs</th>
-            <th>Votes</th>
-            <th>Suggestion</th>
-            <th>Status</th>
+            <th>{t('Question')}</th>
+            <th>{t('What differs')}</th>
+            <th>{t('Votes')}</th>
+            <th>{t('Suggestion')}</th>
+            <th>{t('Status')}</th>
           </tr>
         </thead>
         <tbody>
@@ -92,12 +93,12 @@ export function ConflictList({ api }: { api: Api }) {
                 <td title={c.tally.options.map((o) => `${c.options.find((x) => x.chunkId === o.option)?.title ?? o.option}: ${o.weight}`).join('\n')}>
                   {c.tally.votes}
                   {c.tally.staleVotes ? <span className="muted small"> (+{c.tally.staleVotes} stale)</span> : null}
-                  {c.tally.swing && <span className="warn small"> sudden swing</span>}
+                  {c.tally.swing && <span className="warn small"> {t('sudden swing')}</span>}
                 </td>
-                <td>{suggested ? `${suggested.title} (${suggested.sourceName})` : <span className="muted">no clear majority</span>}</td>
+                <td>{suggested ? `${suggested.title} (${suggested.sourceName})` : <span className="muted">{t('no clear majority')}</span>}</td>
                 <td>
                   {c.status === 'resolved' ? (
-                    <span className="muted">resolved by {c.resolvedBy}</span>
+                    <span className="muted">{t('resolved by {who}', { who: c.resolvedBy ?? '' })}</span>
                   ) : (
                     c.options.map((o) => (
                       <button key={o.chunkId} type="button" className="btn small" onClick={() => void api.resolveConflict(c.id, o.chunkId).then(load)}>

@@ -5,15 +5,16 @@ import { MicSession } from '../voice/mic'
 import { Player } from '../voice/player'
 import { initialLanguage, saveLanguage } from '../voice/language'
 import Avatar, { type AvatarState } from './Avatar'
+import { t } from '../i18n'
 
 type Message = { who: 'you' | 'agent'; text: string; runId?: string; failed?: boolean }
 
 const STATUS: Record<AvatarState, string> = {
-  off: 'Not in a conversation',
-  listening: 'Listening…',
-  hearing: 'Hearing you…',
-  thinking: 'Thinking…',
-  speaking: 'Speaking: talk to interrupt',
+  off: t('Not in a conversation'),
+  listening: t('Listening…'),
+  hearing: t('Hearing you…'),
+  thinking: t('Thinking…'),
+  speaking: t('Speaking: talk to interrupt'),
 }
 
 const SENSITIVITY: Record<string, number> = { low: 0.7, normal: 1, high: 1.5 }
@@ -130,13 +131,13 @@ export default function Conversation({
         if (!isTerminal(detail.status)) {
           void api.cancelRun(run.id).catch(() => undefined) // nobody is waiting for it any more
           player.current.stop()
-          add({ who: 'agent', text: 'This is taking too long, so I stopped waiting. Try again in a moment.', runId: run.id, failed: true })
+          add({ who: 'agent', text: t('This is taking too long, so I stopped waiting. Try again in a moment.'), runId: run.id, failed: true })
           go('listening')
           return
         }
 
         if (detail.status === 'Failed' || !detail.finalAnswer) {
-          add({ who: 'agent', text: detail.error ?? 'Something went wrong.', runId: run.id, failed: true })
+          add({ who: 'agent', text: detail.error ?? t('Something went wrong.'), runId: run.id, failed: true })
           go('listening')
           return
         }
@@ -148,8 +149,8 @@ export default function Conversation({
         if (mine !== turn.current) return
         setError(
           e instanceof ApiError && e.status === 503
-            ? 'Voice is unavailable right now. You can still type your question.'
-            : 'Something went wrong with that turn. Try again.',
+            ? t('Voice is unavailable right now. You can still type your question.')
+            : t('Something went wrong with that turn. Try again.'),
         )
         go('listening')
       }
@@ -184,7 +185,7 @@ export default function Conversation({
       )
       go('listening')
     } catch {
-      setError('Microphone access was blocked. Allow it in the browser to talk to the agent.')
+      setError(t('Microphone access was blocked. Allow it in the browser to talk to the agent.'))
     }
   }
 
@@ -225,10 +226,10 @@ export default function Conversation({
 
   const on = state !== 'off'
   const idleMuted = muted && (state === 'listening' || state === 'hearing')
-  const statusText = idleMuted ? 'Muted: the agent cannot hear you' : STATUS[state]
+  const statusText = idleMuted ? t('Muted: the agent cannot hear you') : STATUS[state]
 
   return (
-    <section className={`talk ${state} ${muted ? 'ismuted' : ''}`} aria-label="Conversation">
+    <section className={`talk ${state} ${muted ? 'ismuted' : ''}`} aria-label={t('Conversation')}>
       <div className="talkhead">
         <Avatar state={idleMuted ? 'off' : state} level={level} />
         <div className="talkside">
@@ -241,20 +242,20 @@ export default function Conversation({
                 {muted ? 'Unmute' : 'Mute'}
               </button>
               <button type="button" className="btn endcall" onClick={end}>
-                End conversation
+                {t('End conversation')}
               </button>
             </div>
           ) : (
             <>
               <button type="button" className="btn startcall" onClick={() => void start()}>
-                Start conversation
+                {t('Start conversation')}
               </button>
-              <span className="muted small">Both sides are recorded and kept 30 days (History lets you play or delete them).</span>
+              <span className="muted small">{t('Both sides are recorded and kept 30 days (History lets you play or delete them).')}</span>
             </>
           )}
           <div className="row talkopts">
             <select
-              aria-label="Conversation language"
+              aria-label={t('Conversation language')}
               value={language}
               onChange={(e) => {
                 const l = e.target.value as VoiceLanguage
@@ -264,15 +265,15 @@ export default function Conversation({
             >
               <option value="sv">Svenska</option>
               <option value="en">English</option>
-              <option value="auto">Auto</option>
+              <option value="auto">{t('Auto')}</option>
             </select>
-            <select aria-label="Microphone sensitivity" value={sensitivity} onChange={(e) => setSensitivity(e.target.value)}>
-              <option value="low">Sensitivity: low</option>
-              <option value="normal">Sensitivity: normal</option>
-              <option value="high">Sensitivity: high</option>
+            <select aria-label={t('Microphone sensitivity')} value={sensitivity} onChange={(e) => setSensitivity(e.target.value)}>
+              <option value="low">{t('Sensitivity: low')}</option>
+              <option value="normal">{t('Sensitivity: normal')}</option>
+              <option value="high">{t('Sensitivity: high')}</option>
             </select>
             {profiles.length > 1 && (
-              <select aria-label="Profile" value={profile} onChange={(e) => setProfile(e.target.value)}>
+              <select aria-label={t('Profile')} value={profile} onChange={(e) => setProfile(e.target.value)}>
                 {profiles.map((p) => (
                   <option key={p.name} value={p.name}>
                     {p.name}
@@ -281,7 +282,7 @@ export default function Conversation({
               </select>
             )}
           </div>
-          <p className="muted small">Headphones work best: the agent then never hears itself.</p>
+          <p className="muted small">{t('Headphones work best: the agent then never hears itself.')}</p>
           {error && (
             <p role="alert" className="error small">
               {error}
@@ -290,7 +291,7 @@ export default function Conversation({
         </div>
       </div>
       {messages.length > 0 && (
-        <ol className="transcript" ref={log} aria-label="Conversation so far">
+        <ol className="transcript" ref={log} aria-label={t('Conversation so far')}>
           {messages.map((m, i) => (
             <li key={i} className={`line ${m.who} ${m.failed ? 'failed' : ''}`}>
               <span className="who">{m.who === 'you' ? 'You' : 'Agent'}</span>

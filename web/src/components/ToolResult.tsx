@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { t } from '../i18n'
 
 /**
  * Readable views of tool output (#65). Tool output is untrusted data: everything here renders as React text nodes, never as HTML,
@@ -171,7 +172,7 @@ function LogView({ lines }: { lines: string[] }) {
     <div>
       <div className="filters">
         <label>
-          Search
+          {t('Search')}
           <input value={q} onChange={(e) => setQ(e.target.value)} />
         </label>
         <label>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ConflictList } from '../components/ConflictVote'
 import { ApiError, type Api, type KnowledgeDoc, type KnowledgeHit, type KnowledgeOverview, type KnowledgeSource } from '../api'
+import { fmt, t } from '../i18n'
 
 const statusClass: Record<string, string> = { ready: 'Allowed', failed: 'Denied', queued: 'ApprovalRequested', indexing: 'ApprovalRequested' }
 
@@ -25,18 +26,18 @@ export default function KnowledgePage({ api }: { api: Api }) {
   useEffect(() => {
     reload()
     // Indexing runs in the background: refresh while something is queued or indexing.
-    const t = window.setInterval(() => {
+    const timer = window.setInterval(() => {
       if (overview?.sources.some((s) => s.status === 'queued' || s.status === 'indexing')) reload()
     }, 2000)
-    return () => window.clearInterval(t)
+    return () => window.clearInterval(timer)
   }, [reload, overview])
 
   return (
     <section>
-      <h1>Knowledge</h1>
+      <h1>{t('Knowledge')}</h1>
       {error && (
         <p role="alert" className="error">
-          Could not load knowledge: {error}
+          {t('Could not load knowledge:')} {error}
         </p>
       )}
       {overview && (
@@ -44,34 +45,34 @@ export default function KnowledgePage({ api }: { api: Api }) {
           <p className="muted small">
             {overview.embeddingsConfigured ? (
               <>
-                Embeddings: <span className="mono">{overview.embedModel}</span> · storage: {overview.backend}
-                {overview.vectorExtension ? ' with pgvector' : ''}
+                {t('Embeddings:')} <span className="mono">{overview.embedModel}</span> · {t('storage:')} {overview.backend}
+                {overview.vectorExtension ? ' ' + t('with pgvector') : ''}
               </>
             ) : (
-              <span className="warn">No embedding model is configured (Models:Aliases:embed): search is off.</span>
+              <span className="warn">{t('No embedding model is configured (Models:Aliases:embed): search is off.')}</span>
             )}
             {overview.note && <span className="warn"> · {overview.note}</span>}
           </p>
 
           <TryIt api={api} sources={overview.sources} />
 
-          <h2 className="section-title">Sources</h2>
+          <h2 className="section-title">{t('Sources')}</h2>
           {overview.sources.length === 0 ? (
             <div className="empty">
-              <p>No sources you can read yet.</p>
+              <p>{t('No sources you can read yet.')}</p>
             </div>
           ) : (
             <table>
               <thead>
                 <tr>
-                  <th>Source</th>
-                  <th>Kind</th>
-                  <th>Status</th>
-                  <th>Documents</th>
-                  <th>Chunks</th>
-                  <th>Readers</th>
-                  <th>Data</th>
-                  <th>Indexed</th>
+                  <th>{t('Source')}</th>
+                  <th>{t('Kind')}</th>
+                  <th>{t('Status')}</th>
+                  <th>{t('Documents')}</th>
+                  <th>{t('Chunks')}</th>
+                  <th>{t('Readers')}</th>
+                  <th>{t('Data')}</th>
+                  <th>{t('Indexed')}</th>
                   <th />
                 </tr>
               </thead>
@@ -109,8 +110,8 @@ function SourceRow({ api, source: s, open, onToggle, onChange }: { api: Api; sou
           <button type="button" className="btn ghost" aria-expanded={open} onClick={onToggle}>
             {s.name}
           </button>
-          {s.personal && <span className="muted small"> personal</span>}
-          {s.managedBy === 'config' && <span className="muted small"> config</span>}
+          {s.personal && <span className="muted small"> {t('personal')}</span>}
+          {s.managedBy === 'config' && <span className="muted small"> {t('config')}</span>}
         </td>
         <td>{s.kind}</td>
         <td title={s.error ?? undefined}>
@@ -120,11 +121,11 @@ function SourceRow({ api, source: s, open, onToggle, onChange }: { api: Api; sou
         <td>{s.chunks}</td>
         <td className="muted small">{s.readers.join(', ')}</td>
         <td className="muted small">{s.sensitivity ?? 'internal'}</td>
-        <td className="muted">{s.indexedAt ? new Date(s.indexedAt).toLocaleString() : ''}</td>
+        <td className="muted">{s.indexedAt ? fmt.dateTime(s.indexedAt) : ''}</td>
         <td>
           {(s.canManage || s.managedBy === 'config') && (
             <button type="button" className="btn small" disabled={busy} onClick={() => void act(() => api.reindexSource(s.id))}>
-              Re-index
+              {t('Re-index')}
             </button>
           )}{' '}
           {s.canManage && (
@@ -136,7 +137,7 @@ function SourceRow({ api, source: s, open, onToggle, onChange }: { api: Api; sou
                 if (window.confirm(`Delete the source "${s.name}" and everything indexed from it?`)) void act(() => api.deleteSource(s.id))
               }}
             >
-              Delete
+              {t('Delete')}
             </button>
           )}
         </td>
@@ -183,9 +184,9 @@ function Documents({ api, source, onChange }: { api: Api; source: KnowledgeSourc
   return (
     <div>
       {docs === null ? (
-        <p className="muted">Loading…</p>
+        <p className="muted">{t('Loading…')}</p>
       ) : docs.length === 0 ? (
-        <p className="muted">No documents.</p>
+        <p className="muted">{t('No documents.')}</p>
       ) : (
         <ul className="plain">
           {docs.map((d) => (
@@ -216,15 +217,15 @@ function Documents({ api, source, onChange }: { api: Api; source: KnowledgeSourc
       {source.canManage && source.kind === 'upload' && (
         <div className="filters">
           <label>
-            Upload (md, txt, html, docx)
+            {t('Upload (md, txt, html, docx)')}
             <input type="file" multiple accept=".md,.markdown,.txt,.html,.htm,.docx" onChange={(e) => void upload(e.target.files)} />
           </label>
           <label>
-            Title
+            {t('Title')}
             <input value={title} onChange={(e) => setTitle(e.target.value)} />
           </label>
           <label className="grow">
-            Text
+            {t('Text')}
             <textarea rows={3} value={text} onChange={(e) => setText(e.target.value)} />
           </label>
           <button
@@ -243,7 +244,7 @@ function Documents({ api, source, onChange }: { api: Api; source: KnowledgeSourc
                 .catch((e: unknown) => setError(message(e)))
             }
           >
-            Add text
+            {t('Add text')}
           </button>
         </div>
       )}
@@ -266,7 +267,7 @@ function NewSource({ api, onCreated }: { api: Api; onCreated: () => void }) {
 
   return (
     <>
-      <h2 className="section-title">New source</h2>
+      <h2 className="section-title">{t('New source')}</h2>
       <form
         className="filters"
         onSubmit={(e) => {
@@ -283,25 +284,25 @@ function NewSource({ api, onCreated }: { api: Api; onCreated: () => void }) {
               setLocation('')
               onCreated()
             })
-            .catch((e: unknown) => setError(e instanceof ApiError && e.status === 403 ? 'Only admins can create shared sources; you can create personal ones.' : message(e)))
+            .catch((e: unknown) => setError(e instanceof ApiError && e.status === 403 ? t('Only admins can create shared sources; you can create personal ones.') : message(e)))
         }}
       >
         <label>
-          Name
+          {t('Name')}
           <input value={name} onChange={(e) => setName(e.target.value)} required />
         </label>
         <label>
-          Kind
+          {t('Kind')}
           <select value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
-            <option value="personal">Personal notes (only you)</option>
-            <option value="upload">Shared: uploads</option>
-            <option value="directory">Shared: directory</option>
-            <option value="url">Shared: web pages</option>
+            <option value="personal">{t('Personal notes (only you)')}</option>
+            <option value="upload">{t('Shared: uploads')}</option>
+            <option value="directory">{t('Shared: directory')}</option>
+            <option value="url">{t('Shared: web pages')}</option>
           </select>
         </label>
         {(kind === 'directory' || kind === 'url') && (
           <label className="grow">
-            {kind === 'directory' ? 'Directory (under /knowledge)' : 'URLs, one per line'}
+            {kind === 'directory' ? t('Directory (under /knowledge)') : t('URLs, one per line')}
             {kind === 'url' ? (
               <textarea rows={2} value={location} onChange={(e) => setLocation(e.target.value)} />
             ) : (
@@ -311,12 +312,12 @@ function NewSource({ api, onCreated }: { api: Api; onCreated: () => void }) {
         )}
         {kind !== 'personal' && (
           <label>
-            Readers
-            <input value={readers} onChange={(e) => setReaders(e.target.value)} title="*, role:<name> or user:<id>, comma separated" />
+            {t('Readers')}
+            <input value={readers} onChange={(e) => setReaders(e.target.value)} title="*, role:<name> {t('or user:')}<id>, comma separated" />
           </label>
         )}
-        <label title="Data class of the passages: runs that read them only use models cleared for it">
-          Data class
+        <label title={t('Data class of the passages: runs that read them only use models cleared for it')}>
+          {t('Data class')}
           <select value={sensitivity} onChange={(e) => setSensitivity(e.target.value)}>
             {['public', 'internal', 'confidential', 'restricted'].map((c) => (
               <option key={c} value={c}>
@@ -326,7 +327,7 @@ function NewSource({ api, onCreated }: { api: Api; onCreated: () => void }) {
           </select>
         </label>
         <button className="btn" type="submit">
-          Create
+          {t('Create')}
         </button>
       </form>
       {error && (
@@ -357,13 +358,13 @@ function TryIt({ api, sources }: { api: Api; sources: KnowledgeSource[] }) {
         }}
       >
         <label className="grow">
-          Try a search (with your own access, exactly what the agent would see)
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="how do I restart postgres?" />
+          {t('Try a search (with your own access, exactly what the agent would see)')}
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('how do I restart postgres?')} />
         </label>
         <label>
-          Source
+          {t('Source')}
           <select value={source} onChange={(e) => setSource(e.target.value)}>
-            <option value="">All</option>
+            <option value="">{t('All')}</option>
             {sources.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name}
@@ -372,7 +373,7 @@ function TryIt({ api, sources }: { api: Api; sources: KnowledgeSource[] }) {
           </select>
         </label>
         <button className="btn" type="submit" disabled={!q.trim()}>
-          Search
+          {t('Search')}
         </button>
       </form>
       {error && (
@@ -380,7 +381,7 @@ function TryIt({ api, sources }: { api: Api; sources: KnowledgeSource[] }) {
           {error}
         </p>
       )}
-      {hits && hits.length === 0 && <p className="muted">Nothing found that you may read.</p>}
+      {hits && hits.length === 0 && <p className="muted">{t('Nothing found that you may read.')}</p>}
       {hits && hits.length > 0 && (
         <ol className="hits">
           {hits.map((h) => (

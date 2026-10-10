@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Api } from '../api'
 import MyData from '../components/MyData'
 import ApiTokens from '../components/ApiTokens'
+import { t, fmt } from '../i18n'
 
 interface UsageRow {
   key: string
@@ -26,17 +27,17 @@ interface UsageReport {
 }
 
 const GROUPS = [
-  ['day', 'Per day'],
-  ['model', 'Per model'],
-  ['profile', 'Per profile'],
-  ['user', 'Per user (admins)'],
+  ['day', t('Per day')],
+  ['model', t('Per model')],
+  ['profile', t('Per profile')],
+  ['user', t('Per user (admins)')],
 ] as const
 
 /** Bars for one measure, scaled to the largest value. */
 function Bars({ rows, value, format }: { rows: UsageRow[]; value: (r: UsageRow) => number; format: (n: number) => string }) {
   const max = Math.max(...rows.map(value), 0) || 1
   return (
-    <div className="bars" role="img" aria-label="chart">
+    <div className="bars" role="img" aria-label={t('chart')}>
       {rows.map((r) => (
         <div key={r.key} className="bar" title={`${r.key}: ${format(value(r))}`}>
           <div className="fill" style={{ height: `${(value(r) / max) * 100}%` }} />
@@ -60,17 +61,18 @@ function QuotaCard({ api }: { api: Api }) {
   }, [api])
   if (!q) return null
   const part = (used: number, limit: number | null, unit = '') =>
-    limit === null ? <span className="muted">no limit</span> : (
+    limit === null ? <span className="muted">{t('no limit')}</span> : (
       <span className={used >= limit ? 'error' : used >= limit * 0.8 ? 'warn' : undefined}>
-        {used.toLocaleString()} / {limit.toLocaleString()}
+        {fmt.number(used)} / {fmt.number(limit)}
         {unit}
       </span>
     )
   return (
     <div className="card small">
-      Your limits: tokens today {part(q.usage.tokensToday, q.limits.tokensPerDay)} · voice today {part(Math.round(q.usage.speechSecondsToday), q.limits.speechSecondsPerDay, ' s')} · runs in progress{' '}
-      {part(q.usage.activeRuns, q.limits.concurrentRuns)} · per minute {part(q.usage.runsLastMinute, q.limits.runsPerMinute)} · tool calls per run{' '}
-      {q.limits.toolCallsPerRun ?? 'no limit'}
+      {t('Your limits: tokens today')} {part(q.usage.tokensToday, q.limits.tokensPerDay)} · {t('voice today')}{' '}
+      {part(Math.round(q.usage.speechSecondsToday), q.limits.speechSecondsPerDay, ' s')} · {t('runs in progress')}{' '}
+      {part(q.usage.activeRuns, q.limits.concurrentRuns)} · {t('per minute')} {part(q.usage.runsLastMinute, q.limits.runsPerMinute)} · {t('tool calls per run')}{' '}
+      {q.limits.toolCallsPerRun ?? t('no limit')}
     </div>
   )
 }
@@ -95,13 +97,13 @@ export default function UsagePage({ api }: { api: Api }) {
 
   return (
     <section>
-      <h1>Usage</h1>
+      <h1>{t('Usage')}</h1>
       <QuotaCard api={api} />
       <MyData api={api} />
       <ApiTokens api={api} />
       <div className="filters">
         <label>
-          Group
+          {t('Group')}
           <select value={groupBy} onChange={(e) => setGroupBy(e.target.value)}>
             {GROUPS.map(([v, l]) => (
               <option key={v} value={v}>
@@ -111,12 +113,12 @@ export default function UsagePage({ api }: { api: Api }) {
           </select>
         </label>
         <label>
-          Period
+          {t('Period')}
           <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
-            <option value={1}>24 hours</option>
-            <option value={7}>7 days</option>
-            <option value={30}>30 days</option>
-            <option value={90}>90 days</option>
+            <option value={1}>{t('24 hours')}</option>
+            <option value={7}>{t('7 days')}</option>
+            <option value={30}>{t('30 days')}</option>
+            <option value={90}>{t('90 days')}</option>
           </select>
         </label>
       </div>
@@ -126,35 +128,35 @@ export default function UsagePage({ api }: { api: Api }) {
           <div className="card">
             <dl className="meta">
               <div>
-                <dt>Runs</dt>
+                <dt>{t('Runs')}</dt>
                 <dd>
                   {report.total.runs} <span className="muted small">({(report.total.errorRate * 100).toFixed(1)} % failed)</span>
                 </dd>
               </div>
               <div>
-                <dt>Tokens</dt>
-                <dd>{tokens(report.total).toLocaleString()}</dd>
+                <dt>{t('Tokens')}</dt>
+                <dd>{fmt.number(tokens(report.total))}</dd>
               </div>
               <div>
-                <dt>Cost</dt>
+                <dt>{t('Cost')}</dt>
                 <dd>{money(report.total.cost)}</dd>
               </div>
               <div>
-                <dt>Model p95</dt>
+                <dt>{t('Model p95')}</dt>
                 <dd>{report.total.modelSecondsP95} s</dd>
               </div>
             </dl>
             {report.unpricedModels.length > 0 && (
               <p className="muted small">
-                No price configured for {report.unpricedModels.join(', ')} (Models:Prices): counted as 0.
+                {t('No price configured for {models} (Models:Prices): counted as 0.', { models: report.unpricedModels.join(', ') })}
               </p>
             )}
           </div>
           {report.groupBy === 'day' && report.rows.length > 1 && (
             <>
-              <h2 className="section-title">Tokens per day</h2>
-              <Bars rows={report.rows} value={tokens} format={(n) => n.toLocaleString()} />
-              <h2 className="section-title">Cost per day</h2>
+              <h2 className="section-title">{t('Tokens per day')}</h2>
+              <Bars rows={report.rows} value={tokens} format={(n) => fmt.number(n)} />
+              <h2 className="section-title">{t('Cost per day')}</h2>
               <Bars rows={report.rows} value={(r) => r.cost} format={money} />
             </>
           )}
@@ -162,12 +164,12 @@ export default function UsagePage({ api }: { api: Api }) {
             <thead>
               <tr>
                 <th>{report.groupBy}</th>
-                <th>Runs</th>
-                <th>Failed</th>
-                <th>Model calls</th>
-                <th>Tokens (in / out)</th>
-                <th>Cost</th>
-                <th>Model p95</th>
+                <th>{t('Runs')}</th>
+                <th>{t('Failed')}</th>
+                <th>{t('Model calls')}</th>
+                <th>{t('Tokens (in / out)')}</th>
+                <th>{t('Cost')}</th>
+                <th>{t('Model p95')}</th>
               </tr>
             </thead>
             <tbody>
@@ -178,7 +180,7 @@ export default function UsagePage({ api }: { api: Api }) {
                   <td>{r.failedRuns}</td>
                   <td>{r.modelCalls}</td>
                   <td>
-                    {r.promptTokens.toLocaleString()} / {r.completionTokens.toLocaleString()}
+                    {fmt.number(r.promptTokens)} / {fmt.number(r.completionTokens)}
                   </td>
                   <td>{money(r.cost)}</td>
                   <td>{r.modelSecondsP95} s</td>

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Api } from '../api'
+import { fmt, t } from '../i18n'
 
 interface Credential {
   server: string
@@ -12,7 +13,7 @@ interface Credential {
   myConnection: { connectedAt: string; expiresAt: string | null; lastUsedAt: string | null; scope: string | null } | null
 }
 
-const when = (s: string | null | undefined) => (s ? new Date(s).toLocaleString() : '–')
+const when = (s: string | null | undefined) => (s ? fmt.dateTime(s) : '–')
 
 /** Credentials (#62): secret references and live status (admins), and the caller's own connected accounts. Values are never shown. */
 export default function CredentialsTab({ api }: { api: Api }) {
@@ -38,22 +39,22 @@ export default function CredentialsTab({ api }: { api: Api }) {
       {params.get('error') && <p className="error small">Connecting failed: {params.get('error')}</p>}
       {error && <p className="error">{error}</p>}
       <p className="muted small">
-        Profiles reference secrets by name (an environment variable or <span className="mono">file:/path</span> for mounted Kubernetes, Vault or Bitwarden secrets; files
+        Profiles reference secrets by name (an environment variable or <span className="mono">{t('file:/path')}</span> for mounted Kubernetes, Vault or Bitwarden secrets; files
         are re-read, so rotation needs no restart). Values are never stored or shown here.
       </p>
       {list && list.length === 0 && (
         <div className="empty">
-          <p>No credentials to show.</p>
+          <p>{t('No credentials to show.')}</p>
         </div>
       )}
       {list && list.length > 0 && (
         <table>
           <thead>
             <tr>
-              <th>Server</th>
-              <th>Identity</th>
-              <th>Secrets from</th>
-              <th>Status</th>
+              <th>{t('Server')}</th>
+              <th>{t('Identity')}</th>
+              <th>{t('Secrets from')}</th>
+              <th>{t('Status')}</th>
               <th />
             </tr>
           </thead>
@@ -75,7 +76,7 @@ export default function CredentialsTab({ api }: { api: Api }) {
                         connected {when(c.myConnection.connectedAt)} · token until {when(c.myConnection.expiresAt)} · last used {when(c.myConnection.lastUsedAt)}
                       </>
                     ) : (
-                      <span className="warn">not connected</span>
+                      <span className="warn">{t('not connected')}</span>
                     )
                   ) : c.status ? (
                     <>
@@ -92,11 +93,11 @@ export default function CredentialsTab({ api }: { api: Api }) {
                         className="btn small"
                         onClick={() => void api.raw(`/integrations/connections/${encodeURIComponent(c.server)}`, { method: 'DELETE' }).then(load)}
                       >
-                        Disconnect
+                        {t('Disconnect')}
                       </button>
                     ) : (
                       <button type="button" className="btn small primary" onClick={() => void connect(c.server).catch((e: unknown) => setError(String(e)))}>
-                        Connect
+                        {t('Connect')}
                       </button>
                     ))}
                 </td>

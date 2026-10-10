@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Api } from '../api'
+import { t } from '../i18n'
 
 /**
  * One stored audio clip (ADR 0014): waveform, play/pause, seek by clicking the waveform, speed. The audio is fetched with the
@@ -79,7 +80,7 @@ export default function AudioClip({ api, id, label }: { api: Api; id: string; la
               a.currentTime = ((e.clientX - r.left) / r.width) * a.duration
             }}
             role="slider"
-            aria-label="Seek"
+            aria-label={t('Seek')}
             aria-valuenow={Math.round(progress * 100)}
           >
             {peaks.map((p, i) => (
@@ -88,7 +89,7 @@ export default function AudioClip({ api, id, label }: { api: Api; id: string; la
           </svg>
           <select
             value={rate}
-            aria-label="Speed"
+            aria-label={t('Speed')}
             onChange={(e) => {
               setRate(Number(e.target.value))
               if (audio.current) audio.current.playbackRate = Number(e.target.value)

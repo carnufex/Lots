@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ApiError, type Api, type Approval } from '../api'
 import AwayPanel from '../components/Away'
+import { fmt, t } from '../i18n'
 
 const POLL_MS = 5000
 
@@ -21,27 +22,27 @@ export default function ApprovalsPage({ api }: { api: Api }) {
         })
         .catch((e: unknown) => !cancelled && setError(e instanceof Error ? e.message : String(e)))
     void load()
-    const t = window.setInterval(() => void load(), POLL_MS)
+    const timer = window.setInterval(() => void load(), POLL_MS)
     return () => {
       cancelled = true
-      window.clearInterval(t)
+      window.clearInterval(timer)
     }
   }, [api, reload])
 
   return (
     <section>
-      <h1>Approvals</h1>
+      <h1>{t('Approvals')}</h1>
       <AwayPanel api={api} />
       {error && (
         <p role="alert" className="error">
-          Could not load approvals: {error}
+          {t('Could not load approvals:')} {error}
         </p>
       )}
-      {!items && !error && <p className="muted">Loading…</p>}
+      {!items && !error && <p className="muted">{t('Loading…')}</p>}
       {items && items.length === 0 && (
         <div className="empty">
-          <p>Nothing waiting for you.</p>
-          <p className="muted">Calls that need your approval appear here and pause their run until you decide.</p>
+          <p>{t('Nothing waiting for you.')}</p>
+          <p className="muted">{t('Calls that need your approval appear here and pause their run until you decide.')}</p>
         </div>
       )}
       {items && items.length > 0 && (
@@ -70,9 +71,9 @@ function ApprovalCard({ approval, api, onDecided }: { approval: Approval; api: A
       setBusy(false)
       setError(
         e instanceof ApiError && e.status === 403
-          ? 'You are not allowed to decide this.'
+          ? t('You are not allowed to decide this.')
           : e instanceof ApiError && e.status === 409
-            ? 'Someone else already decided this.'
+            ? t('Someone else already decided this.')
             : e instanceof Error
               ? e.message
               : String(e),
@@ -86,27 +87,27 @@ function ApprovalCard({ approval, api, onDecided }: { approval: Approval; api: A
       <div className="cardhead">
         <span className="name">{approval.tool}</span>
         <span className="muted">
-          requested by <strong>{approval.requestedBy}</strong> · {new Date(approval.requestedAt).toLocaleString()}
+          {t('requested by')} <strong>{approval.requestedBy}</strong> · {fmt.dateTime(approval.requestedAt)}
         </span>
-        <a href={`#/runs/${approval.runId}`}>View run</a>
+        <a href={`#/runs/${approval.runId}`}>{t('View run')}</a>
       </div>
       <p className="small muted">
-        {approval.risk && <span className={`decision ${approval.risk === 'Destructive' ? 'Denied' : 'ApprovalRequested'}`}>{approval.risk}</span>}
+        {approval.risk && <span className={`decision ${approval.risk === 'Destructive' ? 'Denied' : 'ApprovalRequested'}`}>{t(approval.risk)}</span>}
         {approval.requiredApprovals > 1 && (
           <span>
             {' '}
-            · two approvers needed{approval.approvedBy.length > 0 ? `, approved so far by ${approval.approvedBy.join(', ')}` : ''}
+            · {t('two approvers needed')}{approval.approvedBy.length > 0 ? `, ${t('approved so far by {who}', { who: approval.approvedBy.join(', ') })}` : ''}
           </span>
         )}
-        {approval.expiresAt && <span> · expires {new Date(approval.expiresAt).toLocaleString()} (then refused)</span>}
+        {approval.expiresAt && <span> · {t('expires {when} (then refused)', { when: fmt.dateTime(approval.expiresAt) })}</span>}
       </p>
       {approval.arguments && <pre>{pretty(approval.arguments)}</pre>}
       <div className="row">
         <input
           className="wide"
-          placeholder={approval.commentRequired ? 'Reason (required)' : 'Comment (optional)'}
+          placeholder={approval.commentRequired ? t('Reason (required)') : t('Comment (optional)')}
           required={approval.commentRequired}
-          aria-label="Comment"
+          aria-label={t('Comment')}
           value={comment}
           onChange={(e) => setComment(e.target.value)}
         />
@@ -116,10 +117,10 @@ function ApprovalCard({ approval, api, onDecided }: { approval: Approval; api: A
           </span>
         )}
         <button className="btn" disabled={busy || (approval.commentRequired && !comment.trim())} onClick={() => void decide('deny')}>
-          Deny
+          {t('Deny')}
         </button>
         <button className="btn primary" disabled={busy || (approval.commentRequired && !comment.trim())} onClick={() => void decide('approve')}>
-          Approve
+          {t('Approve')}
         </button>
       </div>
     </li>

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Api } from '../api'
+import { fmt, t } from '../i18n'
 
 interface ApiToken {
   id: string
@@ -20,7 +21,7 @@ const SCOPES: [string, string][] = [
   ['admin', 'administration'],
 ]
 
-const day = (s: string) => new Date(s).toLocaleDateString()
+const day = (s: string) => fmt.date(s)
 
 /** Personal API tokens (#88) for scripts, CI and lotsctl. Shown once on creation; always expire; act with your roles at most. */
 export default function ApiTokens({ api }: { api: Api }) {
@@ -57,30 +58,30 @@ export default function ApiTokens({ api }: { api: Api }) {
   }
 
   const toggle = (s: string) => setScopes((cur) => (cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]))
-  const active = tokens.filter((t) => !t.revokedAt && new Date(t.expiresAt) > new Date())
+  const active = tokens.filter((it) => !it.revokedAt && new Date(it.expiresAt) > new Date())
 
   return (
     <div className="card small">
-      <strong>API tokens</strong>
+      <strong>{t('API tokens')}</strong>
       <p className="muted">
-        For scripts, CI and <code>lotsctl --token</code>. A token acts as you, with at most your current roles, limited to its
+        For scripts, CI and <code>{t('lotsctl --token')}</code>. A token acts as you, with at most your current roles, limited to its
         scopes. It is shown once.
       </p>
       {created && (
         <p>
           New token (copy it now): <code className="mono">{created}</code>{' '}
           <button type="button" className="btn small" onClick={() => void navigator.clipboard.writeText(created)}>
-            Copy
+            {t('Copy')}
           </button>
         </p>
       )}
       <div className="filters">
         <label>
-          Name
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. nightly report" maxLength={100} />
+          {t('Name')}
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('e.g. nightly report')} maxLength={100} />
         </label>
         <label>
-          Expires in
+          {t('Expires in')}
           <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
             {[7, 30, 90].map((d) => (
               <option key={d} value={d}>
@@ -95,7 +96,7 @@ export default function ApiTokens({ api }: { api: Api }) {
           </label>
         ))}
         <button type="button" className="btn small" disabled={!name.trim() || scopes.length === 0} onClick={() => void create()}>
-          Create token
+          {t('Create token')}
         </button>
       </div>
       {error && <p className="error">{error}</p>}
@@ -103,25 +104,25 @@ export default function ApiTokens({ api }: { api: Api }) {
         <table>
           <thead>
             <tr>
-              <th>Name</th>
-              <th>Token</th>
-              <th>Scopes</th>
-              <th>Expires</th>
-              <th>Last used</th>
+              <th>{t('Name')}</th>
+              <th>{t('Token')}</th>
+              <th>{t('Scopes')}</th>
+              <th>{t('Expires')}</th>
+              <th>{t('Last used')}</th>
               <th />
             </tr>
           </thead>
           <tbody>
-            {active.map((t) => (
-              <tr key={t.id}>
-                <td>{t.name}</td>
-                <td className="mono">{t.hint}</td>
-                <td>{t.scopes.join(', ')}</td>
-                <td>{day(t.expiresAt)}</td>
-                <td>{t.lastUsedAt ? new Date(t.lastUsedAt).toLocaleString() : 'never'}</td>
+            {active.map((it) => (
+              <tr key={it.id}>
+                <td>{it.name}</td>
+                <td className="mono">{it.hint}</td>
+                <td>{it.scopes.join(', ')}</td>
+                <td>{day(it.expiresAt)}</td>
+                <td>{it.lastUsedAt ? fmt.dateTime(it.lastUsedAt) : 'never'}</td>
                 <td>
-                  <button type="button" className="btn small" onClick={() => void revoke(t.id)}>
-                    Revoke
+                  <button type="button" className="btn small" onClick={() => void revoke(it.id)}>
+                    {t('Revoke')}
                   </button>
                 </td>
               </tr>

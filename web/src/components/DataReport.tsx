@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Api } from '../api'
+import { fmt, t } from '../i18n'
 
 type Report = { tables: { name: string; rows: number; oldest: string | null; retentionDays: number; note: string }[]; audioRetentionDays: number; audioStored: boolean }
 
@@ -12,26 +13,26 @@ export default function DataReport({ api }: { api: Api }) {
   if (!r) return null
   return (
     <>
-      <h2 className="section-title">Stored data and retention</h2>
-      {!r.audioStored && <p className="muted small">Conversation audio is not stored (no writable Speech:AudioPath).</p>}
+      <h2 className="section-title">{t('Stored data and retention')}</h2>
+      {!r.audioStored && <p className="muted small">{t('Conversation audio is not stored (no writable Speech:AudioPath).')}</p>}
       <table>
         <thead>
           <tr>
-            <th>Data</th>
-            <th>Rows</th>
-            <th>Oldest</th>
-            <th>Kept</th>
+            <th>{t('Data')}</th>
+            <th>{t('Rows')}</th>
+            <th>{t('Oldest')}</th>
+            <th>{t('Kept')}</th>
             <th />
           </tr>
         </thead>
         <tbody>
-          {r.tables.map((t) => (
-            <tr key={t.name}>
-              <td>{t.name}</td>
-              <td>{t.rows.toLocaleString()}</td>
-              <td className="muted">{t.oldest ? new Date(t.oldest).toLocaleDateString() : ''}</td>
-              <td>{t.retentionDays > 0 ? `${t.retentionDays} days` : 'until deleted'}</td>
-              <td className="muted small">{t.note}</td>
+          {r.tables.map((it) => (
+            <tr key={it.name}>
+              <td>{it.name}</td>
+              <td>{fmt.number(it.rows)}</td>
+              <td className="muted">{it.oldest ? fmt.date(it.oldest) : ''}</td>
+              <td>{it.retentionDays > 0 ? `${it.retentionDays} days` : 'until deleted'}</td>
+              <td className="muted small">{it.note}</td>
             </tr>
           ))}
         </tbody>

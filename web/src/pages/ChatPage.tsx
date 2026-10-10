@@ -3,6 +3,7 @@ import { type Api, type ConversationDetail, type ConversationSummary, type Conve
 import type { ProfileInfo } from '../config'
 import Markdown from '../components/Markdown'
 import { AttachmentList, AttachPicker, type UploadedAttachment } from '../components/Attachments'
+import { fmt, t } from '../i18n'
 
 const ACTIVE = ['Pending', 'Running', 'WaitingForApproval']
 
@@ -64,7 +65,7 @@ export default function ChatPage({ api, profiles, id }: { api: Api; profiles: Pr
   useEffect(loadList, [loadList])
   useEffect(() => {
     void loadDetail().then((d) => {
-      const last = d?.turns.filter((t) => !t.superseded).at(-1)
+      const last = d?.turns.filter((x) => !x.superseded).at(-1)
       if (last && ACTIVE.includes(last.status)) void follow(last.runId)
     })
     return () => following.current?.abort()
@@ -74,7 +75,7 @@ export default function ChatPage({ api, profiles, id }: { api: Api; profiles: Pr
     endRef.current?.scrollIntoView({ block: 'end' })
   }, [detail, live?.partial])
 
-  const turns = detail?.turns.filter((t) => !t.superseded) ?? []
+  const turns = detail?.turns.filter((x) => !x.superseded) ?? []
   const last = turns.at(-1)
   const busy = live !== null
 
@@ -107,15 +108,15 @@ export default function ChatPage({ api, profiles, id }: { api: Api; profiles: Pr
 
   const copy = async (text: string, what: string) => {
     await navigator.clipboard.writeText(text)
-    setNote(`${what} copied`)
+    setNote(t('{what} copied', { what }))
     window.setTimeout(() => setNote(null), 2000)
   }
 
   return (
     <section className="chat">
-      <aside className="chat-list" aria-label="Conversations">
+      <aside className="chat-list" aria-label={t('Conversations')}>
         <a className="btn primary small" href="#/chat">
-          New chat
+          {t('New chat')}
         </a>
         <ul>
           {list.map((c) => (
@@ -124,7 +125,7 @@ export default function ChatPage({ api, profiles, id }: { api: Api; profiles: Pr
                 {c.voice && <span className="muted small">🎙 </span>}
                 {c.title}
               </a>
-              <span className="muted small">{new Date(c.endedAt).toLocaleDateString()}</span>
+              <span className="muted small">{fmt.date(c.endedAt)}</span>
             </li>
           ))}
         </ul>
@@ -132,54 +133,54 @@ export default function ChatPage({ api, profiles, id }: { api: Api; profiles: Pr
 
       <div className="chat-main">
         <div className="chat-thread" aria-live="polite">
-          {turns.length === 0 && !live && <p className="muted">Ask anything your profile's tools can answer. Earlier turns are part of the context.</p>}
-          {turns.map((t) => {
-            const isLast = t === last
-            const answer = live?.runId === t.runId ? live.partial : t.answer
+          {turns.length === 0 && !live && <p className="muted">{t("Ask anything your profile's tools can answer. Earlier turns are part of the context.")}</p>}
+          {turns.map((turn) => {
+            const isLast = turn === last
+            const answer = live?.runId === turn.runId ? live.partial : turn.answer
             return (
-              <article key={t.runId} className="turn">
+              <article key={turn.runId} className="turn">
                 <div className="turn-user">
-                  {editing === t.runId ? (
-                    <EditBox initial={t.prompt} onCancel={() => setEditing(null)} onSave={(p) => void regenerate(t, p)} />
+                  {editing === turn.runId ? (
+                    <EditBox initial={turn.prompt} onCancel={() => setEditing(null)} onSave={(p) => void regenerate(turn, p)} />
                   ) : (
                     <>
                       <p>
-                        {t.voice && <span className="muted small" title="Spoken">🎙 </span>}
-                        {t.prompt}
+                        {turn.voice && <span className="muted small" title={t('Spoken')}>🎙 </span>}
+                        {turn.prompt}
                       </p>
-                      <AttachmentList api={api} items={t.attachments ?? []} />
+                      <AttachmentList api={api} items={turn.attachments ?? []} />
                       {isLast && !busy && (
-                        <button type="button" className="btn ghost small" onClick={() => setEditing(t.runId)}>
-                          Edit
+                        <button type="button" className="btn ghost small" onClick={() => setEditing(turn.runId)}>
+                          {t('Edit')}
                         </button>
                       )}
                     </>
                   )}
                 </div>
                 <div className="turn-agent">
-                  {answer ? <Markdown text={answer} /> : ACTIVE.includes(t.status) ? <p className="muted">{t.status === 'WaitingForApproval' ? 'Waiting for an approval…' : 'Working…'}</p> : null}
-                  {t.status === 'WaitingForApproval' && (
+                  {answer ? <Markdown text={answer} /> : ACTIVE.includes(turn.status) ? <p className="muted">{turn.status === 'WaitingForApproval' ? t('Waiting for an approval…') : t('Working…')}</p> : null}
+                  {turn.status === 'WaitingForApproval' && (
                     <p className="small">
-                      A tool call needs an approval: <a href="#/approvals">Approvals</a>
+                      {t('A tool call needs an approval:')} <a href="#/approvals">{t('Approvals')}</a>
                     </p>
                   )}
-                  {(t.status === 'Failed' || t.status === 'Cancelled') && <p className="error small">{t.error ?? t.status}</p>}
+                  {(turn.status === 'Failed' || turn.status === 'Cancelled') && <p className="error small">{turn.error ?? turn.status}</p>}
                   <div className="turn-actions">
-                    {t.answer && (
-                      <button type="button" className="btn ghost small" onClick={() => void copy(t.answer!, 'Answer')}>
-                        Copy
+                    {turn.answer && (
+                      <button type="button" className="btn ghost small" onClick={() => void copy(turn.answer!, t('Answer'))}>
+                        {t('Copy')}
                       </button>
                     )}
-                    <button type="button" className="btn ghost small" onClick={() => void copy(`${window.location.origin}/#/runs/${t.runId}`, 'Link')}
-                      title="A link to this turn's run. Only you and admins can open it.">
-                      Share
+                    <button type="button" className="btn ghost small" onClick={() => void copy(`${window.location.origin}/#/runs/${turn.runId}`, t('Link'))}
+                      title={t("A link to this turn's run. Only you and admins can open it.")}>
+                      {t('Share')}
                     </button>
-                    <a className="btn ghost small" href={`#/runs/${t.runId}`}>
-                      Trace
+                    <a className="btn ghost small" href={`#/runs/${turn.runId}`}>
+                      {t('Trace')}
                     </a>
-                    {isLast && !busy && !ACTIVE.includes(t.status) && (
-                      <button type="button" className="btn ghost small" onClick={() => void regenerate(t)}>
-                        Regenerate
+                    {isLast && !busy && !ACTIVE.includes(turn.status) && (
+                      <button type="button" className="btn ghost small" onClick={() => void regenerate(turn)}>
+                        {t('Regenerate')}
                       </button>
                     )}
                   </div>
@@ -187,9 +188,9 @@ export default function ChatPage({ api, profiles, id }: { api: Api; profiles: Pr
               </article>
             )
           })}
-          {live && !turns.some((t) => t.runId === live.runId) && (
+          {live && !turns.some((turn) => turn.runId === live.runId) && (
             <article className="turn">
-              <div className="turn-agent">{live.partial ? <Markdown text={live.partial} /> : <p className="muted">Working…</p>}</div>
+              <div className="turn-agent">{live.partial ? <Markdown text={live.partial} /> : <p className="muted">{t('Working…')}</p>}</div>
             </article>
           )}
           <div ref={endRef} />
@@ -203,13 +204,13 @@ export default function ChatPage({ api, profiles, id }: { api: Api; profiles: Pr
           }}
         >
           <label className="sr" htmlFor="chat-prompt">
-            Message
+            {t('Message')}
           </label>
           <textarea
             id="chat-prompt"
             rows={2}
             value={prompt}
-            placeholder={busy ? 'The agent is answering…' : 'Message (Enter to send, Shift+Enter for a new line)'}
+            placeholder={busy ? t('The agent is answering…') : t('Message (Enter to send, Shift+Enter for a new line)')}
             onChange={(e) => setPrompt(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
@@ -220,7 +221,7 @@ export default function ChatPage({ api, profiles, id }: { api: Api; profiles: Pr
           />
           <div className="row">
             {profiles.length > 1 && !id ? (
-              <select aria-label="Profile" value={profile} onChange={(e) => setProfile(e.target.value)}>
+              <select aria-label={t('Profile')} value={profile} onChange={(e) => setProfile(e.target.value)}>
                 {profiles.map((p) => (
                   <option key={p.name} value={p.name}>
                     {p.name}
@@ -240,11 +241,11 @@ export default function ChatPage({ api, profiles, id }: { api: Api; profiles: Pr
             )}
             {busy ? (
               <button type="button" className="btn" onClick={() => void api.cancelRun(live.runId)}>
-                Stop
+                {t('Stop')}
               </button>
             ) : (
               <button type="submit" className="btn primary" disabled={!prompt.trim()}>
-                Send
+                {t('Send')}
               </button>
             )}
           </div>
@@ -258,13 +259,13 @@ function EditBox({ initial, onSave, onCancel }: { initial: string; onSave: (p: s
   const [value, setValue] = useState(initial)
   return (
     <div className="editbox">
-      <textarea rows={2} value={value} onChange={(e) => setValue(e.target.value)} aria-label="Edit your question" />
+      <textarea rows={2} value={value} onChange={(e) => setValue(e.target.value)} aria-label={t('Edit your question')} />
       <div className="row">
         <button type="button" className="btn primary small" disabled={!value.trim()} onClick={() => onSave(value.trim())}>
-          Save and ask again
+          {t('Save and ask again')}
         </button>
         <button type="button" className="btn small" onClick={onCancel}>
-          Cancel
+          {t('Cancel')}
         </button>
       </div>
     </div>

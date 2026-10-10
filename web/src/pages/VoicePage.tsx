@@ -5,6 +5,7 @@ import { initialLanguage } from '../voice/language'
 import { PASSAGES } from '../voice/passages'
 import VocabularyEditor from '../components/VocabularyEditor'
 import MemoryCard from '../components/MemoryCard'
+import { fmt, t } from '../i18n'
 
 const MIN_SECONDS = 8
 const MAX_SECONDS = 30
@@ -12,13 +13,13 @@ const MAX_SECONDS = 30
 type Slider = { key: keyof Pick<UserSettings, 'talkativeness' | 'warmth' | 'formality' | 'expressiveness' | 'pace'>; label: string; low: string; high: string }
 
 const PERSONALITY: Slider[] = [
-  { key: 'talkativeness', label: 'Talkativeness', low: 'Brief', high: 'Chatty' },
-  { key: 'warmth', label: 'Warmth', low: 'Neutral', high: 'Warm' },
-  { key: 'formality', label: 'Formality', low: 'Casual', high: 'Formal' },
+  { key: 'talkativeness', label: t('Talkativeness'), low: t('Brief'), high: t('Chatty') },
+  { key: 'warmth', label: t('Warmth'), low: t('Neutral'), high: t('Warm') },
+  { key: 'formality', label: t('Formality'), low: t('Casual'), high: t('Formal') },
 ]
 const VOICE: Slider[] = [
-  { key: 'expressiveness', label: 'Expressiveness', low: 'Calm', high: 'Lively' },
-  { key: 'pace', label: 'Pace', low: 'Faster', high: 'Slower, more careful' },
+  { key: 'expressiveness', label: t('Expressiveness'), low: t('Calm'), high: t('Lively') },
+  { key: 'pace', label: t('Pace'), low: t('Faster'), high: t('Slower, more careful') },
 ]
 
 /**
@@ -41,7 +42,7 @@ export default function VoicePage({ api, voice }: { api: Api; voice: VoiceConfig
         setSettings(s)
         setDraft(s)
       })
-      .catch(() => !cancelled && setError('Could not load your settings.'))
+      .catch(() => !cancelled && setError(t('Could not load your settings.')))
     return () => {
       cancelled = true
     }
@@ -60,7 +61,7 @@ export default function VoicePage({ api, voice }: { api: Api; voice: VoiceConfig
       setSaved(true)
       window.setTimeout(() => setSaved(false), 2500)
     } catch {
-      setError('Could not save your settings.')
+      setError(t('Could not save your settings.'))
     } finally {
       setBusy(false)
     }
@@ -70,25 +71,24 @@ export default function VoicePage({ api, voice }: { api: Api; voice: VoiceConfig
     // Plays a fixed phrase in your voice with the values currently saved (there is no free text-to-speech, ADR 0013).
     setError(null)
     const blob = await api.ack(initialLanguage(voice.defaultLanguage) === 'en' ? 'en' : 'sv')
-    if (!blob) return setError('Voice is unavailable right now.')
+    if (!blob) return setError(t('Voice is unavailable right now.'))
     const url = URL.createObjectURL(blob)
     const audio = new Audio(url)
     audio.onended = () => URL.revokeObjectURL(url)
     void audio.play()
   }
 
-  if (!draft || !settings) return <p className="muted">{error ?? 'Loading…'}</p>
+  if (!draft || !settings) return <p className="muted">{error ?? t('Loading…')}</p>
 
   return (
     <div className="voicepage">
-      <h1>Voice and personality</h1>
+      <h1>{t('Voice and personality')}</h1>
       <GpuStatus api={api} />
 
       <section className="card">
-        <h2>Personality</h2>
+        <h2>{t('Personality')}</h2>
         <p className="muted small">
-          How the agent talks to you, in text and when speaking. These are style preferences only: they never change what the agent is
-          allowed to do.
+          {t('How the agent talks to you, in text and when speaking. These are style preferences only: they never change what the agent is allowed to do.')}
         </p>
         {PERSONALITY.map((s) => (
           <SliderRow key={s.key} slider={s} value={draft[s.key]} onChange={(v) => setDraft({ ...draft, [s.key]: v })} />
@@ -96,7 +96,7 @@ export default function VoicePage({ api, voice }: { api: Api; voice: VoiceConfig
       </section>
 
       <section className="card">
-        <h2>Voice</h2>
+        <h2>{t('Voice')}</h2>
         {voice.enabled ? (
           <>
             {VOICE.map((s) => (
@@ -107,18 +107,18 @@ export default function VoicePage({ api, voice }: { api: Api; voice: VoiceConfig
             </p>
           </>
         ) : (
-          <p className="muted">Voice is not configured on this installation.</p>
+          <p className="muted">{t('Voice is not configured on this installation.')}</p>
         )}
         <div className="row">
           <button type="button" className="btn primary" disabled={!dirty || busy} onClick={() => void save()}>
-            Save
+            {t('Save')}
           </button>
           {voice.enabled && (
-            <button type="button" className="btn" disabled={dirty} onClick={() => void preview()} title={dirty ? 'Save first, then listen' : undefined}>
-              Listen
+            <button type="button" className="btn" disabled={dirty} onClick={() => void preview()} title={dirty ? t('Save first, then listen') : undefined}>
+              {t('Listen')}
             </button>
           )}
-          {saved && <span className="muted small" role="status">Saved</span>}
+          {saved && <span className="muted small" role="status">{t('Saved')}</span>}
         </div>
       </section>
 
@@ -136,7 +136,7 @@ export default function VoicePage({ api, voice }: { api: Api; voice: VoiceConfig
 
       {voice.enabled && (
         <section className="card">
-          <h2>Dictation vocabulary</h2>
+          <h2>{t('Dictation vocabulary')}</h2>
           <VocabularyEditor api={api} />
         </section>
       )}
@@ -180,17 +180,17 @@ function OwnVoicesAdmin({ api }: { api: Api }) {
 
   return (
     <section className="card">
-      <h2>Recorded voices (admin)</h2>
+      <h2>{t('Recorded voices (admin)')}</h2>
       {data.voices.length === 0 ? (
-        <p className="muted small">Nobody has recorded their own voice.</p>
+        <p className="muted small">{t('Nobody has recorded their own voice.')}</p>
       ) : (
         <table>
           <thead>
             <tr>
-              <th>User</th>
-              <th>Length</th>
-              <th>Consent given</th>
-              <th>Recordings (30 days)</th>
+              <th>{t('User')}</th>
+              <th>{t('Length')}</th>
+              <th>{t('Consent given')}</th>
+              <th>{t('Recordings (30 days)')}</th>
               <th />
             </tr>
           </thead>
@@ -199,11 +199,11 @@ function OwnVoicesAdmin({ api }: { api: Api }) {
               <tr key={v.userId}>
                 <td>{v.userId}</td>
                 <td>{v.seconds.toFixed(1)} s</td>
-                <td>{new Date(v.consentAt).toLocaleString()}</td>
+                <td>{fmt.dateTime(v.consentAt)}</td>
                 <td>{v.registrationsLast30Days}</td>
                 <td>
                   <button type="button" className="btn small" onClick={() => void revoke(v.userId)}>
-                    Revoke
+                    {t('Revoke')}
                   </button>
                 </td>
               </tr>
@@ -213,11 +213,11 @@ function OwnVoicesAdmin({ api }: { api: Api }) {
       )}
       {data.recentEvents.length > 0 && (
         <details>
-          <summary className="small">Consent trail</summary>
+          <summary className="small">{t('Consent trail')}</summary>
           <ul className="small muted">
             {data.recentEvents.map((e, i) => (
               <li key={i}>
-                {new Date(e.at).toLocaleString()} · {e.userId} · {e.event.toLowerCase()}
+                {fmt.dateTime(e.at)} · {e.userId} · {e.event.toLowerCase()}
                 {e.actor !== e.userId && ` by ${e.actor}`}
               </li>
             ))}
@@ -273,7 +273,7 @@ function OwnVoice({
   const release = useCallback(() => {
     window.clearInterval(timer.current)
     cancelAnimationFrame(raf.current)
-    stream.current?.getTracks().forEach((t) => t.stop())
+    stream.current?.getTracks().forEach((it) => it.stop())
     stream.current = null
   }, [])
 
@@ -326,13 +326,13 @@ function OwnVoice({
       setSeconds(0)
       setPhase('recording')
       timer.current = window.setInterval(() => {
-        const t = (Date.now() - startedAt.current) / 1000
-        setSeconds(t)
-        if (t >= MAX_SECONDS) stop()
+        const elapsed = (Date.now() - startedAt.current) / 1000
+        setSeconds(elapsed)
+        if (elapsed >= MAX_SECONDS) stop()
       }, 200)
     } catch {
       release()
-      setError('Microphone access was blocked. Allow it in the browser to record your voice.')
+      setError(t('Microphone access was blocked. Allow it in the browser to record your voice.'))
     }
   }
 
@@ -348,8 +348,8 @@ function OwnVoice({
     } catch (e) {
       setError(
         e instanceof ApiError && e.status === 400
-          ? 'That recording could not be used (too short, too quiet or unreadable). Record 10–30 seconds in a quiet room and try again.'
-          : 'Could not save your voice. Try again.',
+          ? t('That recording could not be used (too short, too quiet or unreadable). Record 10–30 seconds in a quiet room and try again.')
+          : t('Could not save your voice. Try again.'),
       )
     } finally {
       setBusy(false)
@@ -362,7 +362,7 @@ function OwnVoice({
     try {
       onChange(await api.deleteVoice())
     } catch {
-      setError('Could not delete your voice. Try again.')
+      setError(t('Could not delete your voice. Try again.'))
     } finally {
       setBusy(false)
     }
@@ -372,17 +372,16 @@ function OwnVoice({
 
   return (
     <section className="card">
-      <h2>Your own voice</h2>
+      <h2>{t('Your own voice')}</h2>
       <p className="muted small">
-        Record yourself and the agent speaks with your voice when it talks to you. The recording is used only for your own conversations, is never
-        shared with other users and you can delete it here at any time. Only record your own voice.
+        {t('Record yourself and the agent speaks with your voice when it talks to you. The recording is used only for your own conversations, is never shared with other users and you can delete it here at any time. Only record your own voice.')}
       </p>
 
       {current && phase === 'idle' && (
         <div className="row">
-          <span className="chip">Your voice is active · {Math.round(current.seconds)} s</span>
+          <span className="chip">{t('Your voice is active · {s} s', { s: Math.round(current.seconds) })}</span>
           <button type="button" className="btn" disabled={busy} onClick={() => void remove()}>
-            Delete my voice
+            {t('Delete my voice')}
           </button>
         </div>
       )}
@@ -390,30 +389,29 @@ function OwnVoice({
       {phase === 'idle' && (
         <div className="row">
           <select
-            aria-label="Reading language"
+            aria-label={t('Reading language')}
             value={language}
             onChange={(e) => {
               setLanguage(e.target.value as 'sv' | 'en')
               setPassageIndex(0)
             }}
           >
-            <option value="sv">Read in Swedish</option>
-            <option value="en">Read in English</option>
+            <option value="sv">{t('Read in Swedish')}</option>
+            <option value="en">{t('Read in English')}</option>
           </select>
           <button type="button" className="btn primary" onClick={() => void start()}>
-            {current ? 'Record again' : 'Record my voice'}
+            {current ? t('Record again') : t('Record my voice')}
           </button>
         </div>
       )}
 
       {phase === 'idle' && (
         <p className="muted small">
-          Not sure what to say? Pick a text below: each one is written to give the voice something different to learn from. Read it
-          naturally, as if telling a person. Reading two different texts gives the best result.
+          {t('Not sure what to say? Pick a text below: each one is written to give the voice something different to learn from. Read it naturally, as if telling a person. Reading two different texts gives the best result.')}
         </p>
       )}
 
-      <div className="passagepicker" role="radiogroup" aria-label="Suggested texts">
+      <div className="passagepicker" role="radiogroup" aria-label={t('Suggested texts')}>
         {PASSAGES[language].map((p, i) => (
           <button
             key={p.id}
@@ -430,7 +428,7 @@ function OwnVoice({
         ))}
       </div>
 
-      <blockquote className="script" aria-label="Text to read">
+      <blockquote className="script" aria-label={t('Text to read')}>
         {PASSAGES[language][passageIndex].text}
       </blockquote>
 
@@ -443,24 +441,24 @@ function OwnVoice({
             {seconds.toFixed(0)} / {MAX_SECONDS} s
           </span>
           <button type="button" className="btn primary" onClick={stop} disabled={tooShort} title={tooShort ? `Keep reading, at least ${MIN_SECONDS} s` : undefined}>
-            Stop
+            {t('Stop')}
           </button>
         </div>
       )}
 
       {phase === 'review' && clipUrl && (
         <>
-          <audio controls src={clipUrl} aria-label="Your recording" />
+          <audio controls src={clipUrl} aria-label={t('Your recording')} />
           <label className="consent">
             <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-            This recording is my own voice. Lots may use it only to speak answers to me, and I can delete it at any time.
+            {t('This recording is my own voice. Lots may use it only to speak answers to me, and I can delete it at any time.')}
           </label>
           <div className="row">
             <button type="button" className="btn primary" disabled={!consent || busy} onClick={() => void saveClip()}>
-              Use this voice
+              {t('Use this voice')}
             </button>
             <button type="button" className="btn" disabled={busy} onClick={() => setPhase('idle')}>
-              Discard
+              {t('Discard')}
             </button>
           </div>
         </>
@@ -476,13 +474,13 @@ function GpuStatus({ api }: { api: Api }) {
     api.raw<NonNullable<typeof s>>('/voice/status').then(setS).catch(() => setS(null))
   }, [api])
   if (!s?.enabled || s.gpuFreeBytes == null) return null
-  const gb = (b: number) => (b / 1024 ** 3).toFixed(1)
+  const gb = (b: number) => fmt.number(b / 1024 ** 3, 1)
   return (
     <p className={s.gpuLow ? 'warn small' : 'muted small'}>
-      Voice GPU: {gb(s.gpuFreeBytes)} of {gb(s.gpuTotalBytes ?? 0)} GB free
-      {s.expressiveLoaded === false && ' · expressive voice not loaded (answers start with the fast voice)'}
-      {s.gpuLow && ' · nearly full: answers may use the fast voice'}
-      {s.expressiveWaiting > 0 && ` · ${s.expressiveWaiting} waiting`}
+      {t('Voice GPU: {free} of {total} GB free', { free: gb(s.gpuFreeBytes), total: gb(s.gpuTotalBytes ?? 0) })}
+      {s.expressiveLoaded === false && ' · ' + t('expressive voice not loaded (answers start with the fast voice)')}
+      {s.gpuLow && ' · ' + t('nearly full: answers may use the fast voice')}
+      {s.expressiveWaiting > 0 && ` · ${t('{n} waiting', { n: s.expressiveWaiting })}`}
     </p>
   )
 }

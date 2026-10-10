@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ApiError, auditQuery, type Api, type AuditEntry, type AuditFilter } from '../api'
+import { fmt, t } from '../i18n'
 
 type Load =
   | { state: 'loading' }
@@ -29,8 +30,9 @@ function ChainStatus({ api }: { api: Api }) {
   return (
     <p className={c.intact ? 'muted small' : 'error'}>
       {c.intact
-        ? `Tamper check: the hash chain of ${c.sealed.toLocaleString()} sealed entries is intact${c.unsealed ? ` (${c.unsealed} waiting to be sealed)` : ''}.`
-        : `Tamper check FAILED at entry ${c.firstBrokenSeq}: ${c.problem}.`}
+        ? t('Tamper check: the hash chain of {n} sealed entries is intact', { n: fmt.number(c.sealed) }) +
+          (c.unsealed ? ` (${t('{n} waiting to be sealed', { n: c.unsealed })})` : '') + '.'
+        : t('Tamper check FAILED at entry {seq}: {problem}.', { seq: c.firstBrokenSeq ?? '', problem: c.problem ?? '' })}
     </p>
   )
 }
@@ -58,11 +60,11 @@ export default function AuditPage({ api }: { api: Api }) {
 
   return (
     <section>
-      <h1>Audit</h1>
+      <h1>{t('Audit')}</h1>
       <ChainStatus api={api} />
       {load.state === 'forbidden' ? (
         <div className="empty">
-          <p>The audit log is only available to admins and auditors.</p>
+          <p>{t('The audit log is only available to admins and auditors.')}</p>
         </div>
       ) : (
         <>
@@ -75,78 +77,78 @@ export default function AuditPage({ api }: { api: Api }) {
             }}
           >
             <label>
-              User
+              {t('User')}
               <input value={filter.user ?? ''} onChange={(e) => setFilter({ ...filter, user: e.target.value })} />
             </label>
             <label>
-              Run id
+              {t('Run id')}
               <input className="wide" value={filter.runId ?? ''} onChange={(e) => setFilter({ ...filter, runId: e.target.value })} />
             </label>
             <label>
-              Tool
+              {t('Tool')}
               <input value={filter.tool ?? ''} onChange={(e) => setFilter({ ...filter, tool: e.target.value })} />
             </label>
             <label>
-              Decision
+              {t('Decision')}
               <select value={filter.decision ?? ''} onChange={(e) => setFilter({ ...filter, decision: e.target.value || undefined })}>
-                <option value="">Any</option>
+                <option value="">{t('Any')}</option>
                 {['Allowed', 'Denied', 'ApprovalRequested', 'ApprovalGranted', 'ApprovalRefused', 'ApprovalDenied'].map((d) => (
                   <option key={d}>{d}</option>
                 ))}
               </select>
             </label>
             <label>
-              Profile
+              {t('Profile')}
               <input value={filter.profile ?? ''} onChange={(e) => setFilter({ ...filter, profile: e.target.value })} />
             </label>
             <label>
-              From
+              {t('From')}
               <input type="datetime-local" value={filter.from ?? ''} onChange={(e) => setFilter({ ...filter, from: e.target.value })} />
             </label>
             <label>
-              To
+              {t('To')}
               <input type="datetime-local" value={filter.to ?? ''} onChange={(e) => setFilter({ ...filter, to: e.target.value })} />
             </label>
             <button className="btn" type="submit">
-              Filter
+              {t('Filter')}
             </button>
             <button className="btn" type="button" onClick={() => void exportAudit(api, applied, 'csv')}>
-              Export CSV
+              {t('Export CSV')}
             </button>
             <button className="btn" type="button" onClick={() => void exportAudit(api, applied, 'json')}>
-              Export JSON
+              {t('Export JSON')}
             </button>
           </form>
 
-          {load.state === 'loading' && <p className="muted">Loading…</p>}
+          {load.state === 'loading' && <p className="muted">{t('Loading…')}</p>}
           {load.state === 'error' && (
             <p role="alert" className="error">
-              Could not load the audit log: {load.message}
+              {t('Could not load the audit log:')} {load.message}
             </p>
           )}
           {load.state === 'ok' && load.rows.length === 0 && (
             <div className="empty">
-              <p>No audit entries match.</p>
+              <p>{t('No audit entries match.')}</p>
             </div>
           )}
           {load.state === 'ok' && load.rows.length > 0 && (
             <table>
               <thead>
                 <tr>
-                  <th>Time</th>
-                  <th>User</th>
-                  <th>Tool</th>
-                  <th>Decision</th>
-                  <th>Approver</th>
-                  <th>Result</th>
-                  <th>Backend auth</th>
-                  <th>Profile</th>
+                  <th>{t('Time')}</th>
+                  <th>{t('User')}</th>
+                  <th>{t('Tool')}</th>
+                  <th>{t('Decision')}</th>
+                  <th>{t('Approver')}</th>
+                  <th>{t('Result')}</th>
+                  <th>{t('Backend auth')}</th>
+                  <th>{t('Profile')}</th>
                 </tr>
               </thead>
               <tbody>
                 {load.rows.map((r) => (
                   <tr key={r.id} title={r.reason || undefined}>
-                    <td className="mono">{new Date(r.at).toLocaleString()}</td>
+                    <td className="mono">{fmt.dateTime(r.at)}</td>
                     <td>{r.user}</td>
                     <td>
                       <a href={`#/runs/${r.runId}`} className="mono">

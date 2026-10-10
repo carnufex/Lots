@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ApiError, type Api, type CatalogEntry, type ServerInfo } from '../api'
+import { fmt, t } from '../i18n'
 
 type Load<T> = { state: 'loading' } | { state: 'forbidden' } | { state: 'error'; message: string } | { state: 'ok'; data: T }
 
@@ -25,17 +26,17 @@ function useLoad<T>(fetch: () => Promise<T>, deps: unknown[]): [Load<T>, () => v
 }
 
 function Status<T>({ load, who, what }: { load: Load<T>; who: string; what: string }) {
-  if (load.state === 'loading') return <p className="muted">Loading…</p>
+  if (load.state === 'loading') return <p className="muted">{t('Loading…')}</p>
   if (load.state === 'forbidden')
     return (
       <div className="empty">
-        <p>{what} is only available to {who}.</p>
+        <p>{t('{what} is only available to {who}.', { what: t(what), who: t(who) })}</p>
       </div>
     )
   if (load.state === 'error')
     return (
       <p role="alert" className="error">
-        Could not load {what.toLowerCase()}: {load.message}
+        {t('Could not load {what}:', { what: t(what).toLowerCase() })} {load.message}
       </p>
     )
   return null
@@ -51,13 +52,13 @@ export function ServersTab({ api }: { api: Api }) {
       <p className="muted small">
         Servers come from the profiles (config as code). Tools a server offers but no profile declares are never shown to the model.{' '}
         <button type="button" className="btn small" onClick={reload}>
-          Check again
+          {t('Check again')}
         </button>
       </p>
       <Status load={load} who="admins" what="Server details" />
       {load.state === 'ok' && load.data.length === 0 && (
         <div className="empty">
-          <p>No profile uses a tool server.</p>
+          <p>{t('No profile uses a tool server.')}</p>
         </div>
       )}
       {load.state === 'ok' &&
@@ -70,7 +71,7 @@ export function ServersTab({ api }: { api: Api }) {
               <span className="muted small">
                 auth: {s.auth}
                 {s.credentialType ? ` (${s.credentialType})` : ''} · profiles: {s.profiles.join(', ')}
-                {s.checkedAt ? ` · checked ${new Date(s.checkedAt).toLocaleTimeString()}` : ''}
+                {s.checkedAt ? ` · checked ${fmt.time(s.checkedAt)}` : ''}
               </span>
             </div>
             {s.error && (
@@ -78,22 +79,22 @@ export function ServersTab({ api }: { api: Api }) {
                 {s.error}
               </p>
             )}
-            {s.health === 'per-user' && <p className="muted small">Reached with each user's own token, so its tools are only listed inside a user's run.</p>}
+            {s.health === 'per-user' && <p className="muted small">{t("Reached with each user's own token, so its tools are only listed inside a user's run.")}</p>}
             {s.tools.length > 0 && (
               <table>
                 <thead>
                   <tr>
-                    <th>Tool</th>
-                    <th>Description</th>
-                    <th>Declared in</th>
+                    <th>{t('Tool')}</th>
+                    <th>{t('Description')}</th>
+                    <th>{t('Declared in')}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {s.tools.map((t) => (
-                    <tr key={t.name}>
-                      <td className="mono">{t.name}</td>
-                      <td className="muted">{t.description}</td>
-                      <td>{t.profiles.length > 0 ? t.profiles.join(', ') : <span className="decision Denied">unclassified</span>}</td>
+                  {s.tools.map((it) => (
+                    <tr key={it.name}>
+                      <td className="mono">{it.name}</td>
+                      <td className="muted">{it.description}</td>
+                      <td>{it.profiles.length > 0 ? it.profiles.join(', ') : <span className="decision Denied">{t('unclassified')}</span>}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -110,32 +111,31 @@ const catalogClass = { exposed: 'Allowed', missing: 'ApprovalRequested', 'per-us
 /** Every declared tool with its risk class, who may use and approve it, and tools that are offered but not classified. */
 export function CatalogTab({ api }: { api: Api }) {
   const [load] = useLoad<CatalogEntry[]>(() => api.catalog(), [api])
-  const roles = (r: string[]) => (r.length ? r.join(', ') : <span className="muted">none</span>)
+  const roles = (r: string[]) => (r.length ? r.join(', ') : <span className="muted">{t('none')}</span>)
   return (
     <>
       <p className="muted small">
-        Deny by default: a tool is callable only when a profile declares it with a risk class and a role grants that class. Unclassified tools stay blocked
-        until someone adds them to a profile.
+        {t('Deny by default: a tool is callable only when a profile declares it with a risk class and a role grants that class. Unclassified tools stay blocked until someone adds them to a profile.')}
       </p>
       <Status load={load} who="admins and auditors" what="The catalog" />
       {load.state === 'ok' && load.data.length === 0 && (
         <div className="empty">
-          <p>No tools.</p>
+          <p>{t('No tools.')}</p>
         </div>
       )}
       {load.state === 'ok' && load.data.length > 0 && (
         <table>
           <thead>
             <tr>
-              <th>Tool</th>
-              <th>Profile</th>
-              <th>Risk</th>
-              <th>Status</th>
-              <th>May use</th>
-              <th>Needs approval</th>
-              <th>May approve</th>
-              <th>Calls</th>
-              <th>Last used</th>
+              <th>{t('Tool')}</th>
+              <th>{t('Profile')}</th>
+              <th>{t('Risk')}</th>
+              <th>{t('Status')}</th>
+              <th>{t('May use')}</th>
+              <th>{t('Needs approval')}</th>
+              <th>{t('May approve')}</th>
+              <th>{t('Calls')}</th>
+              <th>{t('Last used')}</th>
             </tr>
           </thead>
           <tbody>
@@ -151,7 +151,7 @@ export function CatalogTab({ api }: { api: Api }) {
                 <td>{roles(c.approvalRoles)}</td>
                 <td>{roles(c.approverRoles)}</td>
                 <td>{c.calls}</td>
-                <td className="muted">{c.lastUsed ? new Date(c.lastUsed).toLocaleString() : ''}</td>
+                <td className="muted">{c.lastUsed ? fmt.dateTime(c.lastUsed) : ''}</td>
               </tr>
             ))}
           </tbody>

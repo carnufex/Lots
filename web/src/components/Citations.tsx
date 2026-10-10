@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Api, KnowledgeHit, Step } from '../api'
+import { fmt, t } from '../i18n'
 
 /** k-number -> chunk id, from the "Sources: k1=..., k2=..." line of search_knowledge results (later searches win). */
 export function citationMap(steps: Step[]): Map<string, string> {
@@ -30,8 +31,8 @@ export default function Citations({ api, answer, steps }: { api: Api; answer: st
 
   if (hits.length === 0) return null
   return (
-    <div className="citations" aria-label="Sources">
-      <div className="label">Sources</div>
+    <div className="citations" aria-label={t('Sources')}>
+      <div className="label">{t('Sources')}</div>
       <ol>
         {hits.map(({ key, hit }) => (
           <li key={key}>
@@ -47,12 +48,12 @@ export default function Citations({ api, answer, steps }: { api: Api; answer: st
                     hit.title
                   )}
                   {hit.heading && hit.heading !== hit.title && <span className="muted"> › {hit.heading.replace(`${hit.title} > `, '')}</span>}
-                  <span className="muted small"> · {hit.sourceName} · {new Date(hit.updatedAt).toLocaleDateString()}</span>
+                  <span className="muted small"> · {hit.sourceName} · {fmt.date(hit.updatedAt)}</span>
                 </summary>
                 <pre>{hit.text}</pre>
               </details>
             ) : (
-              <span className="muted">not available to you</span>
+              <span className="muted">{t('not available to you')}</span>
             )}
           </li>
         ))}

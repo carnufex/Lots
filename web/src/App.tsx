@@ -19,6 +19,8 @@ import IdentityPage from './pages/IdentityPage'
 import UsagePage from './pages/UsagePage'
 import { PLANNED } from './planned'
 import { Icon, type IconName } from './components/Icon'
+import { language, setLanguage, t, type UiLanguage } from './i18n'
+import { saveLanguage } from './voice/language'
 
 type Route = { name: 'chat'; id?: string } | { name: 'runs' } | { name: 'run'; id: string } | { name: 'approvals' } | { name: 'audit' } | { name: 'voice' } | { name: 'knowledge' } | { name: 'profiles' } | { name: 'policy' } | { name: 'models' } | { name: 'identity' } | { name: 'usage' } | { name: 'history'; id?: string } | { name: 'integrations'; tab: IntegrationTab } | { name: 'planned'; slug: string }
 
@@ -63,7 +65,7 @@ function useHashRoute(): Route {
     const c = /^chat\/([0-9a-f-]{36})$/i.exec(r)
     if (c) return { name: 'chat', id: c[1] }
     const it = /^integrations(?:\/([a-z-]+))?$/.exec(r)
-    if (it) return { name: 'integrations', tab: INTEGRATION_TABS.find((t) => t.slug === it[1])?.slug ?? 'tool-calls' }
+    if (it) return { name: 'integrations', tab: INTEGRATION_TABS.find((tab) => tab.slug === it[1])?.slug ?? 'tool-calls' }
     const h = /^history\/([0-9a-f-]{36})$/i.exec(r)
     if (h) return { name: 'history', id: h[1] }
     if (PLANNED.some((p) => p.slug === r)) return { name: 'planned', slug: r }
@@ -106,11 +108,11 @@ export default function App() {
     }
   }, [])
 
-  if (state.phase === 'loading') return <Centered>Loading…</Centered>
+  if (state.phase === 'loading') return <Centered>{t('Loading…')}</Centered>
   if (state.phase === 'error')
     return (
       <Centered>
-        <p className="muted">Could not start the app.</p>
+        <p className="muted">{t('Could not start the app.')}</p>
         <p className="mono">{state.message}</p>
       </Centered>
     )
@@ -118,9 +120,9 @@ export default function App() {
     return (
       <Centered>
         <Brand large />
-        <p className="muted">Sign in to continue.</p>
+        <p className="muted">{t('Sign in to continue.')}</p>
         <button className="btn primary" onClick={() => void state.auth.login()}>
-          Sign in
+          {t('Sign in')}
         </button>
       </Centered>
     )
@@ -135,14 +137,14 @@ function Shell({ config, auth, session }: { config: ClientConfig; auth: Auth; se
     <div className="app">
       <aside className="rail">
         <Brand />
-        <nav aria-label="Main">
+        <nav aria-label={t('Main')}>
           {NAV.map((g) => (
             <div key={g.title} className="navgroup">
-              <div className="navtitle">{g.title}</div>
+              <div className="navtitle">{t(g.title)}</div>
               {g.items.map((n) => (
                 <a key={n.href} href={n.href} className={n.active(route) ? 'active' : ''} aria-current={n.active(route) ? 'page' : undefined}>
                   <Icon name={n.icon} />
-                  {n.label}
+                  {t(n.label)}
                 </a>
               ))}
             </div>
@@ -153,6 +155,7 @@ function Shell({ config, auth, session }: { config: ClientConfig; auth: Auth; se
         <header className="topbar">
           <span className="muted">{config.profiles.map((p) => p.name).join(' · ')}</span>
           <div className="who">
+            <LanguageSwitch />
             {auth.mode === 'dev' && <DevIdentity />}
             <span className="user">{session.user}</span>
             {session.roles.map((r) => (
@@ -162,7 +165,7 @@ function Shell({ config, auth, session }: { config: ClientConfig; auth: Auth; se
             ))}
             {auth.mode === 'oidc' && (
               <button className="btn" onClick={() => void auth.logout()}>
-                Sign out
+                {t('Sign out')}
               </button>
             )}
           </div>
@@ -189,6 +192,24 @@ function Shell({ config, auth, session }: { config: ClientConfig; auth: Auth; se
   )
 }
 
+/**
+ * UI language (#111). The spoken-language default follows it, so dictation and the agent's voice match what the user reads; a
+ * language picked explicitly for voice later is kept.
+ */
+function LanguageSwitch() {
+  const change = (l: UiLanguage) => {
+    setLanguage(l)
+    saveLanguage(l)
+    window.location.reload() // every string and date is rendered again in the new language
+  }
+  return (
+    <select className="lang" aria-label={t('Language')} value={language()} onChange={(e) => change(e.target.value as UiLanguage)}>
+      <option value="en">English</option>
+      <option value="sv">Svenska</option>
+    </select>
+  )
+}
+
 /** Dev mode only: switch the identity sent to the API (the server decides whether it is honoured). */
 function DevIdentity() {
   const [id, setId] = useState(readDevIdentity)
@@ -205,15 +226,15 @@ function DevIdentity() {
       }}
     >
       <label>
-        <span className="sr">Dev user</span>
-        <input value={id.user} onChange={(e) => apply({ ...id, user: e.target.value })} aria-label="Dev user" />
+        <span className="sr">{t('Dev user')}</span>
+        <input value={id.user} onChange={(e) => apply({ ...id, user: e.target.value })} aria-label={t('Dev user')} />
       </label>
       <label>
-        <span className="sr">Dev roles</span>
-        <input value={id.roles} onChange={(e) => apply({ ...id, roles: e.target.value })} aria-label="Dev roles" />
+        <span className="sr">{t('Dev roles')}</span>
+        <input value={id.roles} onChange={(e) => apply({ ...id, roles: e.target.value })} aria-label={t('Dev roles')} />
       </label>
       <button className="btn" type="submit">
-        Apply
+        {t('Apply')}
       </button>
     </form>
   )

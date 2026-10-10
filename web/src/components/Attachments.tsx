@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import type { Api } from '../api'
+import { t } from '../i18n'
 
 export interface UploadedAttachment {
   id: string
@@ -36,8 +37,8 @@ export function AttachPicker({ api, files, onChange, disabled }: { api: Api; fil
   return (
     <span className="attach">
       <input ref={input} type="file" multiple accept={ACCEPT} hidden onChange={(e) => void pick(e.target.files)} />
-      <button type="button" className="btn ghost small" disabled={disabled || busy} onClick={() => input.current?.click()} title="Attach images, PDFs, Word documents or text files">
-        {busy ? 'Uploading…' : 'Attach'}
+      <button type="button" className="btn ghost small" disabled={disabled || busy} onClick={() => input.current?.click()} title={t('Attach images, PDFs, Word documents or text files')}>
+        {busy ? t('Uploading…') : 'Attach'}
       </button>
       {files.map((f) => (
         <span key={f.id} className="file-chip small">
@@ -68,7 +69,7 @@ export function AttachmentList({ api, items }: { api: Api; items: { id: string; 
   return (
     <div className="attachments small">
       {items.map((a) => (
-        <button key={a.id} type="button" className="file-chip" onClick={() => void download(a.id, a.name)} title="Download">
+        <button key={a.id} type="button" className="file-chip" onClick={() => void download(a.id, a.name)} title={t('Download')}>
           {a.kind === 'image' ? '🖼' : '📄'} {a.name}
         </button>
       ))}

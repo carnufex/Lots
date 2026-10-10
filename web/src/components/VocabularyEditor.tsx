@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ApiError, type Api, type Vocabulary } from '../api'
+import { t } from '../i18n'
 
 /**
  * The user's dictation vocabulary: names, products and jargon that speech recognition should spell correctly.
@@ -15,7 +16,7 @@ export default function VocabularyEditor({ api }: { api: Api }) {
     api
       .getVocabulary()
       .then((v) => !cancelled && setVocab(v))
-      .catch(() => !cancelled && setError('Could not load your vocabulary.'))
+      .catch(() => !cancelled && setError(t('Could not load your vocabulary.')))
     return () => {
       cancelled = true
     }
@@ -30,7 +31,7 @@ export default function VocabularyEditor({ api }: { api: Api }) {
       setVocab(await api.putVocabulary(words))
     } catch (e) {
       setVocab(previous)
-      setError(e instanceof ApiError && e.status === 400 ? 'Too many words, or a word is too long (max 100 words, 60 characters each).' : 'Could not save your vocabulary.')
+      setError(e instanceof ApiError && e.status === 400 ? t('Too many words, or a word is too long (max 100 words, 60 characters each).') : t('Could not save your vocabulary.'))
     }
   }
 
@@ -49,14 +50,13 @@ export default function VocabularyEditor({ api }: { api: Api }) {
     <details className="vocab">
       <summary>
         Vocabulary{vocab ? ` (${vocab.words.length})` : ''}
-        <span className="muted"> · names and words dictation should spell correctly</span>
+        <span className="muted"> {t('· names and words dictation should spell correctly')}</span>
       </summary>
       <p className="muted small">
-        Add names, products and jargon you say often (for example your name or a service). They are sent to the speech service with each
-        dictation as a spelling hint. Only you can see and edit your own list.
+        {t('Add names, products and jargon you say often (for example your name or a service). They are sent to the speech service with each dictation as a spelling hint. Only you can see and edit your own list.')}
       </p>
       {vocab && (
-        <ul className="chips" aria-label="Vocabulary">
+        <ul className="chips" aria-label={t('Vocabulary')}>
           {vocab.words.map((w) => (
             <li key={w} className="chip">
               {w}
@@ -68,18 +68,18 @@ export default function VocabularyEditor({ api }: { api: Api }) {
           {vocab.shared
             .filter((w) => !vocab.words.some((x) => x.toLowerCase() === w.toLowerCase()))
             .map((w) => (
-              <li key={`shared-${w}`} className="chip shared" title="Shared by everyone on this installation">
+              <li key={`shared-${w}`} className="chip shared" title={t('Shared by everyone on this installation')}>
                 {w}
               </li>
             ))}
-          {vocab.words.length === 0 && vocab.shared.length === 0 && <li className="muted small">No words yet.</li>}
+          {vocab.words.length === 0 && vocab.shared.length === 0 && <li className="muted small">{t('No words yet.')}</li>}
         </ul>
       )}
       <div className="row">
         <input
           className="wide"
-          aria-label="Add words"
-          placeholder="Add a word or several separated by commas"
+          aria-label={t('Add words')}
+          placeholder={t('Add a word or several separated by commas')}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
@@ -90,7 +90,7 @@ export default function VocabularyEditor({ api }: { api: Api }) {
           }}
         />
         <button type="button" className="btn" disabled={!draft.trim() || !vocab} onClick={add}>
-          Add
+          {t('Add')}
         </button>
       </div>
       {error && (

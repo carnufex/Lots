@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ApiError, type Api } from '../api'
 import { adminApi, type ProfilePolicy, type Simulation } from '../adminApi'
+import { t } from '../i18n'
 
 const RISKS = ['Read', 'Write', 'Destructive']
 
@@ -13,13 +14,13 @@ export default function PolicyPage({ api }: { api: Api }) {
     admin
       .policy()
       .then(setPolicy)
-      .catch((e: unknown) => setError(e instanceof ApiError && e.status === 403 ? 'Policy is visible to admins and auditors.' : String(e)))
+      .catch((e: unknown) => setError(e instanceof ApiError && e.status === 403 ? t('Policy is visible to admins and auditors.') : String(e)))
   }, [admin])
 
   return (
     <section>
-      <h1>Policy</h1>
-      <p className="muted small">Evaluated outside the model on every tool call. Deny by default: a tool is callable only if its profile declares it and a role grants its risk class.</p>
+      <h1>{t('Policy')}</h1>
+      <p className="muted small">{t('Evaluated outside the model on every tool call. Deny by default: a tool is callable only if its profile declares it and a role grants its risk class.')}</p>
       {error && <p className="error">{error}</p>}
       {policy && <Simulator api={api} policy={policy} />}
       {policy?.map((p) => (
@@ -30,7 +31,7 @@ export default function PolicyPage({ api }: { api: Api }) {
           <table>
             <thead>
               <tr>
-                <th>Role</th>
+                <th>{t('Role')}</th>
                 {RISKS.map((r) => (
                   <th key={r}>{r}</th>
                 ))}
@@ -42,8 +43,8 @@ export default function PolicyPage({ api }: { api: Api }) {
                   <td>{r.role}</td>
                   {RISKS.map((risk) => (
                     <td key={risk}>
-                      {r.allow.includes(risk) ? (r.requireApproval.includes(risk) ? <span className="decision ApprovalRequested">with approval</span> : <span className="decision Allowed">allowed</span>) : <span className="muted">–</span>}
-                      {r.approve.includes(risk) && <span className="muted small"> · approves</span>}
+                      {r.allow.includes(risk) ? (r.requireApproval.includes(risk) ? <span className="decision ApprovalRequested">{t('with approval')}</span> : <span className="decision Allowed">{t('allowed')}</span>) : <span className="muted">–</span>}
+                      {r.approve.includes(risk) && <span className="muted small"> {t('· approves')}</span>}
                     </td>
                   ))}
                 </tr>
@@ -52,21 +53,21 @@ export default function PolicyPage({ api }: { api: Api }) {
           </table>
           <p className="small">
             Tools:{' '}
-            {p.tools.map((t) => (
-              <span key={t.name} className="mono">
-                {t.name} ({t.risk}){' '}
+            {p.tools.map((it) => (
+              <span key={it.name} className="mono">
+                {it.name} ({it.risk}){' '}
               </span>
             ))}
           </p>
           {p.tests.length > 0 && (
             <p className="small">
-              Policy tests: {p.tests.filter((t) => t.passed).length}/{p.tests.length} passing
+              {t('Policy tests: {passed}/{total} passing', { passed: p.tests.filter((it) => it.passed).length, total: p.tests.length })}
               {p.tests
-                .filter((t) => !t.passed)
-                .map((t) => (
-                  <span key={t.description} className="error">
+                .filter((it) => !it.passed)
+                .map((it) => (
+                  <span key={it.description} className="error">
                     {' '}
-                    · {t.description}
+                    · {it.description}
                   </span>
                 ))}
             </p>
@@ -86,7 +87,7 @@ function Simulator({ api, policy }: { api: Api; policy: ProfilePolicy[] }) {
   const tools = policy.find((p) => p.profile === profile)?.tools ?? []
   return (
     <div className="card">
-      <h2 className="section-title">Why would this be allowed?</h2>
+      <h2 className="section-title">{t('Why would this be allowed?')}</h2>
       <form
         className="filters"
         onSubmit={(e) => {
@@ -95,7 +96,7 @@ function Simulator({ api, policy }: { api: Api; policy: ProfilePolicy[] }) {
         }}
       >
         <label>
-          Profile
+          {t('Profile')}
           <select value={profile} onChange={(e) => setProfile(e.target.value)}>
             {policy.map((p) => (
               <option key={p.profile}>{p.profile}</option>
@@ -103,20 +104,20 @@ function Simulator({ api, policy }: { api: Api; policy: ProfilePolicy[] }) {
           </select>
         </label>
         <label>
-          Roles
+          {t('Roles')}
           <input value={roles} onChange={(e) => setRoles(e.target.value)} />
         </label>
         <label>
-          Tool
+          {t('Tool')}
           <input list="sim-tools" value={tool} onChange={(e) => setTool(e.target.value)} required />
           <datalist id="sim-tools">
-            {tools.map((t) => (
-              <option key={t.name} value={t.name} />
+            {tools.map((it) => (
+              <option key={it.name} value={it.name} />
             ))}
           </datalist>
         </label>
         <button className="btn" type="submit">
-          Simulate
+          {t('Simulate')}
         </button>
       </form>
       {result && (

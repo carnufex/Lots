@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ApiError, type Api, type VoiceLanguage } from '../api'
+import { t } from '../i18n'
 
 type State = 'idle' | 'recording' | 'transcribing'
 
@@ -29,32 +30,32 @@ export default function MicButton({ api, language, onText }: { api: Api; languag
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } })
     } catch {
-      setError('Microphone access was blocked. Allow it in the browser to dictate.')
+      setError(t('Microphone access was blocked. Allow it in the browser to dictate.'))
       return
     }
     const rec = new MediaRecorder(stream)
     chunks.current = []
     rec.ondataavailable = (e) => e.data.size > 0 && chunks.current.push(e.data)
     rec.onstop = async () => {
-      stream.getTracks().forEach((t) => t.stop())
+      stream.getTracks().forEach((it) => it.stop())
       const blob = new Blob(chunks.current, { type: rec.mimeType })
       if (blob.size < 1500) {
         setState('idle')
-        setError('Nothing was recorded. Hold the button a little longer.')
+        setError(t('Nothing was recorded. Hold the button a little longer.'))
         return
       }
       setState('transcribing')
       try {
         const result = await api.transcribe(blob, language)
         if (result.text.trim()) onText(result.text.trim())
-        else setError('No speech was recognised.')
+        else setError(t('No speech was recognised.'))
       } catch (e) {
         setError(
           e instanceof ApiError && e.status === 503
-            ? 'Voice is unavailable right now. Type your question instead.'
+            ? t('Voice is unavailable right now. Type your question instead.')
             : e instanceof ApiError && e.status === 413
-              ? 'The recording is too long.'
-              : 'Could not transcribe the recording. Try again or type.',
+              ? t('The recording is too long.')
+              : t('Could not transcribe the recording. Try again or type.'),
         )
       } finally {
         setState('idle')
@@ -95,12 +96,12 @@ export default function MicButton({ api, language, onText }: { api: Api; languag
         className={`btn mic ${state}`}
         aria-pressed={state === 'recording'}
         disabled={state === 'transcribing'}
-        title="Dictate (Alt+M)"
+        title={t('Dictate (Alt+M)')}
         onClick={() => (state === 'recording' ? stop() : void start())}
       >
         {state === 'idle' && 'Dictate'}
         {state === 'recording' && 'Stop'}
-        {state === 'transcribing' && 'Transcribing…'}
+        {state === 'transcribing' && t('Transcribing…')}
       </button>
     </>
   )
