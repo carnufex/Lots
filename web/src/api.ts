@@ -83,6 +83,63 @@ export interface Vocabulary {
   shared: string[]
 }
 
+export interface StageTotals {
+  sttMs: number
+  llmMs: number
+  toolMs: number
+  ttsMs: number
+  otherMs: number
+}
+
+export interface TimelineEvent {
+  kind: 'stt' | 'llm' | 'tool' | 'tts'
+  name: string
+  startMs: number
+  durationMs: number
+  promptTokens: number | null
+  completionTokens: number | null
+}
+
+export interface ConversationSummary {
+  id: string
+  userId: string
+  profile: string
+  title: string
+  summary: string | null
+  voice: boolean
+  startedAt: string
+  endedAt: string
+  durationMs: number
+  turns: number
+  messages: number
+  status: string
+  promptTokens: number
+  completionTokens: number
+  stages: StageTotals
+}
+
+export interface ConversationTurn {
+  runId: string
+  prompt: string
+  answer: string | null
+  status: string
+  error: string | null
+  startedAt: string
+  durationMs: number
+  events: TimelineEvent[]
+}
+
+export interface ConversationDetail {
+  conversation: ConversationSummary
+  turns: ConversationTurn[]
+}
+
+export interface ConversationList {
+  conversations: ConversationSummary[]
+  stages: StageTotals
+  count: number
+}
+
 export interface UserSettings {
   talkativeness: number
   warmth: number
@@ -125,12 +182,20 @@ export function createApi(auth: Auth) {
     listRuns: () => request<RunSummary[]>('/runs'),
     getRun: (id: string) => request<RunDetail>(`/runs/${id}`),
     /** Dictation: audio in, text out. The text is only a draft for the user to review. */
-    transcribe: (audio: Blob, language: VoiceLanguage) => {
+    transcribe: (audio: Blob, language: VoiceLanguage, conversationId?: string) => {
       const form = new FormData()
       form.append('Audio', audio, audio.type.includes('wav') ? 'speech.wav' : 'dictation.webm')
       if (language !== 'auto') form.append('Language', language)
+      if (conversationId) form.append('ConversationId', conversationId)
       return request<Transcription>('/voice/transcribe', { method: 'POST', body: form })
     },
+    listConversations: (f: { q?: string; status?: string } = {}) => {
+      const q = new URLSearchParams()
+      if (f.q) q.set('q', f.q)
+      if (f.status) q.set('status', f.status)
+      return request<ConversationList>(`/conversations?${q}`)
+    },
+    getConversation: (id: string) => request<ConversationDetail>(`/conversations/${id}`),
     getSettings: () => request<UserSettings>('/me/settings'),
     putSettings: (s: Pick<UserSettings, 'talkativeness' | 'warmth' | 'formality' | 'expressiveness' | 'pace'>) =>
       request<UserSettings>('/me/settings', {

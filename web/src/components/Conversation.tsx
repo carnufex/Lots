@@ -99,7 +99,7 @@ export default function Conversation({
       player.current.stop()
       go('thinking')
       try {
-        const heard = await api.transcribe(wav, languageRef.current)
+        const heard = await api.transcribe(wav, languageRef.current, conversationId.current)
         if (mine !== turn.current) return
         const text = heard.text.trim()
         if (!text) {

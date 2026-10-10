@@ -905,3 +905,108 @@ input.wide {
 .passagetitle {
   font-weight: 600;
 }
+
+
+/* Conversation history */
+:root {
+  --c-stt: #a78bfa;
+  --c-llm: #38bdf8;
+  --c-tool: #fbbf24;
+  --c-tts: #34d399;
+  --c-other: #6b7280;
+}
+.stagetrack {
+  display: flex;
+  height: 14px;
+  border-radius: 7px;
+  overflow: hidden;
+  background: rgba(127, 127, 127, 0.15);
+}
+.stageseg.stt, .tbar.stt, .dot.stt { background: var(--c-stt); }
+.stageseg.llm, .tbar.llm, .dot.llm { background: var(--c-llm); }
+.stageseg.tool, .tbar.tool, .dot.tool { background: var(--c-tool); }
+.stageseg.tts, .tbar.tts, .dot.tts { background: var(--c-tts); }
+.stageseg.other, .dot.other { background: var(--c-other); }
+.stagelegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  list-style: none;
+  padding: 0;
+  margin: 10px 0 0;
+}
+.dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+.meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px 20px;
+  margin: 12px 0 18px;
+}
+.meta dt {
+  font-size: 0.75rem;
+  opacity: 0.65;
+}
+.meta dd {
+  margin: 0;
+}
+.turn {
+  margin: 12px 0;
+}
+.turnhead {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.said {
+  margin: 6px 0;
+}
+.said .who {
+  display: inline-block;
+  min-width: 52px;
+  opacity: 0.65;
+  font-size: 0.8rem;
+}
+.timeline {
+  list-style: none;
+  margin: 10px 0;
+  padding: 8px 0;
+  border-block: 1px dashed rgba(127, 127, 127, 0.35);
+}
+.timeline li {
+  display: grid;
+  grid-template-columns: 220px 1fr 140px;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 0;
+}
+.ttrack {
+  position: relative;
+  height: 10px;
+  background: rgba(127, 127, 127, 0.12);
+  border-radius: 5px;
+}
+.tbar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 5px;
+}
+.tdur {
+  text-align: right;
+}
+.status.Failed { color: #f87171; }
+.status.Completed { color: #34d399; }
+@media (max-width: 720px) {
+  .timeline li {
+    grid-template-columns: 1fr;
+  }
+  .tdur {
+    text-align: left;
+  }
+}

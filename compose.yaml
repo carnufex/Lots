@@ -10,6 +10,7 @@ services:
       CMDB_AGENT_TOKEN: ${CMDB_AGENT_TOKEN:-}   # example of a secret a profile references via passwordEnv; set it in your shell or .env
       Profiles__Path: /profiles
       # Voice (ADR 0012): the voice service on the GPU PC; empty = voice off
+      Auth__Dev__AllowHeaders: ${LOTS_DEV_HEADERS:-false}   # local development only: lets scripts act as other users via X-Dev-User
       Speech__BaseUrl: ${LOTS_VOICE_URL:-}
       Speech__ApiKeyEnv: LOTS_VOICE_KEY
       Speech__DefaultLanguage: ${LOTS_VOICE_DEFAULT_LANGUAGE:-auto}

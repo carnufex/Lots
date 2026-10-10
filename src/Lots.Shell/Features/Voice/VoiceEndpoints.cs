@@ -15,6 +15,9 @@ public sealed class TranscribeRequest
 {
     public IFormFile? Audio { get; set; }
     public string? Language { get; set; }
+
+    /// <summary>The conversation this utterance belongs to (history and timing only).</summary>
+    public Guid? ConversationId { get; set; }
 }
 
 public sealed record TranscribeResponse(string Text, string? Language, double? DurationSeconds);
@@ -72,25 +75,26 @@ public sealed class TranscribeEndpoint(
             var transcript = await stt.TranscribeAsync(
                 new AudioInput(stream, req.Audio.ContentType ?? "application/octet-stream", req.Audio.FileName ?? "audio"), language, words, ct);
             sw.Stop();
-            await RecordAsync(me.UserId, "Stt", transcript.Language ?? language, transcript.DurationSeconds, null, sw, "ok", null);
+            await RecordAsync(me.UserId, "Stt", transcript.Language ?? language, transcript.DurationSeconds, null, sw, "ok", null, req.ConversationId);
             await Send.OkAsync(new TranscribeResponse(transcript.Text, transcript.Language, transcript.DurationSeconds), ct);
         }
         catch (SpeechUnavailableException)
         {
             sw.Stop();
-            await RecordAsync(me.UserId, "Stt", language, null, null, sw, "error", null);
+            await RecordAsync(me.UserId, "Stt", language, null, null, sw, "error", null, req.ConversationId);
             AddError("Voice is unavailable right now. Type your question instead.");
             await Send.ErrorsAsync(503, ct);
         }
     }
 
-    private async Task RecordAsync(string user, string direction, string? lang, double? seconds, int? chars, Stopwatch sw, string outcome, Guid? runId)
+    private async Task RecordAsync(string user, string direction, string? lang, double? seconds, int? chars, Stopwatch sw, string outcome, Guid? runId, Guid? conversationId = null)
     {
         db.VoiceUsage.Add(new VoiceUsageRecord
         {
             Id = Guid.NewGuid(), At = clock.GetUtcNow(), UserId = user, Direction = direction, Language = lang,
             AudioSeconds = seconds, Characters = chars, LatencyMs = sw.ElapsedMilliseconds,
-            Provider = SpeechProviderName.Of(options.Value), Outcome = outcome, RunId = runId,
+            Provider = SpeechProviderName.Of(options.Value), Outcome = outcome, RunId = runId, ConversationId = conversationId,
+            DurationMs = sw.ElapsedMilliseconds,
         });
         await db.SaveChangesAsync(CancellationToken.None);
     }
@@ -145,14 +149,20 @@ public sealed class SpeakRunEndpoint(
         try
         {
             using var audio = await tts.SynthesizeAsync(text, language, UserSettings.VoiceOf(await UserSettings.OfAsync(db, me.UserId, ct)), ct);
-            sw.Stop(); // time to first byte available: the body streams from here
-            db.VoiceUsage.Add(new VoiceUsageRecord
+            var firstAudioMs = sw.ElapsedMilliseconds; // time to first byte available: the body streams from here
+            var usage = new VoiceUsageRecord
             {
                 Id = Guid.NewGuid(), At = clock.GetUtcNow(), UserId = me.UserId, Direction = "Tts", Language = language,
-                Characters = text.Length, LatencyMs = sw.ElapsedMilliseconds, Provider = SpeechProviderName.Of(o), Outcome = "ok", RunId = run.Id,
-            });
+                Characters = text.Length, LatencyMs = firstAudioMs, Provider = SpeechProviderName.Of(o), Outcome = "ok",
+                RunId = run.Id, ConversationId = run.ConversationId,
+            };
+            db.VoiceUsage.Add(usage);
             await db.SaveChangesAsync(CancellationToken.None);
-            await Send.StreamAsync(audio.Content, contentType: audio.ContentType, cancellation: ct);
+            var timed = new FirstByteStream(audio.Content, sw);
+            await Send.StreamAsync(timed, contentType: audio.ContentType, cancellation: ct);
+            usage.LatencyMs = timed.FirstByteMs ?? firstAudioMs; // time to the first audio bytes (the response headers come earlier)
+            usage.DurationMs = sw.ElapsedMilliseconds; // the whole synthesis, now that the body has been streamed
+            await db.SaveChangesAsync(CancellationToken.None);
         }
         catch (SpeechUnavailableException)
         {
@@ -160,13 +170,46 @@ public sealed class SpeakRunEndpoint(
             db.VoiceUsage.Add(new VoiceUsageRecord
             {
                 Id = Guid.NewGuid(), At = clock.GetUtcNow(), UserId = me.UserId, Direction = "Tts", Language = language,
-                Characters = text.Length, LatencyMs = sw.ElapsedMilliseconds, Provider = SpeechProviderName.Of(o), Outcome = "error", RunId = run.Id,
+                Characters = text.Length, LatencyMs = sw.ElapsedMilliseconds, Provider = SpeechProviderName.Of(o), Outcome = "error", RunId = run.Id, ConversationId = run.ConversationId,
             });
             await db.SaveChangesAsync(CancellationToken.None);
             AddError("Voice is unavailable right now.");
             await Send.ErrorsAsync(503, ct);
         }
     }
+}
+
+/// <summary>Passes a stream through and notes when the first bytes arrived (the user hears audio from that moment).</summary>
+internal sealed class FirstByteStream(Stream inner, Stopwatch clock) : Stream
+{
+    public long? FirstByteMs { get; private set; }
+
+    public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken ct = default)
+    {
+        var n = await inner.ReadAsync(buffer, ct);
+        if (n > 0) FirstByteMs ??= clock.ElapsedMilliseconds;
+        return n;
+    }
+
+    public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken ct) =>
+        await ReadAsync(buffer.AsMemory(offset, count), ct);
+
+    public override int Read(byte[] buffer, int offset, int count)
+    {
+        var n = inner.Read(buffer, offset, count);
+        if (n > 0) FirstByteMs ??= clock.ElapsedMilliseconds;
+        return n;
+    }
+
+    public override bool CanRead => true;
+    public override bool CanSeek => false;
+    public override bool CanWrite => false;
+    public override long Length => throw new NotSupportedException();
+    public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+    public override void Flush() { }
+    public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+    public override void SetLength(long value) => throw new NotSupportedException();
+    public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
 }
 
 internal static class SpeechProviderName

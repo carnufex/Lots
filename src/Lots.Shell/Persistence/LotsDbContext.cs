@@ -71,6 +71,7 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
             e.ToTable("voice_usage");
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.UserId, x.At });
+            e.HasIndex(x => x.ConversationId);
             e.Property(x => x.UserId).HasMaxLength(256).IsRequired();
             e.Property(x => x.Direction).HasMaxLength(8).IsRequired();
             e.Property(x => x.Language).HasMaxLength(8);
@@ -225,6 +226,10 @@ public sealed class VoiceUsageRecord
     public string? Provider { get; set; }
     public required string Outcome { get; set; }
     public Guid? RunId { get; set; }
+    /// <summary>The conversation a dictated turn or spoken answer belongs to (history and timing).</summary>
+    public Guid? ConversationId { get; set; }
+    /// <summary>Total time of the call. For speech output <see cref="LatencyMs"/> is only time to first audio.</summary>
+    public long? DurationMs { get; set; }
 }
 
 /// <summary>A user's own dictation vocabulary (names, products, jargon), one row per user. Words only; no audio, no secrets.</summary>
