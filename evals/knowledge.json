@@ -1,0 +1,22 @@
+[
+  { "id": "audio-retention", "question": "How long is conversation audio kept?", "expected": ["0014"], "facts": ["30"] },
+  { "id": "audio-retention-sv", "question": "Hur länge sparas ljudet från samtal?", "expected": ["0014"], "facts": ["30"] },
+  { "id": "license", "question": "Which license is Lots released under?", "expected": ["0010"], "facts": ["Apache"] },
+  { "id": "license-sv", "question": "Vilken licens har projektet?", "expected": ["0010"], "facts": ["Apache"] },
+  { "id": "policy-model", "question": "Can the model decide what it is allowed to do?", "expected": ["0003"] },
+  { "id": "deny-default", "question": "What happens to a tool that no role grants?", "expected": ["0003"] },
+  { "id": "delegated-async", "question": "How does delegated identity work when a run waits for an approval for hours?", "expected": ["0011"] },
+  { "id": "service-account", "question": "Why did backends start with a shared service account instead of the user's token?", "expected": ["0009"] },
+  { "id": "voice-authority", "question": "Can a spoken command approve a write tool call?", "expected": ["0013"] },
+  { "id": "voice-gpu", "question": "Where does speech recognition and synthesis run, locally or hosted?", "expected": ["0012", "Our voice stack"] },
+  { "id": "own-voice", "question": "Can a user record their own voice and who may use it?", "expected": ["0015"] },
+  { "id": "persona-sv", "question": "Kan man ställa in hur pratig och formell agenten är?", "expected": ["0015"] },
+  { "id": "config-code", "question": "Are profiles edited in the UI or managed as code?", "expected": ["0006"] },
+  { "id": "openshift", "question": "Which platforms must the deployment support, for example OpenShift?", "expected": ["0005"] },
+  { "id": "rag-store", "question": "Which vector store does knowledge search use and what if pgvector is missing?", "expected": ["0016"], "facts": ["pgvector"] },
+  { "id": "dev-model", "question": "Which model is the default for development?", "expected": ["0007"] },
+  { "id": "contracts", "question": "Which standard protocol is used for tools?", "expected": ["0002"], "facts": ["MCP"] },
+  { "id": "diarization", "question": "How are speakers separated in meeting transcripts?", "expected": ["Our voice stack", "VoiceStudio", "Voice spike"] },
+  { "id": "spike-latency", "question": "What latency did the voice spike measure end to end?", "expected": ["Voice spike"] },
+  { "id": "name", "question": "Why is the product called Lots?", "expected": ["0008"] }
+]

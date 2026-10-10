@@ -57,11 +57,19 @@ public static class EvalCli
         var file = Arg(args, "--file") ?? "evals/homelab.json";
         var reportPath = Arg(args, "--report") ?? "evals/report.md";
 
-        var cases = JsonSerializer.Deserialize<List<EvalCase>>(await File.ReadAllTextAsync(file), Json)
-                    ?? throw new InvalidOperationException("No eval cases found.");
         using var http = new HttpClient { BaseAddress = new Uri(url), Timeout = TimeSpan.FromSeconds(30) };
         var token = Arg(args, "--token") ?? Environment.GetEnvironmentVariable("LOTS_TOKEN");
         if (!string.IsNullOrEmpty(token)) http.DefaultRequestHeaders.Authorization = new("Bearer", token);
+        // Local dev stacks with Auth:Dev:AllowHeaders: run as a dedicated eval identity, never as a person's account.
+        if (Arg(args, "--dev-user") is { } devUser)
+        {
+            http.DefaultRequestHeaders.Add("X-Dev-User", devUser);
+            http.DefaultRequestHeaders.Add("X-Dev-Roles", Arg(args, "--dev-roles") ?? "operator");
+        }
+        if (Arg(args, "--mode") == "retrieval") return await RetrievalCli.RunAsync(http, args, name => Arg(args, name));
+
+        var cases = JsonSerializer.Deserialize<List<EvalCase>>(await File.ReadAllTextAsync(file), Json)
+                    ?? throw new InvalidOperationException("No eval cases found.");
 
         var results = new List<EvalResult>();
         foreach (var c in cases)
