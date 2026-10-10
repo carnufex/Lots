@@ -47,6 +47,11 @@ await page.getByRole('status').filter({ hasText: 'Saved' }).waitFor()
 ok(seen.put.length === 1 && seen.put[0].warmth === 80 && seen.put[0].talkativeness === 50, 'the new value is sent to the server')
 
 // Recording: Stop is locked until enough has been read; consent is required.
+await page.getByRole('radio', { name: /Lugn berättarröst/ }).click()
+ok((await page.getByLabel('Text to read').innerText()).includes('Dimman'), 'the calm Swedish text is shown')
+await page.getByLabel('Reading language').selectOption('en')
+ok((await page.getByLabel('Text to read').innerText()).startsWith('Hello, this is my voice'), 'switching language shows the English suggestions')
+await page.getByLabel('Reading language').selectOption('sv')
 await page.getByRole('button', { name: 'Record my voice' }).click()
 const stop = page.getByRole('button', { name: 'Stop' })
 await stop.waitFor()

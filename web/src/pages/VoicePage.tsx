@@ -2,15 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, type Api, type UserSettings, type VoiceLanguage } from '../api'
 import type { VoiceConfig } from '../config'
 import { initialLanguage } from '../voice/language'
+import { PASSAGES } from '../voice/passages'
 import VocabularyEditor from '../components/VocabularyEditor'
 
 const MIN_SECONDS = 8
 const MAX_SECONDS = 30
-
-const SCRIPT: Record<'sv' | 'en', string> = {
-  sv: 'Hej, det här är min röst. Jag pratar lugnt och tydligt, som om jag berättade något för en kollega. Idag har jag tittat på servrarna, läst lite loggar och druckit för mycket kaffe. Nu ska vi se om allt fungerar som det ska.',
-  en: 'Hello, this is my voice. I am speaking calmly and clearly, as if I were telling a colleague something. Today I looked at the servers, read some logs and drank too much coffee. Now let us see whether everything works as it should.',
-}
 
 type Slider = { key: keyof Pick<UserSettings, 'talkativeness' | 'warmth' | 'formality' | 'expressiveness' | 'pace'>; label: string; low: string; high: string }
 
@@ -178,6 +174,7 @@ function OwnVoice({
 }) {
   const [phase, setPhase] = useState<Phase>('idle')
   const [language, setLanguage] = useState<Exclude<VoiceLanguage, 'auto'>>('sv')
+  const [passageIndex, setPassageIndex] = useState(0)
   const [seconds, setSeconds] = useState(0)
   const [level, setLevel] = useState(0)
   const [clip, setClip] = useState<Blob | null>(null)
@@ -311,7 +308,14 @@ function OwnVoice({
 
       {phase === 'idle' && (
         <div className="row">
-          <select aria-label="Reading language" value={language} onChange={(e) => setLanguage(e.target.value as 'sv' | 'en')}>
+          <select
+            aria-label="Reading language"
+            value={language}
+            onChange={(e) => {
+              setLanguage(e.target.value as 'sv' | 'en')
+              setPassageIndex(0)
+            }}
+          >
             <option value="sv">Read in Swedish</option>
             <option value="en">Read in English</option>
           </select>
@@ -321,11 +325,33 @@ function OwnVoice({
         </div>
       )}
 
-      {phase !== 'idle' && (
-        <blockquote className="script" aria-label="Text to read">
-          {SCRIPT[language]}
-        </blockquote>
+      {phase === 'idle' && (
+        <p className="muted small">
+          Not sure what to say? Pick a text below: each one is written to give the voice something different to learn from. Read it
+          naturally, as if telling a person. Reading two different texts gives the best result.
+        </p>
       )}
+
+      <div className="passagepicker" role="radiogroup" aria-label="Suggested texts">
+        {PASSAGES[language].map((p, i) => (
+          <button
+            key={p.id}
+            type="button"
+            role="radio"
+            aria-checked={i === passageIndex}
+            className={`passagechoice ${i === passageIndex ? 'on' : ''}`}
+            disabled={phase === 'recording'}
+            onClick={() => setPassageIndex(i)}
+          >
+            <span className="passagetitle">{p.title}</span>
+            <span className="muted small">{p.covers}</span>
+          </button>
+        ))}
+      </div>
+
+      <blockquote className="script" aria-label="Text to read">
+        {PASSAGES[language][passageIndex].text}
+      </blockquote>
 
       {phase === 'recording' && (
         <div className="row">

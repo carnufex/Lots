@@ -875,3 +875,33 @@ input.wide {
   width: 100%;
   min-width: 0;
 }
+
+.passagepicker {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 8px;
+  margin: 10px 0;
+}
+.passagechoice {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  padding: 8px 12px;
+  border: 1px solid rgba(127, 127, 127, 0.35);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.passagechoice.on {
+  border-color: var(--accent);
+  background: rgba(127, 127, 127, 0.1);
+}
+.passagechoice:disabled:not(.on) {
+  opacity: 0.5;
+  cursor: default;
+}
+.passagetitle {
+  font-weight: 600;
+}
