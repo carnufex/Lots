@@ -1438,6 +1438,34 @@
         ]
       }
     },
+    "/me/capabilities": {
+      "get": {
+        "tags": [
+          "Me"
+        ],
+        "operationId": "LotsShellFeaturesMeCapabilitiesEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapabilitiesDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/me/memories": {
       "get": {
         "tags": [
@@ -6191,6 +6219,39 @@
           },
           "model": {
             "type": "string"
+          }
+        }
+      },
+      "CapabilitiesDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "pages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "contexts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "admin": {
+            "type": "boolean"
+          },
+          "audit": {
+            "type": "boolean"
+          },
+          "reviewer": {
+            "type": "boolean"
+          },
+          "insights": {
+            "type": "boolean"
+          },
+          "approve": {
+            "type": "boolean"
           }
         }
       },

@@ -62,7 +62,7 @@ runs, recomputes a row when its feedback changes, and recomputes recent runs who
 
 It holds no prompt or answer, and the user only as `lots.user.hash`.
 
-`GET /insights/outcomes?from=&to=&profile=&model=&channel=&status=&problem=&limit=` (roles in `Auth:AuditRoles`) returns:
+`GET /insights/outcomes?from=&to=&profile=&model=&channel=&status=&problem=&limit=` (roles in `Insights:Roles`, default admin, auditor, self-improve) returns:
 
 - success rate and p50/p95 wall time per profile version, model and channel;
 - calls and error rate per tool;

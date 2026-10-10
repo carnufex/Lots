@@ -187,3 +187,21 @@ Logs are deployment-wide: `Privacy:RedactLogs` (for example `Privacy__RedactLogs
 - **Erasure is verified**: deleting a voice (by the user, an admin, or with "delete my data") asks the voice service afterwards
   whether the clip still exists (`GET /v1/voices/{id}`); if it does, nothing is deleted and the user is told to retry.
 - **Conversation audio** is purged after `Speech:AudioRetentionDays` (30) by the retention job (ADR 0014).
+
+## Who sees which pages (#157)
+
+`GET /me/capabilities` lists the pages and contexts the caller may use, computed with the same checks the endpoints make. The web UI
+builds its menu from it, and a direct link to a page without access shows an explanation. Hiding is only UX: every endpoint authorises
+each request itself. A test checks, for every page and role set, that the menu matches the endpoint.
+
+| Area | Roles (configuration key, default) |
+|---|---|
+| Chat, History, Runs, Usage, Voice, Knowledge, Integrations | every signed-in user; admin-only tabs inside check their own rights |
+| Approvals | roles with `approve:` in a profile, or admins |
+| Audit | `Auth:AuditRoles` (admin, auditor) |
+| Models, Profiles, Policy, Identity | `Auth:AdminRoles` (admin) |
+| Feedback (review queue) | `Feedback:ReviewRoles` (admin) |
+| Insights | `Insights:Roles` (admin, auditor, self-improve) |
+
+Contexts are the profiles in which one of the caller's roles grants something.
+

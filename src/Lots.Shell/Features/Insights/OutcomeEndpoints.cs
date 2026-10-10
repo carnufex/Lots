@@ -34,7 +34,7 @@ public sealed record OutcomeReport(DateTimeOffset From, DateTimeOffset To, Outco
 
 /// <summary>
 /// Run outcomes and their aggregates (#141): success rate and p50/p95 wall time per profile version, model, channel and tool.
-/// The same readers as the audit log (<c>Auth:AuditRoles</c>, default admin, auditor). No content: outcomes hold none.
+/// For the roles in <c>Insights:Roles</c> (default admin, auditor, self-improve), like the rest of Insights. No content: outcomes hold none.
 /// </summary>
 public sealed class OutcomesEndpoint(LotsDbContext db, ICurrentPrincipal who, IConfiguration config, TimeProvider clock) : Endpoint<OutcomeQuery, OutcomeReport>
 {
@@ -42,8 +42,7 @@ public sealed class OutcomesEndpoint(LotsDbContext db, ICurrentPrincipal who, IC
 
     public override async Task HandleAsync(OutcomeQuery q, CancellationToken ct)
     {
-        var roles = (config["Auth:AuditRoles"] ?? "admin,auditor").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (!who.Get(HttpContext).Roles.Any(r => roles.Contains(r, StringComparer.OrdinalIgnoreCase)))
+        if (!InsightsAccess.Allowed(who.Get(HttpContext), config))
         {
             await Send.ForbiddenAsync(ct);
             return;

@@ -683,4 +683,7 @@ export const sv: Record<string, string> = {
   "Diff": "Diff",
   "Open pull request": "Öppna pull request",
   "Check the effect": "Kontrollera effekten",
+  "You do not have access to this page": "Du har inte åtkomst till den här sidan",
+  "Your roles do not include it. Ask an administrator if you need it.": "Dina roller omfattar den inte. Fråga en administratör om du behöver den.",
+  "Back to Chat": "Tillbaka till chatten",
 }

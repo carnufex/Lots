@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { createApi, type Api } from './api'
+import { createApi, type Api, type Capabilities } from './api'
 import { createAuth, readDevIdentity, writeDevIdentity, type Auth, type Session } from './auth'
 import { loadConfig, type ClientConfig } from './config'
 import RunsPage from './pages/RunsPage'
@@ -27,6 +27,15 @@ import { saveLanguage } from './voice/language'
 type Route = { name: 'chat'; id?: string } | { name: 'runs' } | { name: 'run'; id: string } | { name: 'approvals' } | { name: 'audit' } | { name: 'voice' } | { name: 'knowledge' } | { name: 'profiles' } | { name: 'policy' } | { name: 'models' } | { name: 'identity' } | { name: 'usage' } | { name: 'feedback' } | { name: 'insights' } | { name: 'history'; id?: string } | { name: 'integrations'; tab: IntegrationTab } | { name: 'planned'; slug: string }
 
 type NavItem = { href: string; label: string; icon: IconName; active: (r: Route) => boolean }
+
+/** The capability page a route belongs to (#157): what /me/capabilities lists. */
+function pageOf(r: Route): string {
+  if (r.name === 'run') return 'runs'
+  if (r.name === 'planned') return r.slug
+  return r.name
+}
+
+const pageOfHref = (href: string) => href.replace(/^#\//, '').split('/')[0]
 
 const nav = (name: 'runs' | 'approvals' | 'audit', label: string, icon: IconName): NavItem => ({
   href: `#/${name}`,
@@ -134,6 +143,13 @@ export default function App() {
 function Shell({ config, auth, session }: { config: ClientConfig; auth: Auth; session: Session }) {
   const route = useHashRoute()
   const api: Api = useMemo(() => createApi(auth), [auth])
+  // Permission-aware navigation (#157): only what the caller may use. Hiding is UX; every endpoint checks for itself.
+  const [caps, setCaps] = useState<Capabilities | null>(null)
+  useEffect(() => {
+    api.capabilities().then(setCaps).catch(() => setCaps(null))
+  }, [api, session.user, session.roles.join(',')])
+  const may = (page: string) => caps === null ? Capabilities_EVERYONE.includes(page) : caps.pages.includes(page)
+  const nav = NAV.map((g) => ({ ...g, items: g.items.filter((n) => may(pageOfHref(n.href))) })).filter((g) => g.items.length > 0)
   // Phones (#113): the navigation folds into a menu; it closes when a page is chosen.
   const [menu, setMenu] = useState(false)
   useEffect(() => {
@@ -155,7 +171,7 @@ function Shell({ config, auth, session }: { config: ClientConfig; auth: Auth; se
           </button>
         </div>
         <nav id="mainnav" aria-label={t('Main')} className={menu ? 'open' : undefined}>
-          {NAV.map((g) => (
+          {nav.map((g) => (
             <div key={g.title} className="navgroup">
               <div className="navtitle">{t(g.title)}</div>
               {g.items.map((n) => (
@@ -188,6 +204,7 @@ function Shell({ config, auth, session }: { config: ClientConfig; auth: Auth; se
           </div>
         </header>
         <main id="main" tabIndex={-1}>
+          {caps !== null && !may(pageOf(route)) ? <NoAccess /> : <>
           {route.name === 'chat' && <ChatPage key={route.id ?? 'new'} api={api} profiles={config.profiles} id={route.id} />}
           {route.name === 'runs' && <RunsPage api={api} profiles={config.profiles} voice={config.voice} />}
           {route.name === 'run' && <RunPage api={api} id={route.id} voice={config.voice} traceUrl={config.traceUrl} />}
@@ -205,6 +222,7 @@ function Shell({ config, auth, session }: { config: ClientConfig; auth: Auth; se
           {route.name === 'feedback' && <FeedbackPage api={api} />}
           {route.name === 'insights' && <InsightsPage api={api} traceUrl={config.traceUrl} />}
           {route.name === 'planned' && <PlaceholderPage item={PLANNED.find((p) => p.slug === route.slug)!} />}
+          </>}
         </main>
       </div>
     </div>
@@ -269,4 +287,18 @@ function Brand({ large = false }: { large?: boolean }) {
 
 function Centered({ children }: { children: React.ReactNode }) {
   return <div className="centered">{children}</div>
+}
+
+/** Pages everyone has, shown while capabilities are loading so the menu does not flash admin entries. */
+const Capabilities_EVERYONE = ['chat', 'history', 'runs', 'usage', 'voice', 'knowledge', 'integrations', 'transcription']
+
+/** A page the caller may not use (#157): explained, not a broken page or a raw 403. */
+function NoAccess() {
+  return (
+    <section className="placeholder">
+      <h1>{t('You do not have access to this page')}</h1>
+      <p className="muted">{t('Your roles do not include it. Ask an administrator if you need it.')}</p>
+      <p><a href="#/chat">{t('Back to Chat')}</a></p>
+    </section>
+  )
 }

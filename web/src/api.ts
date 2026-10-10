@@ -341,6 +341,17 @@ export interface FeedbackItem {
   case: FeedbackCase | null
 }
 
+/** What the caller may use (#157): pages of the UI and the contexts (profiles) they can use. */
+export interface Capabilities {
+  pages: string[]
+  contexts: string[]
+  admin: boolean
+  audit: boolean
+  reviewer: boolean
+  insights: boolean
+  approve: boolean
+}
+
 /** Insights (#141, #143, #144, #146). */
 export interface OutcomeGroup {
   key: string
@@ -570,6 +581,7 @@ export function createApi(auth: Auth) {
     openPullRequest: (id: string) => request<Proposal>(`/insights/proposals/${id}/pr`, { method: 'POST', body: '{}' }),
     rejectProposal: (id: string, note?: string) => request<Proposal>(`/insights/proposals/${id}/reject`, { method: 'POST', body: JSON.stringify({ note: note || null }) }),
     followUp: (id: string) => request<FollowUp>(`/insights/proposals/${id}/follow-up`),
+    capabilities: () => request<Capabilities>('/me/capabilities'),
     listApprovals: () => request<Approval[]>('/approvals'),
     decide: (id: string, outcome: 'approve' | 'deny', comment: string) =>
       request<Approval>(`/approvals/${id}/${outcome}`, { method: 'POST', body: JSON.stringify({ comment: comment || null }) }),
