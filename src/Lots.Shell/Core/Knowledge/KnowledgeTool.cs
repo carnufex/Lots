@@ -64,8 +64,12 @@ public sealed class KnowledgeToolSource(IKnowledgeStore store, IEmbeddingModel e
 
     public static async Task<List<KnowledgeHit>> SearchAsync(IKnowledgeStore store, IEmbeddingModel embeddings, string query, string[] readers, int k, string? source, CancellationToken ct)
     {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         var vector = (await embeddings.EmbedAsync([query], ct)).Vectors[0];
-        return await store.SearchAsync(query, vector, embeddings.Model, readers, k, source, ct);
+        var hits = await store.SearchAsync(query, vector, embeddings.Model, readers, k, source, ct);
+        Telemetry.LotsMetrics.KnowledgeSearches.Add(1, new KeyValuePair<string, object?>("found", hits.Count > 0));
+        Telemetry.LotsMetrics.KnowledgeLatency.Record(sw.Elapsed.TotalSeconds);
+        return hits;
     }
 
     /// <summary>The tool result: numbered passages with everything needed to cite them. Labelled as untrusted data.</summary>

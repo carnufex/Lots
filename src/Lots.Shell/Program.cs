@@ -8,6 +8,7 @@ using Lots.Shell.Core.Runs;
 using Lots.Shell.Core.Speech;
 using Lots.Shell.Core.Tools;
 using OpenTelemetry.Resources;
+using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using FastEndpoints;
 using Lots.Shell.Persistence;
@@ -69,7 +70,16 @@ builder.Services.AddOpenTelemetry()
         t.AddSource(AgentRunner.Telemetry.Name).AddAspNetCoreInstrumentation();
         if (!string.IsNullOrEmpty(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]))
             t.AddOtlpExporter();
+    })
+    .WithMetrics(m =>
+    {
+        // #75: /metrics for Prometheus; OTLP as well when an endpoint is configured.
+        m.AddMeter(Lots.Shell.Core.Telemetry.LotsMetrics.MeterName).AddAspNetCoreInstrumentation().AddRuntimeInstrumentation().AddPrometheusExporter();
+        if (!string.IsNullOrEmpty(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]))
+            m.AddOtlpExporter();
     });
+builder.Services.AddSingleton<Lots.Shell.Core.Telemetry.QueueGauges>();
+builder.Services.AddHostedService<Lots.Shell.Core.Telemetry.QueueGaugeWorker>();
 
 var app = builder.Build();
 
@@ -105,6 +115,12 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseMiddleware<Lots.Shell.Core.Notifications.UserDirectoryMiddleware>(); // e-mail and roles from the login, for approval routing (#136)
 app.UseFastEndpoints();
+// Metrics carry no user identities; restrict who can reach /metrics with a network policy (the chart's ServiceMonitor scrapes in-cluster).
+if (app.Configuration.GetValue("Metrics:Enabled", true))
+{
+    Lots.Shell.Core.Telemetry.LotsMetrics.RegisterGauges(app.Services.GetRequiredService<Lots.Shell.Core.Telemetry.QueueGauges>());
+    app.MapPrometheusScrapingEndpoint("/metrics").AllowAnonymous();
+}
 app.Run();
 
 public partial class Program;

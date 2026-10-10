@@ -4,6 +4,7 @@ using Lots.Shell.Core.Mcp;
 using Lots.Shell.Core.Models;
 using Lots.Shell.Core.Policy;
 using Lots.Shell.Core.Profiles;
+using Lots.Shell.Core.Telemetry;
 using Lots.Shell.Core.Tools;
 using Lots.Shell.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -171,8 +172,22 @@ public sealed class AgentRunner(
                 activity?.SetTag("gen_ai.operation.name", "chat");
                 activity?.SetTag("gen_ai.request.model", modelName);
                 activity?.SetTag("lots.run.id", run.Id.ToString());
-                var response = await model.CompleteAsync(FitToBudget(ToMessages(run)), definitions, callOptions, ct);
+                ModelResponse response;
+                try
+                {
+                    response = await model.CompleteAsync(FitToBudget(ToMessages(run)), definitions, callOptions, ct);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    LotsMetrics.ModelCalls.Add(1, new("model", modelName), new("endpoint", ""), new("outcome", "error"));
+                    throw;
+                }
                 activity?.SetTag("gen_ai.response.model", response.Model);
+                var modelTags = new TagList { { "model", response.Model ?? modelName }, { "endpoint", response.Endpoint ?? "" } };
+                LotsMetrics.ModelCalls.Add(1, new("model", response.Model ?? modelName), new("endpoint", response.Endpoint ?? ""), new("outcome", "ok"));
+                LotsMetrics.ModelLatency.Record(response.Latency.TotalSeconds, modelTags);
+                LotsMetrics.ModelTokens.Add(response.Usage.PromptTokens, new("model", response.Model ?? modelName), new("kind", "prompt"));
+                LotsMetrics.ModelTokens.Add(response.Usage.CompletionTokens, new("model", response.Model ?? modelName), new("kind", "completion"));
                 activity?.SetTag("gen_ai.usage.input_tokens", response.Usage.PromptTokens);
                 activity?.SetTag("gen_ai.usage.output_tokens", response.Usage.CompletionTokens);
                 modelCalls++;
@@ -211,6 +226,8 @@ public sealed class AgentRunner(
         // A finished run no longer needs the user's login token.
         if (run.Status is RunStatus.Completed or RunStatus.Failed)
         {
+            LotsMetrics.RunsFinished.Add(1, new("profile", run.Profile), new("status", run.Status.ToString()), new("voice", run.Voice));
+            LotsMetrics.RunDuration.Record((clock.GetUtcNow() - run.CreatedAt).TotalSeconds, new("profile", run.Profile), new("status", run.Status.ToString()));
             run.SubjectTokenProtected = null;
             run.SubjectTokenExpiresAt = null;
         }
@@ -294,6 +311,7 @@ public sealed class AgentRunner(
                         Risk = risk.ToString(), RequiredApprovals = rules.RequiredApprovals(risk), ExpiresAt = now.AddHours(rules.ExpireAfterHours),
                     };
                     db.Approvals.Add(request);
+                    LotsMetrics.Approvals.Add(1, new("event", "requested"), new("risk", request.Risk));
                     Notifications.Outbox.Add(db, Notifications.NotificationEvents.ApprovalRequested, new
                     {
                         approvalId = request.Id, runId = run.Id, tool = call.Name, risk = request.Risk, profile = run.Profile,
@@ -334,8 +352,10 @@ public sealed class AgentRunner(
             }
             sw.Stop();
             var backendAuth = audit == AuditDecision.Allowed ? await tools.AuthStrategyAsync(call.Name, run.Profile, ct) : null;
-            Audit(run, principal, call, audit, policy.Reason, approver,
-                audit == AuditDecision.Allowed ? (result.StartsWith("Error:", StringComparison.Ordinal) ? "error" : "ok") : null, backendAuth);
+            var outcome = audit == AuditDecision.Allowed ? (result.StartsWith("Error:", StringComparison.Ordinal) ? "error" : "ok") : null;
+            Audit(run, principal, call, audit, policy.Reason, approver, outcome, backendAuth);
+            LotsMetrics.ToolCalls.Add(1, new("tool", call.Name), new("decision", audit.ToString()), new("result", outcome ?? "not-run"));
+            if (outcome is not null) LotsMetrics.ToolLatency.Record(sw.Elapsed.TotalSeconds, new KeyValuePair<string, object?>("tool", call.Name));
             Add(run, new ChatMessage("tool", result, ToolCallId: call.Id));
             run.Steps.Add(new RunStepRecord
             {

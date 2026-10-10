@@ -50,6 +50,7 @@ public sealed class StartRunEndpoint(LotsDbContext db, TimeProvider clock, Profi
             req.Prompt, req.Voice, req.ConversationId);
         db.Runs.Add(run);
         await db.SaveChangesAsync(ct);
+        Lots.Shell.Core.Telemetry.LotsMetrics.RunsStarted.Add(1, new("profile", run.Profile), new("voice", run.Voice));
         await Send.ResponseAsync(new StartRunResponse(run.Id, run.Status.ToString()), 202, ct);
     }
 }

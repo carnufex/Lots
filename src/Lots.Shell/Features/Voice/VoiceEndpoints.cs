@@ -97,6 +97,8 @@ public sealed class TranscribeEndpoint(
             DurationMs = sw.ElapsedMilliseconds,
         });
         await db.SaveChangesAsync(CancellationToken.None);
+        Lots.Shell.Core.Telemetry.LotsMetrics.SpeechRequests.Add(1, new("direction", direction.ToLowerInvariant()), new("outcome", outcome));
+        if (outcome == "ok") Lots.Shell.Core.Telemetry.LotsMetrics.SpeechLatency.Record(sw.Elapsed.TotalSeconds, new KeyValuePair<string, object?>("direction", direction.ToLowerInvariant()));
     }
 }
 
@@ -163,6 +165,8 @@ public sealed class SpeakRunEndpoint(
             usage.LatencyMs = timed.FirstByteMs ?? firstAudioMs; // time to the first audio bytes (the response headers come earlier)
             usage.DurationMs = sw.ElapsedMilliseconds; // the whole synthesis, now that the body has been streamed
             await db.SaveChangesAsync(CancellationToken.None);
+            Lots.Shell.Core.Telemetry.LotsMetrics.SpeechRequests.Add(1, new("direction", "tts"), new("outcome", "ok"));
+            Lots.Shell.Core.Telemetry.LotsMetrics.SpeechLatency.Record(usage.LatencyMs / 1000.0, new KeyValuePair<string, object?>("direction", "tts"));
         }
         catch (SpeechUnavailableException)
         {
@@ -173,6 +177,7 @@ public sealed class SpeakRunEndpoint(
                 Characters = text.Length, LatencyMs = sw.ElapsedMilliseconds, Provider = SpeechProviderName.Of(o), Outcome = "error", RunId = run.Id, ConversationId = run.ConversationId,
             });
             await db.SaveChangesAsync(CancellationToken.None);
+            Lots.Shell.Core.Telemetry.LotsMetrics.SpeechRequests.Add(1, new("direction", "tts"), new("outcome", "error"));
             AddError("Voice is unavailable right now.");
             await Send.ErrorsAsync(503, ct);
         }

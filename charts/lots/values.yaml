@@ -75,6 +75,14 @@ extraSecretEnv: []
 dataProtection:
   existingClaim: ""
 
+# Metrics (#75) at /metrics: a ServiceMonitor for the Prometheus Operator and the Grafana dashboard as a sidecar ConfigMap.
+metrics:
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    labels: {}            # e.g. release: kube-prometheus-stack
+  grafanaDashboard: false
+
 # Optional OTLP endpoint for GenAI traces.
 otlpEndpoint: ""
 

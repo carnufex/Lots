@@ -119,6 +119,7 @@ public abstract class DecideEndpoint(LotsDbContext db, ProfileRegistry profiles,
         approval.ApprovedBy = string.Join(',', approvers);
         if (complete)
         {
+            Lots.Shell.Core.Telemetry.LotsMetrics.Approvals.Add(1, new("event", outcome == ApprovalStatus.Approved ? "approved" : "denied"), new("risk", approval.Risk));
             approval.Status = outcome;
             approval.DecidedBy = string.Join(", ", outcome == ApprovalStatus.Approved ? approvers : [me.UserId]);
             approval.DecidedAt = now;
