@@ -350,6 +350,19 @@ export interface Capabilities {
   reviewer: boolean
   insights: boolean
   approve: boolean
+  /** Set while viewing as other roles (#156). */
+  preview: { roles: string[]; realRoles: string[]; expires: string; allowWrites: boolean } | null
+  canPreview: boolean
+  roles: string[]
+  knownRoles: string[] | null
+}
+
+export interface StartedPreview {
+  token: string
+  roles: string[]
+  expires: string
+  allowWrites: boolean
+  header: string
 }
 
 /** Insights (#141, #143, #144, #146). */
@@ -582,6 +595,8 @@ export function createApi(auth: Auth) {
     rejectProposal: (id: string, note?: string) => request<Proposal>(`/insights/proposals/${id}/reject`, { method: 'POST', body: JSON.stringify({ note: note || null }) }),
     followUp: (id: string) => request<FollowUp>(`/insights/proposals/${id}/follow-up`),
     capabilities: () => request<Capabilities>('/me/capabilities'),
+    startPreview: (roles: string[], minutes: number, allowWrites: boolean) =>
+      request<StartedPreview>('/me/preview', { method: 'POST', body: JSON.stringify({ roles, minutes, allowWrites }) }),
     listApprovals: () => request<Approval[]>('/approvals'),
     decide: (id: string, outcome: 'approve' | 'deny', comment: string) =>
       request<Approval>(`/approvals/${id}/${outcome}`, { method: 'POST', body: JSON.stringify({ comment: comment || null }) }),

@@ -11,7 +11,7 @@ public sealed record AuditQuery(string? User = null, DateTimeOffset? From = null
 public sealed record AuditDto(
     Guid Id, DateTimeOffset At, string User, string Roles, string Profile, int ProfileVersion, Guid RunId,
     string Tool, string? Arguments, string Decision, string Reason, string? Approver, string? Result, string? BackendAuth,
-    long? Seq = null, string? Hash = null);
+    long? Seq = null, string? Hash = null, string? Preview = null);
 
 internal static class AuditFilter
 {
@@ -35,7 +35,7 @@ internal static class AuditFilter
 
     public static AuditDto ToDto(AuditRecord a) => new(
         a.Id, a.At, a.UserId, a.Roles, a.Profile, a.ProfileVersion, a.RunId, a.Tool, a.ArgumentsJson,
-        a.Decision.ToString(), a.Reason, a.ApproverId, a.ResultStatus, a.BackendAuth, a.Seq, a.Hash);
+        a.Decision.ToString(), a.Reason, a.ApproverId, a.ResultStatus, a.BackendAuth, a.Seq, a.Hash, a.Preview);
 }
 
 /// <summary>
@@ -81,13 +81,13 @@ public sealed class ExportAuditEndpoint(LotsDbContext db, ICurrentPrincipal who,
         HttpContext.Response.ContentType = json ? "application/x-ndjson" : "text/csv; charset=utf-8";
         HttpContext.Response.Headers.ContentDisposition = $"attachment; filename=\"lots-audit.{(json ? "jsonl" : "csv")}\"";
         await using var writer = new StreamWriter(HttpContext.Response.Body, new System.Text.UTF8Encoding(false));
-        if (!json) await writer.WriteLineAsync("seq,at,user,roles,profile,profile_version,run_id,tool,decision,reason,approver,result,backend_auth,arguments,hash");
+        if (!json) await writer.WriteLineAsync("seq,at,user,roles,profile,profile_version,run_id,tool,decision,reason,approver,result,backend_auth,arguments,hash,preview");
         var options = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
         await foreach (var a in AuditFilter.Apply(db.AuditLog.AsNoTracking(), req).OrderBy(a => a.At).AsAsyncEnumerable().WithCancellation(ct))
         {
             if (json) await writer.WriteLineAsync(System.Text.Json.JsonSerializer.Serialize(AuditFilter.ToDto(a), options));
             else await writer.WriteLineAsync(string.Join(',', new object?[] { a.Seq, a.At.ToString("O"), a.UserId, a.Roles, a.Profile, a.ProfileVersion, a.RunId, a.Tool,
-                a.Decision, a.Reason, a.ApproverId, a.ResultStatus, a.BackendAuth, a.ArgumentsJson, a.Hash }.Select(Csv)));
+                a.Decision, a.Reason, a.ApproverId, a.ResultStatus, a.BackendAuth, a.ArgumentsJson, a.Hash, a.Preview }.Select(Csv)));
         }
         await writer.FlushAsync(ct);
     }

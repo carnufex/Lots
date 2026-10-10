@@ -127,6 +127,7 @@ public static class RunFactory
         {
             Id = Guid.NewGuid(), Prompt = prompt, Profile = profile.Name, Voice = voice, ConversationId = conversationId, RetryOf = retryOf,
             UserId = me.UserId, Roles = string.Join(',', me.Roles), CreatedAt = now, UpdatedAt = now,
+            PreviewRealRoles = me.Preview is { } p ? string.Join(',', p.RealRoles) : null, PreviewAllowWrites = me.Preview?.AllowWrites ?? false,
         };
         // Only runs whose profile uses delegated servers keep the user's login token (encrypted), and only until the
         // run ends. It is exchanged per call for a backend-scoped token and never sent to a backend itself.

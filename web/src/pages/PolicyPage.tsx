@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ApiError, type Api } from '../api'
-import { adminApi, type ProfilePolicy, type Simulation } from '../adminApi'
+import { adminApi, type PolicyMatrix, type ProfilePolicy, type Simulation } from '../adminApi'
 import { t } from '../i18n'
 
 const RISKS = ['Read', 'Write', 'Destructive']
@@ -23,6 +23,7 @@ export default function PolicyPage({ api }: { api: Api }) {
       <p className="muted small">{t('Evaluated outside the model on every tool call. Deny by default: a tool is callable only if its profile declares it and a role grants its risk class.')}</p>
       {error && <p className="error">{error}</p>}
       {policy && <Simulator api={api} policy={policy} />}
+      {policy && policy.length > 0 && <Matrix api={api} policy={policy} />}
       {policy?.map((p) => (
         <div key={p.profile} className="card">
           <h2 className="section-title">
@@ -129,6 +130,68 @@ function Simulator({ api, policy }: { api: Api; policy: ProfilePolicy[] }) {
             · approvers: {result.approverRoles.join(', ') || 'none'} · these roles see: {result.visibleTools.join(', ') || 'no tools'}
           </span>
         </p>
+      )}
+    </div>
+  )
+}
+
+const CELL: Record<string, { cls: string; label: string }> = {
+  Allow: { cls: 'Allowed', label: 'allowed' },
+  RequireApproval: { cls: 'ApprovalRequested', label: 'with approval' },
+  Deny: { cls: 'Denied', label: 'denied' },
+}
+
+/** Roles × tools (#156): the policy engine's own decision for each cell, the reason on hover. */
+function Matrix({ api, policy }: { api: Api; policy: ProfilePolicy[] }) {
+  const admin = useMemo(() => adminApi(api), [api])
+  const [profile, setProfile] = useState(policy[0].profile)
+  const [m, setM] = useState<PolicyMatrix | null>(null)
+  useEffect(() => {
+
+    admin.matrix(profile).then(setM).catch(() => setM(null))
+  }, [admin, profile])
+  return (
+    <div className="card">
+      <h2 className="section-title">{t('Who may call what')}</h2>
+      <label className="small">
+        {t('Profile')}{' '}
+        <select value={profile} onChange={(e) => setProfile(e.target.value)}>
+          {policy.map((p) => (
+            <option key={p.profile}>{p.profile}</option>
+          ))}
+        </select>
+      </label>
+      {m && (
+        <div className="table-scroll">
+          <table className="matrix">
+            <thead>
+              <tr>
+                <th>{t('Tool')}</th>
+                {m.roles.map((r) => (
+                  <th key={r}>{r}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {m.tools.map((tool) => (
+                <tr key={tool.name}>
+                  <td>
+                    <span className="mono">{tool.name}</span> <span className="muted small">{tool.risk}</span>
+                  </td>
+                  {m.roles.map((r) => {
+                    const c = m.cells[r][tool.name]
+                    const look = CELL[c.decision]
+                    return (
+                      <td key={r} title={c.reason}>
+                        <span className={`decision ${look.cls}`}>{t(look.label)}</span>
+                      </td>
+                    )
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   )

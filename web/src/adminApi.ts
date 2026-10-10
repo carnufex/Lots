@@ -103,6 +103,14 @@ export interface UserInfo {
   personalSources: number
 }
 
+/** Roles × tools for one profile (#156): each cell is the policy engine's decision for a user with only that role. */
+export interface PolicyMatrix {
+  profile: string
+  roles: string[]
+  tools: { name: string; risk: string }[]
+  cells: Record<string, Record<string, { decision: 'Allow' | 'Deny' | 'RequireApproval'; reason: string }>>
+}
+
 /** Admin endpoints (#66, #68-#73); uses the app's authenticated request helper. */
 export function adminApi(api: Api) {
   const r = api.raw
@@ -117,6 +125,7 @@ export function adminApi(api: Api) {
     policy: () => r<ProfilePolicy[]>('/admin/v1/policy'),
     simulate: (profile: string, roles: string[], tool: string) =>
       r<Simulation>('/admin/v1/policy/simulate', { method: 'POST', body: JSON.stringify({ profile, roles, tool }) }),
+    matrix: (profile: string) => r<PolicyMatrix>(`/admin/v1/policy/matrix?profile=${encodeURIComponent(profile)}`),
     models: () => r<ModelsInfo>('/models'),
     identity: () => r<IdentityInfo>('/admin/v1/identity'),
     testMapping: (token: string) => r<MappingTest>('/admin/v1/identity/test', { method: 'POST', body: JSON.stringify({ token }) }),

@@ -1466,6 +1466,47 @@
         ]
       }
     },
+    "/me/preview": {
+      "post": {
+        "tags": [
+          "Me"
+        ],
+        "operationId": "LotsShellFeaturesMeStartPreviewEndpoint",
+        "requestBody": {
+          "x-name": "StartPreviewRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartPreviewRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviewDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/me/memories": {
       "get": {
         "tags": [
@@ -5021,6 +5062,34 @@
           }
         ]
       }
+    },
+    "/admin/v1/policy/matrix": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "LotsShellFeaturesAdminPolicyMatrixEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyMatrix"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -6251,6 +6320,100 @@
             "type": "boolean"
           },
           "approve": {
+            "type": "boolean"
+          },
+          "preview": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PreviewState"
+              }
+            ]
+          },
+          "canPreview": {
+            "type": "boolean"
+          },
+          "roles": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "knownRoles": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "PreviewState": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "realRoles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "expires": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "allowWrites": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PreviewDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "expires": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "allowWrites": {
+            "type": "boolean"
+          },
+          "header": {
+            "type": "string"
+          }
+        }
+      },
+      "StartPreviewRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "minutes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "allowWrites": {
             "type": "boolean"
           }
         }
@@ -8209,6 +8372,13 @@
           "traceUrl": {
             "type": "string",
             "nullable": true
+          },
+          "devRoles": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -8383,6 +8553,10 @@
             "nullable": true
           },
           "hash": {
+            "type": "string",
+            "nullable": true
+          },
+          "preview": {
             "type": "string",
             "nullable": true
           }
@@ -9151,6 +9325,48 @@
           1,
           2
         ]
+      },
+      "PolicyMatrix": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "profile": {
+            "type": "string"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ToolRiskDto"
+            }
+          },
+          "cells": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/components/schemas/MatrixCell"
+              }
+            }
+          }
+        }
+      },
+      "MatrixCell": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "decision": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
       }
     },
     "securitySchemes": {

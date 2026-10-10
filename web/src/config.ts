@@ -26,6 +26,8 @@ export interface ClientConfig {
   voice: VoiceConfig
   /** Link template to a trace in the tracing UI, with {traceId}; null = no link (#76). */
   traceUrl: string | null
+  /** Dev mode only: every role the deployment checks, for the identity picker (#156). */
+  devRoles?: string[] | null
 }
 
 /** Public runtime configuration served by the shell (no secrets). */

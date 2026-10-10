@@ -1663,3 +1663,63 @@ p.summary {
   font-size: 20px;
   font-weight: 600;
 }
+
+/* role preview (#156) */
+.viewas {
+  position: relative;
+}
+.viewas > summary {
+  list-style: none;
+  cursor: pointer;
+}
+.viewas > summary::-webkit-details-marker {
+  display: none;
+}
+.viewas-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 20;
+  width: min(320px, calc(100vw - 32px));
+  display: grid;
+  gap: 8px;
+}
+.rolepick {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+.rolepick label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.preview-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 16px;
+  background: color-mix(in srgb, var(--warn) 16%, var(--surface));
+  border-bottom: 1px solid var(--warn);
+}
+.matrix td,
+.matrix th {
+  white-space: nowrap;
+}
+.viewas-panel label {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+}
+.viewas-panel input[type='checkbox'] {
+  width: auto;
+  margin: 0;
+}

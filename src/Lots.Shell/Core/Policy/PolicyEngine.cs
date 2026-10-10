@@ -4,7 +4,17 @@ using Lots.Shell.Core.Tools;
 namespace Lots.Shell.Core.Policy;
 
 /// <summary>Who a run acts for. Policy is evaluated against this, never against anything the model says.</summary>
-public sealed record Principal(string UserId, IReadOnlyList<string> Roles);
+public sealed record Principal(string UserId, IReadOnlyList<string> Roles)
+{
+    /// <summary>Set while an admin views Lots as other roles (#156): <see cref="Roles"/> are then the previewed ones.</summary>
+    public PreviewInfo? Preview { get; init; }
+}
+
+/// <summary>
+/// A role preview (#156): the admin's real roles, whether write-class tools may run, and when it ends. Rights are the intersection of the
+/// previewed and the real roles: a preview can never grant more than the admin has.
+/// </summary>
+public sealed record PreviewInfo(IReadOnlyList<string> RealRoles, bool AllowWrites, DateTimeOffset Expires);
 
 public enum Decision { Allow, RequireApproval, Deny }
 
@@ -19,6 +29,21 @@ public static class PolicyEngine
 {
     public static PolicyResult Decide(Principal principal, Profile profile, string toolName)
     {
+        if (principal.Preview is { } preview)
+        {
+            // Both the previewed roles and the real ones must allow the call; the stricter decision wins (never an elevation).
+            var asPreviewed = Decide(principal with { Preview = null }, profile, toolName);
+            var asActor = Decide(new Principal(principal.UserId, preview.RealRoles), profile, toolName);
+            if (asPreviewed.Decision == Decision.Deny) return asPreviewed with { Reason = "preview: " + asPreviewed.Reason };
+            if (asActor.Decision == Decision.Deny) return asActor with { Reason = "preview: your own roles do not allow it: " + asActor.Reason };
+            var risk = profile.Tools.First(t => string.Equals(t.Name, toolName, StringComparison.Ordinal)).Risk;
+            if (!preview.AllowWrites && risk != ToolRisk.Read)
+                return new(Decision.Deny, $"preview: {risk} tools are blocked while viewing as other roles", "role preview (#156)");
+            return asPreviewed.Decision == Decision.RequireApproval || asActor.Decision == Decision.RequireApproval
+                ? (asPreviewed.Decision == Decision.RequireApproval ? asPreviewed : asActor)
+                : asPreviewed;
+        }
+
         var tool = profile.Tools.FirstOrDefault(t => string.Equals(t.Name, toolName, StringComparison.Ordinal));
         if (tool is null)
             return new(Decision.Deny, $"tool '{toolName}' is not declared in profile '{profile.Name}'");
@@ -42,6 +67,7 @@ public static class PolicyEngine
     /// <summary>True if one of the principal's roles may approve calls of this tool's risk class.</summary>
     public static bool CanApprove(Principal principal, Profile profile, string toolName)
     {
+        if (principal.Preview is not null) return false; // nobody approves anything while viewing as other roles (#156)
         var tool = profile.Tools.FirstOrDefault(t => string.Equals(t.Name, toolName, StringComparison.Ordinal));
         return tool is not null && profile.Roles
             .Where(r => principal.Roles.Contains(r.Name, StringComparer.OrdinalIgnoreCase))
@@ -49,6 +75,10 @@ public static class PolicyEngine
     }
 
     /// <summary>The tools a principal may see at all (allowed or allowed-with-approval).</summary>
-    public static IReadOnlyList<string> VisibleTools(Principal principal, Profile profile) =>
-        profile.Tools.Where(t => Decide(principal, profile, t.Name).Decision != Decision.Deny).Select(t => t.Name).ToList();
+    /// <remarks>In a role preview the previewed tool list is shown even when writes are blocked: the calls are refused at the choke point.</remarks>
+    public static IReadOnlyList<string> VisibleTools(Principal principal, Profile profile)
+    {
+        var seen = principal.Preview is { AllowWrites: false } p ? principal with { Preview = p with { AllowWrites = true } } : principal;
+        return profile.Tools.Where(t => Decide(seen, profile, t.Name).Decision != Decision.Deny).Select(t => t.Name).ToList();
+    }
 }

@@ -67,3 +67,42 @@ public sealed class PolicyOverviewEndpoint(ProfileRegistry profiles, IConfigurat
             PolicyTests.Run(p).ToList())).ToList(), ct);
     }
 }
+
+public sealed record MatrixCell(string Decision, string Reason);
+
+public sealed record PolicyMatrix(string Profile, IReadOnlyList<string> Roles, IReadOnlyList<ToolRiskDto> Tools, IReadOnlyDictionary<string, Dictionary<string, MatrixCell>> Cells);
+
+/// <summary>
+/// Roles × tools for one profile (#156): every cell is <see cref="PolicyEngine.Decide"/> for a user with only that role, so the matrix is
+/// exactly what the choke point would decide. Admins and auditors.
+/// </summary>
+public sealed class PolicyMatrixEndpoint(ProfileRegistry profiles, IConfiguration config, ICurrentPrincipal who) : EndpointWithoutRequest<PolicyMatrix>
+{
+    public override void Configure() => Get("/admin/v1/policy/matrix");
+
+    public override async Task HandleAsync(CancellationToken ct)
+    {
+        if (!IntegrationAccess.IsAuditor(who.Get(HttpContext), config))
+        {
+            await Send.ForbiddenAsync(ct);
+            return;
+        }
+        if (profiles.Find(Query<string>("profile", isRequired: false) ?? "") is not { } profile)
+        {
+            await Send.NotFoundAsync(ct);
+            return;
+        }
+        await Send.OkAsync(Build(profile), ct);
+    }
+
+    public static PolicyMatrix Build(Profile profile)
+    {
+        var roles = profile.Roles.Select(r => r.Name).ToList();
+        var cells = roles.ToDictionary(r => r, r => profile.Tools.ToDictionary(t => t.Name, t =>
+        {
+            var d = PolicyEngine.Decide(new Principal("matrix", [r]), profile, t.Name);
+            return new MatrixCell(d.Decision.ToString(), d.Reason);
+        }));
+        return new PolicyMatrix(profile.Name, roles, profile.Tools.Select(t => new ToolRiskDto(t.Name, t.Risk.ToString())).ToList(), cells);
+    }
+}

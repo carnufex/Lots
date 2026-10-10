@@ -414,6 +414,9 @@ public sealed class RunRecord
     public string? ModelAlias { get; set; }
     /// <summary>A reasoning effort chosen for this run (#119); null leaves it to the model or the voice settings.</summary>
     public string? ReasoningEffort { get; set; }
+    /// <summary>Started in a role preview (#156): the admin's real roles; the run's <see cref="Roles"/> are the previewed ones.</summary>
+    public string? PreviewRealRoles { get; set; }
+    public bool PreviewAllowWrites { get; set; }
     /// <summary>The highest data class the run has read (#89). Model calls go only to endpoints cleared for it.</summary>
     public Lots.Shell.Core.Policy.DataClass Sensitivity { get; set; }
     /// <summary>OpenTelemetry trace of the run's first execution (#76): resumed executions link to it.</summary>
@@ -605,6 +608,8 @@ public sealed class AuditRecord
     public string? ApproverId { get; set; }
     /// <summary>Backend auth strategy (ADR 0004) used for the call, if it was executed.</summary>
     public string? BackendAuth { get; set; }
+    /// <summary>Set when the decision was made while an admin viewed Lots as other roles (#156): the previewed and the real roles.</summary>
+    public string? Preview { get; set; }
     /// <summary>ok / error for executed calls, null otherwise.</summary>
     public string? ResultStatus { get; set; }
     /// <summary>Position in the hash chain (#81), assigned by the sealer; null until sealed.</summary>

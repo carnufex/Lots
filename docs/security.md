@@ -205,3 +205,23 @@ each request itself. A test checks, for every page and role set, that the menu m
 
 Contexts are the profiles in which one of the caller's roles grants something.
 
+
+## Viewing as other roles (#156)
+
+Admins (by their real roles, `Auth:AdminRoles`) can see Lots as other roles with **View as** in the top bar, or
+`POST /me/preview {"roles": [...], "minutes": 30, "allowWrites": false}`. The shell returns a short-lived token
+(Data Protection, bound to the user, at most 60 minutes) that the browser sends as `X-Lots-Preview`.
+
+- The preview only narrows. Every tool call is decided for the previewed roles **and** the admin's real roles, and the
+  stricter decision wins; a preview can never reach a tool the admin could not.
+- Write and destructive tools are refused unless the preview was started with `allowWrites`. Approving is off.
+- The menu and every endpoint use the previewed roles, so a page that would be refused shows *no access*.
+- A run started in a preview keeps those limits for its whole life. Audit rows of its tool decisions carry a
+  `preview` field (`as <roles> (actor's roles <roles>)`) that is part of the hash chain.
+- Leaving is dropping the header (**Leave preview**); an expired, tampered or someone else's token is ignored.
+
+The **Policy** page also shows a roles × tools matrix (`GET /admin/v1/policy/matrix?profile=`, admins and auditors):
+each cell is the policy engine's decision for a user with only that role.
+
+In dev mode the identity switcher picks roles from the deployment (`devRoles` in `/config`) and can save personas
+in the browser.

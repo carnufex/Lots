@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createApi, type Api, type Capabilities } from './api'
-import { createAuth, readDevIdentity, writeDevIdentity, type Auth, type Session } from './auth'
+import { createAuth, type Auth, type Session } from './auth'
+import { DevIdentity, PreviewBanner, ViewAs } from './components/RolePreview'
 import { loadConfig, type ClientConfig } from './config'
 import RunsPage from './pages/RunsPage'
 import ChatPage from './pages/ChatPage'
@@ -189,9 +190,10 @@ function Shell({ config, auth, session }: { config: ClientConfig; auth: Auth; se
           <span className="muted">{config.profiles.map((p) => p.name).join(' · ')}</span>
           <div className="who">
             <LanguageSwitch />
-            {auth.mode === 'dev' && <DevIdentity />}
+            {auth.mode === 'dev' && <DevIdentity knownRoles={config.devRoles ?? []} />}
+            {caps?.canPreview && !caps.preview && <ViewAs api={api} caps={caps} />}
             <span className="user">{session.user}</span>
-            {session.roles.map((r) => (
+            {(caps?.roles ?? session.roles).map((r) => (
               <span key={r} className="chip">
                 {r}
               </span>
@@ -203,6 +205,7 @@ function Shell({ config, auth, session }: { config: ClientConfig; auth: Auth; se
             )}
           </div>
         </header>
+        {caps?.preview && <PreviewBanner preview={caps.preview} />}
         <main id="main" tabIndex={-1}>
           {caps !== null && !may(pageOf(route)) ? <NoAccess /> : <>
           {route.name === 'chat' && <ChatPage key={route.id ?? 'new'} api={api} profiles={config.profiles} id={route.id} />}
@@ -244,36 +247,6 @@ function LanguageSwitch() {
       <option value="en">English</option>
       <option value="sv">Svenska</option>
     </select>
-  )
-}
-
-/** Dev mode only: switch the identity sent to the API (the server decides whether it is honoured). */
-function DevIdentity() {
-  const [id, setId] = useState(readDevIdentity)
-  const apply = (next: typeof id) => {
-    setId(next)
-    writeDevIdentity(next)
-  }
-  return (
-    <form
-      className="dev"
-      onSubmit={(e) => {
-        e.preventDefault()
-        window.location.reload()
-      }}
-    >
-      <label>
-        <span className="sr">{t('Dev user')}</span>
-        <input value={id.user} onChange={(e) => apply({ ...id, user: e.target.value })} aria-label={t('Dev user')} />
-      </label>
-      <label>
-        <span className="sr">{t('Dev roles')}</span>
-        <input value={id.roles} onChange={(e) => apply({ ...id, roles: e.target.value })} aria-label={t('Dev roles')} />
-      </label>
-      <button className="btn" type="submit">
-        {t('Apply')}
-      </button>
-    </form>
   )
 }
 

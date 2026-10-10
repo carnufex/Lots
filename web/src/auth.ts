@@ -106,6 +106,71 @@ function oidcAuth(cfg: NonNullable<ClientConfig['oidc']>): Auth {
   }
 }
 
+/** Saved dev personas (#156): a name for a user + role set, to switch quickly between test identities. */
+const PERSONAS_KEY = 'lots.dev-personas'
+
+export interface Persona extends DevIdentity {
+  name: string
+}
+
+export function readPersonas(): Persona[] {
+  try {
+    const raw = localStorage.getItem(PERSONAS_KEY)
+    if (raw) return JSON.parse(raw) as Persona[]
+  } catch {
+    /* ignore */
+  }
+  return []
+}
+
+export function writePersonas(list: Persona[]) {
+  try {
+    localStorage.setItem(PERSONAS_KEY, JSON.stringify(list))
+  } catch {
+    /* ignore */
+  }
+}
+
+/** A role preview (#156): the token the shell issued, kept per tab and dropped when it expires. */
+const PREVIEW_KEY = 'lots.role-preview'
+
+export interface StoredPreview {
+  token: string
+  header: string
+  roles: string[]
+  expires: string
+}
+
+export function readPreview(): StoredPreview | null {
+  try {
+    const raw = sessionStorage.getItem(PREVIEW_KEY)
+    const p = raw ? (JSON.parse(raw) as StoredPreview) : null
+    if (p && new Date(p.expires).getTime() > Date.now()) return p
+    if (p) sessionStorage.removeItem(PREVIEW_KEY)
+  } catch {
+    /* ignore */
+  }
+  return null
+}
+
+export function writePreview(p: StoredPreview | null) {
+  try {
+    if (p) sessionStorage.setItem(PREVIEW_KEY, JSON.stringify(p))
+    else sessionStorage.removeItem(PREVIEW_KEY)
+  } catch {
+    /* ignore */
+  }
+}
+
 export function createAuth(config: ClientConfig): Auth {
-  return config.authMode === 'oidc' && config.oidc ? oidcAuth(config.oidc) : devAuth()
+  const base = config.authMode === 'oidc' && config.oidc ? oidcAuth(config.oidc) : devAuth()
+  return {
+    ...base,
+    // The preview header rides along with every request while a preview is active; the shell decides whether it is honoured.
+    headers: async () => {
+      const h = await base.headers()
+      const p = readPreview()
+      return p ? { ...h, [p.header]: p.token } : h
+    },
+  }
 }

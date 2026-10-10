@@ -361,7 +361,13 @@ public sealed class AgentRunner(
                         : _options.VoiceLaterCallEffort));
 
     private static Principal PrincipalOf(RunRecord run) =>
-        new(run.UserId, run.Roles.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        new(run.UserId, run.Roles.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            // A run started in a role preview keeps its limits for its whole life, even after the preview has ended (#156).
+            Preview = run.PreviewRealRoles is { } real
+                ? new PreviewInfo(real.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries), run.PreviewAllowWrites, DateTimeOffset.MaxValue)
+                : null,
+        };
 
     /// <summary>Executes the tool calls that have no result yet. Returns true if the run had to pause for an approval.</summary>
     private async Task<bool> AnswerPendingToolCallsAsync(RunRecord run, Principal principal, CancellationToken ct)
@@ -556,6 +562,7 @@ public sealed class AgentRunner(
             Profile = run.Profile, ProfileVersion = profiles.Find(run.Profile)?.Version ?? 0, RunId = run.Id,
             Tool = call.Name, ToolCallId = call.Id, ArgumentsJson = Pii(run, Security.SecretRedactor.Redact(call.ArgumentsJson)), Decision = decision, Reason = reason,
             ApproverId = approver, ResultStatus = resultStatus, BackendAuth = backendAuth,
+            Preview = run.PreviewRealRoles is { } real ? $"as {run.Roles} (actor's roles {real})" : null,
         });
 
     /// <summary>Masks the personal data kinds the run's profile opted into (#90); unchanged when it did not.</summary>

@@ -25,10 +25,17 @@ public sealed class AuthClaimNames
     public string? RolePrefix { get; init; }
 }
 
-public sealed class ClaimsCurrentPrincipal(AuthClaimNames names) : ICurrentPrincipal
+public sealed class ClaimsCurrentPrincipal(AuthClaimNames names, PreviewTokens? previews = null, IConfiguration? config = null) : ICurrentPrincipal
 {
-    public Principal Get(HttpContext http) =>
-        Map(http.User.Claims, names) ?? throw new InvalidOperationException("Authenticated request without a user claim.");
+    public const string PreviewHeader = "X-Lots-Preview";
+
+    public Principal Get(HttpContext http)
+    {
+        var real = Map(http.User.Claims, names) ?? throw new InvalidOperationException("Authenticated request without a user claim.");
+        // A role preview (#156) only replaces the roles of the admin who started it, until it expires.
+        if (previews is null || config is null || http.Request.Headers[PreviewHeader].ToString() is not { Length: > 0 } token) return real;
+        return previews.Read(token, real, config) ?? real;
+    }
 
     /// <summary>The user and roles a set of claims maps to (also used to test a mapping with a sample token); null without a user claim.</summary>
     public static Principal? Map(IEnumerable<Claim> claims, AuthClaimNames names)
@@ -73,6 +80,7 @@ public static class AuthSetup
                 RolePrefix = IsOidc(config) ? config["Auth:Oidc:RolePrefix"] : null,
             };
         });
+        builder.Services.AddSingleton<PreviewTokens>();
         builder.Services.AddSingleton<ICurrentPrincipal, ClaimsCurrentPrincipal>();
         builder.Services.AddAuthorization();
 
