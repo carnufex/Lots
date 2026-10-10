@@ -26,6 +26,7 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
     public DbSet<ApiTokenRecord> ApiTokens => Set<ApiTokenRecord>();
     public DbSet<VoiceConsentRecord> VoiceConsents => Set<VoiceConsentRecord>();
     public DbSet<ScheduleFireRecord> ScheduleFires => Set<ScheduleFireRecord>();
+    public DbSet<AttachmentRecord> Attachments => Set<AttachmentRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -172,6 +173,18 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
             e.Property(x => x.UserId).HasMaxLength(256);
         });
 
+        modelBuilder.Entity<AttachmentRecord>(e =>
+        {
+            e.ToTable("attachments");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.UserId, x.CreatedAt });
+            e.Property(x => x.UserId).HasMaxLength(256);
+            e.Property(x => x.FileName).HasMaxLength(256);
+            e.Property(x => x.ContentType).HasMaxLength(128);
+            e.Property(x => x.Kind).HasMaxLength(16);
+            e.Property(x => x.Sha256).HasMaxLength(64);
+        });
+
         modelBuilder.Entity<ScheduleFireRecord>(e =>
         {
             e.ToTable("schedule_fires");
@@ -297,6 +310,8 @@ public sealed class RunRecord
     public string? Trigger { get; set; }
     /// <summary>Who besides the owner and admins may read the run: <c>,role:operator,user:bob,</c> (#101).</summary>
     public string? Viewers { get; set; }
+    /// <summary>Files given with the prompt (#105): <c>[{"id","name","kind"}]</c>.</summary>
+    public string? AttachmentsJson { get; set; }
     /// <summary>Where the result is delivered when the run ends (e-mail, webhooks), as JSON (#101).</summary>
     public string? DeliverJson { get; set; }
     /// <summary>The answer the model is writing right now (#95), for readers on other replicas; null between model calls.</summary>
@@ -324,6 +339,8 @@ public sealed class RunMessageRecord
     public string? Content { get; set; }
     /// <summary>JSON array of tool calls for assistant messages.</summary>
     public string? ToolCallsJson { get; set; }
+    /// <summary>Ids of image attachments that belong to this (user) message (#105); the bytes stay in <c>attachments</c>.</summary>
+    public string? ImagesJson { get; set; }
     public string? ToolCallId { get; set; }
 }
 
@@ -608,6 +625,21 @@ public sealed class UserVocabularyRecord
 /// and, optionally, the user's own voice. The clip itself lives only in the voice service; here is its id and consent.
 /// </summary>
 public enum VoiceConsentEvent { Given, Withdrawn, Revoked, Erased }
+
+/// <summary>A file a user gave a run (#105): the bytes, and for documents the extracted text.</summary>
+public sealed class AttachmentRecord
+{
+    public Guid Id { get; set; }
+    public required string UserId { get; set; }
+    public required string FileName { get; set; }
+    public required string ContentType { get; set; }
+    public required string Kind { get; set; }
+    public long Size { get; set; }
+    public required string Sha256 { get; set; }
+    public required byte[] Data { get; set; }
+    public string? Text { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
 
 /// <summary>A schedule occurrence that has been fired (#101).</summary>
 public sealed class ScheduleFireRecord

@@ -31,6 +31,9 @@ public sealed class AgentOptions
     /// <summary>After tool output that looked like an injected instruction, write and destructive calls of the run need an approval (#85).</summary>
     public bool EscalateAfterInjection { get; set; } = true;
 
+    /// <summary>Characters of an attachment's text given to the model (#105).</summary>
+    public int AttachmentTextChars { get; set; } = 20_000;
+
     /// <summary>Stream answers token by token to the UI (#95). Off for endpoints that do not support <c>stream: true</c>.</summary>
     public bool StreamTokens { get; set; } = true;
 
@@ -131,7 +134,7 @@ public sealed class AgentRunner(
                 Add(run, new ChatMessage("user", turn.Prompt));
                 Add(run, new ChatMessage("assistant", turn.FinalAnswer));
             }
-            Add(run, new ChatMessage("user", run.Prompt));
+            await AddPromptAsync(run, ct);
         }
         await SaveAsync(run);
 
@@ -541,14 +544,71 @@ public sealed class AgentRunner(
             Content = m.Content,
             ToolCallsJson = m.ToolCalls is { Count: > 0 } ? JsonSerializer.Serialize(m.ToolCalls, Json) : null,
             ToolCallId = m.ToolCallId,
+            ImagesJson = m.Images is { Count: > 0 } ? JsonSerializer.Serialize(m.Images, Json) : null,
         });
     }
 
-    private static List<ChatMessage> ToMessages(RunRecord run) =>
+    /// <summary>
+    /// The user's prompt with its attachments (#105). Readable files are appended as untrusted data (they can contain instructions
+    /// like any document); images go to the model as images when its alias has vision, otherwise they are named. Attachments raise
+    /// the run's data class to the profile's (they are the user's data, of the kind the profile works with).
+    /// </summary>
+    private async Task AddPromptAsync(RunRecord run, CancellationToken ct)
+    {
+        var refs = run.AttachmentsJson is null ? [] : JsonSerializer.Deserialize<List<Attachments.AttachmentRef>>(run.AttachmentsJson, Json) ?? [];
+        if (refs.Count == 0)
+        {
+            Add(run, new ChatMessage("user", run.Prompt));
+            return;
+        }
+        var ids = refs.Select(r => r.Id).ToList();
+        var files = await db.Attachments.AsNoTracking().Where(a => ids.Contains(a.Id) && a.UserId == run.UserId)
+            .Select(a => new { a.Id, a.FileName, a.Kind, a.Text }).ToListAsync(ct);
+        var vision = catalog is not null && catalog.Aliases[catalog.Resolve(AliasFor(run))].Vision;
+        var text = new System.Text.StringBuilder(run.Prompt);
+        var images = new List<string>();
+        foreach (var f in files)
+        {
+            if (f.Kind == Attachments.AttachmentKinds.Image)
+            {
+                if (vision) images.Add("attachment:" + f.Id); // resolved to a data URL when the request is built
+                else text.Append($"\n\n[Image attached: {f.FileName}. This model cannot see images; say so if the question needs it.]");
+                continue;
+            }
+            var (body, suspicious) = Attachments.AttachmentReader.ForModel(f.FileName, f.Text ?? "", _options.AttachmentTextChars);
+            text.Append($"\n\nAttached file {f.FileName}:\n").Append(body);
+            if (suspicious) run.Tainted = true;
+        }
+        if (profiles.Find(run.Profile) is { } profile) run.Sensitivity = DataClasses.Max(run.Sensitivity, profile.Sensitivity);
+        Add(run, new ChatMessage("user", text.ToString(), Images: images.Count > 0 ? images : null));
+    }
+
+    private List<ChatMessage> ToMessages(RunRecord run) =>
         run.Messages.OrderBy(m => m.Seq).Select(m => new ChatMessage(
             m.Role, m.Content,
             m.ToolCallsJson is null ? null : JsonSerializer.Deserialize<List<ToolCall>>(m.ToolCallsJson, Json),
-            m.ToolCallId)).ToList();
+            m.ToolCallId,
+            Images: m.ImagesJson is null ? null : ImagesOf(JsonSerializer.Deserialize<List<string>>(m.ImagesJson, Json) ?? []))).ToList();
+
+    private readonly Dictionary<Guid, string> _imageUrls = [];
+
+    /// <summary>Image attachments as data URLs, loaded once per execution (the bytes stay in the attachments table).</summary>
+    private List<string> ImagesOf(List<string> refs)
+    {
+        var urls = new List<string>();
+        foreach (var r in refs)
+        {
+            if (!r.StartsWith("attachment:", StringComparison.Ordinal) || !Guid.TryParse(r["attachment:".Length..], out var id)) continue;
+            if (!_imageUrls.TryGetValue(id, out var url))
+            {
+                var a = db.Attachments.AsNoTracking().Where(x => x.Id == id).Select(x => new { x.ContentType, x.Data }).SingleOrDefault();
+                if (a is null) continue; // deleted meanwhile: the model just does not get it
+                _imageUrls[id] = url = $"data:{a.ContentType};base64,{Convert.ToBase64String(a.Data)}";
+            }
+            urls.Add(url);
+        }
+        return urls;
+    }
 
     // Deliberately not cancellable: work that already happened (a model reply, a tool result) must be
     // persisted even if shutdown was requested meanwhile, otherwise a resume would repeat it.

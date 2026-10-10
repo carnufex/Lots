@@ -4,9 +4,11 @@ import type { ProfileInfo, VoiceConfig } from '../config'
 import MicButton from './MicButton'
 import VocabularyEditor from './VocabularyEditor'
 import { initialLanguage, saveLanguage } from '../voice/language'
+import { AttachPicker, type UploadedAttachment } from './Attachments'
 
 export default function NewRun({ api, profiles, voice }: { api: Api; profiles: ProfileInfo[]; voice: VoiceConfig }) {
   const [prompt, setPrompt] = useState('')
+  const [files, setFiles] = useState<UploadedAttachment[]>([])
   const [profile, setProfile] = useState(profiles[0]?.name ?? '')
   const [busy, setBusy] = useState(false)
   const [language, setLanguageState] = useState<VoiceLanguage>(() => initialLanguage(voice.defaultLanguage))
@@ -22,7 +24,7 @@ export default function NewRun({ api, profiles, voice }: { api: Api; profiles: P
     setBusy(true)
     setError(null)
     try {
-      const run = await api.startRun(prompt.trim(), profile)
+      const run = await api.startRun(prompt.trim(), profile, { attachments: files.map((f) => f.id) })
       window.location.hash = `#/runs/${run.id}`
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -57,6 +59,7 @@ export default function NewRun({ api, profiles, voice }: { api: Api; profiles: P
         ) : (
           <span className="muted">{profile}</span>
         )}
+        <AttachPicker api={api} files={files} onChange={setFiles} disabled={busy} />
         <span className="grow" />
         {voice.enabled && (
           <>

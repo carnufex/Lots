@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { type Api, type ConversationDetail, type ConversationSummary, type ConversationTurn } from '../api'
 import type { ProfileInfo } from '../config'
 import Markdown from '../components/Markdown'
+import { AttachmentList, AttachPicker, type UploadedAttachment } from '../components/Attachments'
 
 const ACTIVE = ['Pending', 'Running', 'WaitingForApproval']
 
@@ -14,6 +15,7 @@ export default function ChatPage({ api, profiles, id }: { api: Api; profiles: Pr
   const [detail, setDetail] = useState<ConversationDetail | null>(null)
   const [live, setLive] = useState<{ runId: string; partial: string } | null>(null)
   const [prompt, setPrompt] = useState('')
+  const [files, setFiles] = useState<UploadedAttachment[]>([])
   const [profile, setProfile] = useState(profiles[0]?.name ?? '')
   const [editing, setEditing] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -82,8 +84,9 @@ export default function ChatPage({ api, profiles, id }: { api: Api; profiles: Pr
     setError(null)
     const conversationId = id ?? crypto.randomUUID()
     try {
-      const run = await api.startRun(text, profile, { conversationId })
+      const run = await api.startRun(text, profile, { conversationId, attachments: files.map((f) => f.id) })
       setPrompt('')
+      setFiles([])
       if (!id) window.location.hash = `#/chat/${conversationId}`
       void follow(run.id)
     } catch (e) {
@@ -144,6 +147,7 @@ export default function ChatPage({ api, profiles, id }: { api: Api; profiles: Pr
                         {t.voice && <span className="muted small" title="Spoken">🎙 </span>}
                         {t.prompt}
                       </p>
+                      <AttachmentList api={api} items={t.attachments ?? []} />
                       {isLast && !busy && (
                         <button type="button" className="btn ghost small" onClick={() => setEditing(t.runId)}>
                           Edit
@@ -226,6 +230,7 @@ export default function ChatPage({ api, profiles, id }: { api: Api; profiles: Pr
             ) : (
               <span className="muted small">{profile}</span>
             )}
+            <AttachPicker api={api} files={files} onChange={setFiles} disabled={busy} />
             <span className="grow" />
             {note && <span className="muted small">{note}</span>}
             {error && (

@@ -37,6 +37,8 @@ public sealed class ModelAlias
     public List<ModelTarget> Targets { get; set; } = [];
     /// <summary><c>reasoning_effort</c> for fast (voice) calls; see <see cref="ModelOptions.FastReasoningEffort"/>.</summary>
     public string? FastReasoningEffort { get; set; } = "none";
+    /// <summary>The models of this alias can read images (#105); otherwise image attachments are described, not sent.</summary>
+    public bool Vision { get; set; }
 }
 
 public sealed class ModelsOptions

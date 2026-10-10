@@ -8,7 +8,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Lots.Shell.Features.Runs;
 
-public sealed record StartRunRequest(string Prompt, string? Profile = null, bool Voice = false, Guid? ConversationId = null);
+public sealed record StartRunRequest(string Prompt, string? Profile = null, bool Voice = false, Guid? ConversationId = null,
+    List<Guid>? Attachments = null);
 
 public sealed record StartRunResponse(Guid Id, string Status);
 
@@ -55,8 +56,18 @@ public sealed class StartRunEndpoint(LotsDbContext db, TimeProvider clock, Profi
             return;
         }
 
+        var (attachments, attachmentError) = await Features.Attachments.RunAttachments.ResolveAsync(db, who.Get(HttpContext).UserId, req.Attachments,
+            HttpContext.RequestServices.GetRequiredService<Microsoft.Extensions.Options.IOptions<Core.Attachments.AttachmentOptions>>().Value, ct);
+        if (attachmentError is not null)
+        {
+            AddError(x => x.Attachments!, attachmentError);
+            await Send.ErrorsAsync(cancellation: ct);
+            return;
+        }
+
         var run = RunFactory.Create(HttpContext, who.Get(HttpContext), clock.GetUtcNow(), profile, config, vault,
             req.Prompt, req.Voice, req.ConversationId);
+        run.AttachmentsJson = attachments;
         db.Runs.Add(run);
         await db.SaveChangesAsync(ct);
         Lots.Shell.Core.Telemetry.LotsMetrics.RunsStarted.Add(1, new("profile", run.Profile), new("voice", run.Voice));

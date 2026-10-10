@@ -121,6 +121,12 @@
           "OpenTelemetry.Api": "[1.19.0, 2.0.0)"
         }
       },
+      "PdfPig": {
+        "type": "Direct",
+        "requested": "[0.1.16, )",
+        "resolved": "0.1.16",
+        "contentHash": "qQcbsNMYVY+K5ELptax2S8thNMk0+rSQq3H/KdYj3LLcko8yTCz8y5KIvsKxIyAuTN0ZYNnfsZkM+0EvxTwHVA=="
+      },
       "YamlDotNet": {
         "type": "Direct",
         "requested": "[18.1.0, )",

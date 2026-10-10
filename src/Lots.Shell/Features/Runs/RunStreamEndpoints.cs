@@ -115,6 +115,7 @@ public sealed class RegenerateRunEndpoint(LotsDbContext db, TimeProvider clock, 
 
         var run = RunFactory.Create(HttpContext, me, clock.GetUtcNow(), profile, config, vault, req.Prompt?.Trim() ?? old.Prompt, old.Voice,
             old.ConversationId, retryOf: old.Id);
+        run.AttachmentsJson = old.AttachmentsJson; // the same files go with the redone question
         db.Runs.Add(run);
         await db.SaveChangesAsync(ct);
         await Send.ResponseAsync(new StartRunResponse(run.Id, run.Status.ToString()), 202, ct);

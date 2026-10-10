@@ -293,6 +293,7 @@ export interface ConversationTurn {
   retryOf?: string | null
   /** Regenerated or edited: replaced by a later turn (#95). */
   superseded?: boolean
+  attachments?: { id: string; name: string; kind: string }[] | null
 }
 
 export interface ConversationDetail {
@@ -486,7 +487,14 @@ export function createApi(auth: Auth) {
         }
       }
     },
-    startRun: (prompt: string, profile: string, options: { voice?: boolean; conversationId?: string } = {}) =>
+    uploadAttachment: async (file: File) => {
+      const form = new FormData()
+      form.append('File', file, file.name)
+      const res = await fetch('/attachments', { method: 'POST', body: form, headers: await auth.headers() })
+      if (!res.ok) throw new ApiError(res.status, await describe(res))
+      return (await res.json()) as { id: string; name: string; kind: 'image' | 'text' | 'document'; size: number }
+    },
+    startRun: (prompt: string, profile: string, options: { voice?: boolean; conversationId?: string; attachments?: string[] } = {}) =>
       request<{ id: string; status: RunStatus }>('/runs', { method: 'POST', body: JSON.stringify({ prompt, profile, ...options }) }),
     /** A short fixed acknowledgement ("Jag kollar.") to play while the agent works; null when unavailable. */
     ack: async (language: VoiceLanguage): Promise<Blob | null> => {

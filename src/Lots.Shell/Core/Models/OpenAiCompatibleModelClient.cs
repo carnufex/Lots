@@ -142,6 +142,13 @@ public sealed class OpenAiCompatibleModelClient(HttpClient http, IOptions<ModelO
     private static JsonNode ToJson(ChatMessage m)
     {
         var o = new JsonObject { ["role"] = m.Role, ["content"] = m.Content };
+        if (m.Images is { Count: > 0 })
+        {
+            // OpenAI content parts: the text, then the images (#105).
+            var parts = new JsonArray(new JsonObject { ["type"] = "text", ["text"] = m.Content ?? "" });
+            foreach (var url in m.Images) parts.Add(new JsonObject { ["type"] = "image_url", ["image_url"] = new JsonObject { ["url"] = url } });
+            o["content"] = parts;
+        }
         if (m.ToolCallId is not null) o["tool_call_id"] = m.ToolCallId;
         if (m.ToolCalls is { Count: > 0 })
             o["tool_calls"] = new JsonArray(m.ToolCalls.Select(c => (JsonNode)new JsonObject

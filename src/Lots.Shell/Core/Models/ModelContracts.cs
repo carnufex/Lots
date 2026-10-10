@@ -8,7 +8,9 @@ public sealed record ChatMessage(
     IReadOnlyList<ToolCall>? ToolCalls = null,
     string? ToolCallId = null,
     /// <summary>Reasoning text some models return beside the content. Diagnostics only, never sent back.</summary>
-    string? Reasoning = null);
+    string? Reasoning = null,
+    /// <summary>Images for a vision model as data URLs (#105). Only on user messages.</summary>
+    IReadOnlyList<string>? Images = null);
 
 public sealed record ToolCall(string Id, string Name, string ArgumentsJson);
 
