@@ -52,6 +52,20 @@ services:
     depends_on:
       - docker-proxy
 
+  # Optional tool packs (#63): `docker compose --profile toolpack up`. Files = the repo's docs (read-only), fetch = allowlisted hosts.
+  mcp-toolpack:
+    profiles: [toolpack]
+    build:
+      context: .
+      dockerfile: src/Lots.Mcp.Toolpack/Dockerfile
+    environment:
+      Files__Root: /files
+      Fetch__AllowedHosts__0: ${LOTS_FETCH_HOST:-learn.microsoft.com}
+    volumes:
+      - ${LOTS_FILES_DIR:-./docs}:/files:ro
+    ports:
+      - "127.0.0.1:${LOTS_TOOLPACK_PORT:-8090}:8080"
+
   # Read-only view of the Docker API: only container list/inspect/logs, no POST. The raw socket is never exposed.
   docker-proxy:
     image: tecnativa/docker-socket-proxy:0.3.0

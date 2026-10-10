@@ -27,4 +27,5 @@ check_image() { # name, dockerfile
 }
 check_image shell src/Lots.Shell/Dockerfile
 check_image mcp-homelab src/Lots.Mcp.Homelab/Dockerfile
+check_image mcp-toolpack src/Lots.Mcp.Toolpack/Dockerfile
 echo "== CI passed"
