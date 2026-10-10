@@ -52,7 +52,7 @@ const NAV: { title: string; items: NavItem[] }[] = [
 
 function useHashRoute(): Route {
   const read = (): Route => {
-    const r = window.location.hash.replace(/^#\/?/, '')
+    const r = window.location.hash.replace(/^#\/?/, '').split('?')[0] // a page may carry its own query (e.g. ?connected=)
     if (r === 'approvals' || r === 'audit' || r === 'voice' || r === 'knowledge' || r === 'profiles' || r === 'policy' || r === 'models' || r === 'identity')
       return { name: r }
     if (r === 'history') return { name: 'history' }

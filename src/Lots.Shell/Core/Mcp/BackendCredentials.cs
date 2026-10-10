@@ -15,7 +15,8 @@ public interface IBackendTokenProvider
 /// environment variables the profile names; they are never part of the profile, logs or error messages.
 /// </summary>
 public sealed class BackendTokenProvider(
-    ServerCredentials credentials, HttpClient http, TimeProvider clock, Func<string, string?>? env = null) : IBackendTokenProvider
+    ServerCredentials credentials, HttpClient http, TimeProvider clock, Func<string, string?>? env = null,
+    string? server = null, CredentialStatusRegistry? status = null) : IBackendTokenProvider
 {
     private static readonly TimeSpan Skew = TimeSpan.FromSeconds(60);
 
@@ -27,12 +28,20 @@ public sealed class BackendTokenProvider(
     public async Task<string> GetTokenAsync(CancellationToken ct)
     {
         if (credentials.Type == CredentialTypes.Bearer)
-            return Secret(credentials.TokenEnv!);
+        {
+            var bearer = Secret(credentials.TokenEnv!); // read per use: a rotated file is picked up at once
+            if (server is not null) status?.Used(server, clock.GetUtcNow());
+            return bearer;
+        }
 
         await _gate.WaitAsync(ct);
         try
         {
-            if (_token is not null && clock.GetUtcNow() < _expires - Skew) return _token;
+            if (_token is not null && clock.GetUtcNow() < _expires - Skew)
+            {
+                if (server is not null) status?.Used(server, clock.GetUtcNow());
+                return _token;
+            }
 
             var form = new Dictionary<string, string>
             {
@@ -45,13 +54,17 @@ public sealed class BackendTokenProvider(
 
             using var response = await http.PostAsync(credentials.TokenUrl, new FormUrlEncodedContent(form), ct);
             if (!response.IsSuccessStatusCode)
+            {
+                if (server is not null) status?.Failed(server, clock.GetUtcNow(), $"token endpoint returned {(int)response.StatusCode}");
                 throw new HttpRequestException($"Token endpoint {credentials.TokenUrl} returned {(int)response.StatusCode}.");
+            }
 
             using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
             _token = doc.RootElement.GetProperty("access_token").GetString()
                      ?? throw new InvalidOperationException("Token endpoint returned no access_token.");
             var lifetime = doc.RootElement.TryGetProperty("expires_in", out var e) && e.TryGetInt32(out var s) ? s : 300;
             _expires = clock.GetUtcNow().AddSeconds(lifetime);
+            if (server is not null) status?.Fetched(server, clock.GetUtcNow(), _expires);
             return _token;
         }
         finally
@@ -60,10 +73,7 @@ public sealed class BackendTokenProvider(
         }
     }
 
-    private string Secret(string envName) =>
-        _env(envName) is { Length: > 0 } v
-            ? v
-            : throw new InvalidOperationException($"Environment variable '{envName}' (referenced by the profile) is not set.");
+    private string Secret(string reference) => SecretReference.Resolve(reference, _env);
 }
 
 /// <summary>Adds the current backend token to every request to an MCP server.</summary>

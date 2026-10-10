@@ -19,13 +19,19 @@ public static class CredentialTypes
 
     /// <summary>RFC 8693: the user's token is exchanged for one for this backend (auth: delegated).</summary>
     public const string TokenExchange = "token-exchange";
+
+    /// <summary>The user connects their own account once (OAuth authorization code); calls use their token (auth: user-connected).</summary>
+    public const string OAuthUser = "oauth-user";
 }
 
-/// <summary>How the shell authenticates to a server. Secrets are referenced by environment variable name, never stored.</summary>
+/// <summary>
+/// How the shell authenticates to a server. Secrets are references (an environment variable name, <c>env:NAME</c> or <c>file:/path</c>,
+/// see SecretReference), never values.
+/// </summary>
 public sealed record ServerCredentials(
     string Type, string? TokenEnv = null, string? TokenUrl = null, string? ClientId = null,
     string? Username = null, string? PasswordEnv = null, string? Scope = null,
-    string? ClientSecretEnv = null, string? Audience = null);
+    string? ClientSecretEnv = null, string? Audience = null, string? AuthorizeUrl = null);
 
 /// <summary>The backend authentication strategies of ADR 0004, strongest first.</summary>
 public static class AuthStrategies
@@ -136,6 +142,10 @@ public static class ProfileParser
                 {
                     var creds = ParseCredentials(s, Err);
                     var exchangeType = creds?.Type == CredentialTypes.TokenExchange;
+                    if (auth == AuthStrategies.UserConnected && creds?.Type != CredentialTypes.OAuthUser)
+                        Err($"server '{s.Name}' is user-connected and needs credentials of type {CredentialTypes.OAuthUser}");
+                    if (auth != AuthStrategies.UserConnected && creds?.Type == CredentialTypes.OAuthUser)
+                        Err($"server '{s.Name}': oauth-user credentials require auth: user-connected");
                     if (auth == AuthStrategies.Delegated && s.Credentials is not null && !exchangeType)
                         Err($"server '{s.Name}' is delegated and needs credentials of type {CredentialTypes.TokenExchange}");
                     if (auth == AuthStrategies.Delegated && s.Credentials is null)
@@ -223,8 +233,16 @@ public static class ProfileParser
                     return null;
                 }
                 return new ServerCredentials(type, TokenUrl: c.TokenUrl, ClientId: c.ClientId, Scope: c.Scope, ClientSecretEnv: c.ClientSecretEnv, Audience: c.Audience);
+            case CredentialTypes.OAuthUser:
+                if (!Uri.TryCreate(c.AuthorizeUrl, UriKind.Absolute, out var au) || au.Scheme != "https" && au.Host != "localhost"
+                    || !Uri.TryCreate(c.TokenUrl, UriKind.Absolute, out var ou) || ou.Scheme is not ("http" or "https") || string.IsNullOrWhiteSpace(c.ClientId))
+                {
+                    err($"server '{s.Name}' credentials: authorizeUrl (https), tokenUrl and clientId are required for oauth-user");
+                    return null;
+                }
+                return new ServerCredentials(type, TokenUrl: c.TokenUrl, ClientId: c.ClientId, Scope: c.Scope, ClientSecretEnv: c.ClientSecretEnv, AuthorizeUrl: c.AuthorizeUrl);
             default:
-                err($"server '{s.Name}' credentials: unknown type '{c.Type}' ({CredentialTypes.Bearer}|{CredentialTypes.OAuthClientCredentials}|{CredentialTypes.TokenExchange})");
+                err($"server '{s.Name}' credentials: unknown type '{c.Type}' ({CredentialTypes.Bearer}|{CredentialTypes.OAuthClientCredentials}|{CredentialTypes.TokenExchange}|{CredentialTypes.OAuthUser})");
                 return null;
         }
     }
@@ -283,6 +301,7 @@ public static class ProfileParser
         public string? Scope { get; set; }
         public string? ClientSecretEnv { get; set; }
         public string? Audience { get; set; }
+        public string? AuthorizeUrl { get; set; }
     }
     private sealed class ToolDoc { public string? Name { get; set; } public string? Risk { get; set; } }
 

@@ -13,7 +13,8 @@ namespace Lots.Shell.Core.Mcp;
 /// catalog are kept per user and are only available inside a <see cref="DelegationContext"/>.
 /// </remarks>
 public sealed class McpToolSource(
-    Func<IReadOnlyList<McpServerConfig>> serverList, ILoggerFactory loggers, TimeProvider? clock = null, TokenExchangeClient? exchange = null)
+    Func<IReadOnlyList<McpServerConfig>> serverList, ILoggerFactory loggers, TimeProvider? clock = null, TokenExchangeClient? exchange = null,
+    UserConnections? connections = null, CredentialStatusRegistry? credentialStatus = null)
     : IToolSource, IAsyncDisposable
 {
     /// <summary>A fixed server list (tests, single-profile setups).</summary>
@@ -36,7 +37,8 @@ public sealed class McpToolSource(
     private readonly Dictionary<(string Server, string User), State> _states = [];
     private readonly Dictionary<string, string> _errors = [];
 
-    private static bool IsDelegated(McpServerConfig s) => s.Auth == AuthStrategies.Delegated;
+    /// <summary>Reached with the run user's own token (exchanged or connected), so clients and catalogs are kept per user.</summary>
+    private static bool IsDelegated(McpServerConfig s) => s.Auth is AuthStrategies.Delegated or AuthStrategies.UserConnected;
 
     /// <summary>"" for shared servers, the user for delegated ones, null if a delegated server has no user context.</summary>
     private static string? UserKey(McpServerConfig s) => IsDelegated(s) ? DelegationContext.Current?.UserId : "";
@@ -177,7 +179,12 @@ public sealed class McpToolSource(
     {
         var options = new HttpClientTransportOptions { Endpoint = new Uri(server.Url), Name = server.Name };
         IClientTransport transport;
-        if (IsDelegated(server))
+        if (server.Auth == AuthStrategies.UserConnected)
+        {
+            var c = connections ?? throw new InvalidOperationException($"Server '{server.Name}' is user-connected but connections are not configured.");
+            transport = new HttpClientTransport(options, new HttpClient(new UserConnectedBearerHandler(server, c)), loggers, ownsHttpClient: true);
+        }
+        else if (IsDelegated(server))
         {
             var ex = exchange ?? throw new InvalidOperationException($"Server '{server.Name}' is delegated but no token exchange is configured.");
             transport = new HttpClientTransport(options, new HttpClient(new DelegatedBearerHandler(server, ex)), loggers, ownsHttpClient: true);
@@ -185,7 +192,7 @@ public sealed class McpToolSource(
         else if (server.Credentials is { } credentials)
         {
             // The token is attached per request, so it is refreshed transparently when it expires.
-            var provider = new BackendTokenProvider(credentials, new HttpClient(), clock ?? TimeProvider.System);
+            var provider = new BackendTokenProvider(credentials, new HttpClient(), clock ?? TimeProvider.System, server: server.Name, status: credentialStatus);
             transport = new HttpClientTransport(options, new HttpClient(new BearerHandler(provider)), loggers, ownsHttpClient: true);
         }
         else

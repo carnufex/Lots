@@ -25,9 +25,13 @@ builder.Services.AddSingleton(TimeProvider.System);
 // Profiles are config as code: loaded from YAML at startup; an invalid manifest stops the shell.
 builder.Services.AddSingleton(sp => ProfileRegistry.LoadDirectory(sp.GetRequiredService<IConfiguration>()["Profiles:Path"] ?? "profiles"));
 builder.Services.AddSingleton(sp => new TokenExchangeClient(new HttpClient(), sp.GetRequiredService<TimeProvider>()));
+builder.Services.AddSingleton<CredentialStatusRegistry>();
+builder.Services.AddHttpClient(nameof(UserConnections), h => h.Timeout = TimeSpan.FromSeconds(20));
+builder.Services.AddSingleton<UserConnections>();
 builder.Services.AddSingleton<IToolSource>(sp =>
     new McpToolSource(() => sp.GetRequiredService<ProfileRegistry>().Servers, sp.GetRequiredService<ILoggerFactory>(),
-        sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<TokenExchangeClient>()));
+        sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<TokenExchangeClient>(),
+        sp.GetRequiredService<UserConnections>(), sp.GetRequiredService<CredentialStatusRegistry>()));
 
 // Encrypts the login tokens kept on delegated runs. Set DataProtection:KeysPath to a persistent volume so tokens
 // survive restarts; otherwise keys are ephemeral and an unreadable token simply makes delegated calls fail.

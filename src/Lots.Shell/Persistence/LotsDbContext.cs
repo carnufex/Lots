@@ -13,6 +13,7 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
     public DbSet<KnowledgeConflictRecord> KnowledgeConflicts => Set<KnowledgeConflictRecord>();
     public DbSet<ConfigResourceRecord> ConfigResources => Set<ConfigResourceRecord>();
     public DbSet<NotificationRecord> Notifications => Set<NotificationRecord>();
+    public DbSet<UserCredentialRecord> UserCredentials => Set<UserCredentialRecord>();
     public DbSet<ConfigVersionRecord> ConfigVersions => Set<ConfigVersionRecord>();
     public DbSet<ConflictVoteRecord> ConflictVotes => Set<ConflictVoteRecord>();
     public DbSet<UserSettingsRecord> UserSettings => Set<UserSettingsRecord>();
@@ -58,6 +59,14 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
             e.Property(x => x.ApprovedBy).HasMaxLength(1024);
             e.Property(x => x.Risk).HasMaxLength(16);
             e.HasIndex(x => new { x.Status, x.ExpiresAt });
+        });
+
+        modelBuilder.Entity<UserCredentialRecord>(e =>
+        {
+            e.ToTable("user_credentials");
+            e.HasKey(x => new { x.UserId, x.Server });
+            e.Property(x => x.UserId).HasMaxLength(256);
+            e.Property(x => x.Server).HasMaxLength(128);
         });
 
         modelBuilder.Entity<NotificationRecord>(e =>
@@ -258,6 +267,19 @@ public sealed class ApprovalRecord
     /// <summary>Undecided after this, the request expires and counts as refused.</summary>
     public DateTimeOffset? ExpiresAt { get; set; }
     public string? Risk { get; set; }
+}
+
+/// <summary>A user's own connected account at a backend (#62): encrypted tokens, never shown or shared.</summary>
+public sealed class UserCredentialRecord
+{
+    public required string UserId { get; set; }
+    public required string Server { get; set; }
+    public string? AccessTokenProtected { get; set; }
+    public string? RefreshTokenProtected { get; set; }
+    public DateTimeOffset? ExpiresAt { get; set; }
+    public string? Scope { get; set; }
+    public DateTimeOffset ConnectedAt { get; set; }
+    public DateTimeOffset? LastUsedAt { get; set; }
 }
 
 /// <summary>Outbox of notifications (#74): written with the change that causes them, delivered with retries by NotificationWorker.</summary>

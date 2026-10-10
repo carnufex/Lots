@@ -73,9 +73,7 @@ public sealed class TokenExchangeClient(HttpClient http, TimeProvider clock, Fun
             };
             if (!string.IsNullOrEmpty(c.Scope)) form["scope"] = c.Scope;
             if (!string.IsNullOrEmpty(c.ClientSecretEnv))
-                form["client_secret"] = _env(c.ClientSecretEnv) is { Length: > 0 } secret
-                    ? secret
-                    : throw new InvalidOperationException($"Environment variable '{c.ClientSecretEnv}' (referenced by the profile) is not set.");
+                form["client_secret"] = SecretReference.Resolve(c.ClientSecretEnv, _env);
 
             using var response = await http.PostAsync(c.TokenUrl, new FormUrlEncodedContent(form), ct);
             if (!response.IsSuccessStatusCode)

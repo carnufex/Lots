@@ -121,7 +121,7 @@ public class ProfileParserTests
     public void Server_auth_strategy_defaults_to_shared_service_account_and_rejects_unknown_ones()
     {
         Assert.Equal(AuthStrategies.SharedServiceAccount, ProfileParser.Parse(WithAuth("")).Servers.Single().Auth);
-        Assert.Equal(AuthStrategies.UserConnected, ProfileParser.Parse(WithAuth("User-Connected")).Servers.Single().Auth);
+        Assert.Equal(AuthStrategies.ServiceAccountPerRole, ProfileParser.Parse(WithAuth("Service-Account-Per-Role")).Servers.Single().Auth);
 
         var ex = Assert.Throws<ProfileException>(() => ProfileParser.Parse(WithAuth("magic")));
         Assert.Contains(ex.Errors, e => e.Contains("unknown auth strategy 'magic'"));
