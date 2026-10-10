@@ -65,6 +65,12 @@ public static class FeedbackViews
 /// <summary>Rate an answer you can read (#121): thumbs up (1) or down (-1) and an optional comment. Rating again replaces it.</summary>
 public sealed class PutFeedbackEndpoint(LotsDbContext db, ICurrentPrincipal who, IConfiguration config, TimeProvider clock) : Endpoint<FeedbackRequest, FeedbackDto>
 {
+    /// <summary>The run's outcome carries the rating (#141): recompute it.</summary>
+    internal static async Task MarkOutcomeDirtyAsync(LotsDbContext db, Guid runId, CancellationToken ct)
+    {
+        if (await db.RunOutcomes.SingleOrDefaultAsync(o => o.RunId == runId, ct) is { } outcome) outcome.Dirty = true;
+    }
+
     public override void Configure() => Put("/runs/{Id}/feedback");
 
     public override async Task HandleAsync(FeedbackRequest req, CancellationToken ct)
@@ -95,6 +101,7 @@ public sealed class PutFeedbackEndpoint(LotsDbContext db, ICurrentPrincipal who,
         row.Rating = req.Rating;
         row.Comment = comment;
         row.UpdatedAt = now;
+        await MarkOutcomeDirtyAsync(db, run.Id, ct);
         await db.SaveChangesAsync(ct);
         await Send.OkAsync(FeedbackViews.ToDto(row), ct);
     }
@@ -125,6 +132,7 @@ public sealed class DeleteFeedbackEndpoint(LotsDbContext db, ICurrentPrincipal w
         if (row is not null)
         {
             db.Feedback.Remove(row);
+            await PutFeedbackEndpoint.MarkOutcomeDirtyAsync(db, req.Id, ct);
             await db.SaveChangesAsync(ct);
         }
         await Send.NoContentAsync(ct);

@@ -2422,6 +2422,103 @@
         ]
       }
     },
+    "/insights/outcomes": {
+      "get": {
+        "tags": [
+          "Insights"
+        ],
+        "operationId": "LotsShellFeaturesInsightsOutcomesEndpoint",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true
+            }
+          },
+          {
+            "name": "profile",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "model",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "channel",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "problem",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutcomeReport"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/health": {
       "get": {
         "tags": [
@@ -6229,6 +6326,187 @@
             "nullable": true
           }
         }
+      },
+      "OutcomeReport": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "to": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "total": {
+            "$ref": "#/components/schemas/OutcomeGroup"
+          },
+          "byProfileVersion": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OutcomeGroup"
+            }
+          },
+          "byModel": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OutcomeGroup"
+            }
+          },
+          "byChannel": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OutcomeGroup"
+            }
+          },
+          "byTool": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ToolGroup"
+            }
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OutcomeItem"
+            }
+          }
+        }
+      },
+      "OutcomeGroup": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "runs": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "successRate": {
+            "type": "number",
+            "format": "double"
+          },
+          "p50WallMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "p95WallMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "cost": {
+            "type": "number",
+            "format": "double"
+          },
+          "toolErrors": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "denials": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "thumbsDown": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "problems": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        }
+      },
+      "ToolGroup": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tool": {
+            "type": "string"
+          },
+          "calls": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "errors": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "errorRate": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "OutcomeItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "runId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "endedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "profile": {
+            "type": "string"
+          },
+          "profileVersion": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "model": {
+            "type": "string",
+            "nullable": true
+          },
+          "channel": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "problem": {
+            "type": "string"
+          },
+          "wallMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "toolCalls": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "toolErrors": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "feedbackRating": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "followUp": {
+            "type": "boolean"
+          },
+          "userRetried": {
+            "type": "boolean"
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "OutcomeQuery": {
+        "type": "object",
+        "additionalProperties": false
       },
       "HealthResponse": {
         "type": "object",

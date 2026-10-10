@@ -30,6 +30,7 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
     public DbSet<ChannelEventRecord> ChannelEvents => Set<ChannelEventRecord>();
     public DbSet<MemoryRecord> Memories => Set<MemoryRecord>();
     public DbSet<FeedbackRecord> Feedback => Set<FeedbackRecord>();
+    public DbSet<Lots.Shell.Core.Outcomes.RunOutcomeRecord> RunOutcomes => Set<Lots.Shell.Core.Outcomes.RunOutcomeRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -185,6 +186,23 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
             e.Property(x => x.Text).HasMaxLength(1000);
             e.Property(x => x.Source).HasMaxLength(16);
             e.Property(x => x.Profile).HasMaxLength(128);
+        });
+
+        modelBuilder.Entity<Lots.Shell.Core.Outcomes.RunOutcomeRecord>(e =>
+        {
+            e.ToTable("run_outcomes");
+            e.HasKey(x => x.RunId);
+            e.HasIndex(x => new { x.Profile, x.ProfileVersion, x.EndedAt });
+            e.HasIndex(x => x.EndedAt);
+            e.HasIndex(x => x.Dirty);
+            e.Property(x => x.UserHash).HasMaxLength(32);
+            e.Property(x => x.Profile).HasMaxLength(128);
+            e.Property(x => x.Model).HasMaxLength(256);
+            e.Property(x => x.Channel).HasMaxLength(32);
+            e.Property(x => x.Status).HasMaxLength(32);
+            e.Property(x => x.JudgeRubric).HasMaxLength(64);
+            e.Property(x => x.TraceId).HasMaxLength(32);
+            e.HasOne<RunRecord>().WithMany().HasForeignKey(x => x.RunId).OnDelete(DeleteBehavior.Cascade); // goes with its run
         });
 
         modelBuilder.Entity<FeedbackRecord>(e =>

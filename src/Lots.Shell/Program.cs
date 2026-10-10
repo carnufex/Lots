@@ -78,6 +78,10 @@ builder.Services.AddSingleton<IToolSource, DelegateToolSource>(); // delegate (#
 builder.Services.Configure<Lots.Shell.Core.Attachments.AttachmentOptions>(builder.Configuration.GetSection(Lots.Shell.Core.Attachments.AttachmentOptions.Section));
 builder.Services.AddKnowledge(builder.Configuration);
 builder.Services.AddSingleton<Lots.Shell.Features.Usage.PriceTable>();
+builder.Services.Configure<Lots.Shell.Core.Outcomes.OutcomeOptions>(builder.Configuration.GetSection(Lots.Shell.Core.Outcomes.OutcomeOptions.Section));
+builder.Services.AddSingleton<Lots.Shell.Core.Outcomes.RunOutcomeWorker>();
+if (builder.Configuration.GetValue("Outcomes:Enabled", true))
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<Lots.Shell.Core.Outcomes.RunOutcomeWorker>()); // #141
 builder.Services.AddSingleton<Lots.Shell.Core.Speech.IAudioStore, Lots.Shell.Core.Speech.FileAudioStore>();
 builder.Services.AddHostedService<Lots.Shell.Core.Speech.AudioRetentionWorker>();
 builder.Services.Configure<Lots.Shell.Features.Privacy.RetentionOptions>(builder.Configuration.GetSection(Lots.Shell.Features.Privacy.RetentionOptions.Section));

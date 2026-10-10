@@ -17,6 +17,8 @@ public static class LotsMetrics
 
     public static readonly Counter<long> RunsStarted = Meter.CreateCounter<long>("lots.runs.started", description: "Runs started");
     public static readonly Counter<long> RunsFinished = Meter.CreateCounter<long>("lots.runs.finished", description: "Runs that reached a final status");
+    /// <summary>One per run outcome (#141), labelled with its most telling problem (none, timeout, denied, tool_error, ...).</summary>
+    public static readonly Counter<long> RunOutcomes = Meter.CreateCounter<long>("lots.run.outcomes", description: "Run outcomes by problem");
     public static readonly Histogram<double> RunDuration = Meter.CreateHistogram("lots.run.duration", "s", "Wall time from start to final status",
         advice: new InstrumentAdvice<double> { HistogramBucketBoundaries = LatencyBuckets });
 

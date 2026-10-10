@@ -93,6 +93,9 @@ public sealed class AgentRunner(
 
     public static readonly ActivitySource Telemetry = new("Lots.Shell");
     private const int MaxTraceResultChars = 2000;
+    /// <summary>The reminder a voice run gets when it answered without the tools (#141 counts it).</summary>
+    public const string VoiceToolNudgeText = VoiceToolNudge;
+
     private const string VoiceToolNudge =
         "You answered without using a tool. If the question is about the current state of a system you must call a tool now and answer " +
         "only from its result. If it is plain conversation, answer again briefly.";

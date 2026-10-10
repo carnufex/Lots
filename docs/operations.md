@@ -49,6 +49,27 @@ The own-voice clips live in the voice service's `/models/refs` volume: back it u
 - Knowledge indexing is leased per source; the audit sealer takes a Postgres advisory lock; GitOps applies are idempotent.
 - Shared state: the database and the `/data` volume (ReadWriteMany if several replicas store audio).
 
+## Run outcomes
+
+Every finished run gets one row in `run_outcomes`, kept current by a background job (`Outcomes:*`). The job also backfills older
+runs, recomputes a row when its feedback changes, and recomputes recent runs whose follow-up signals are still open. A row holds the run's:
+
+- **shape:** steps, model and tool calls, tokens, cost, model and tool time;
+- **problems:** tool errors, policy denials, approval refusals, timeout, step limit, a voice run that skipped the tools, an empty
+  answer, a refusal;
+- **signals:** feedback, a follow-up turn within `Outcomes:FollowUpMinutes` (often a correction), the same prompt asked again;
+- **context:** profile version, model, channel and trace id.
+
+It holds no prompt or answer, and the user only as `lots.user.hash`.
+
+`GET /insights/outcomes?from=&to=&profile=&model=&channel=&status=&problem=&limit=` (roles in `Auth:AuditRoles`) returns:
+
+- success rate and p50/p95 wall time per profile version, model and channel;
+- calls and error rate per tool;
+- the latest runs with their main problem.
+
+`lots_run_outcomes_total{profile,channel,status,problem}` counts outcomes for dashboards.
+
 ## Observability stack
 
 Lots works without any telemetry backend: run outcomes, the audit log and the run trace are in PostgreSQL. To see metrics, traces and
