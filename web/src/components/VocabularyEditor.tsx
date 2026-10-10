@@ -6,7 +6,7 @@ import { t } from '../i18n'
  * The user's dictation vocabulary: names, products and jargon that speech recognition should spell correctly.
  * Saved per user on the server; the words are sent to the speech service together with the recording.
  */
-export default function VocabularyEditor({ api }: { api: Api }) {
+export default function VocabularyEditor({ api, inline = false }: { api: Api; inline?: boolean }) {
   const [vocab, setVocab] = useState<Vocabulary | null>(null)
   const [draft, setDraft] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -46,12 +46,17 @@ export default function VocabularyEditor({ api }: { api: Api }) {
     if (merged.length !== vocab.words.length) void save(merged)
   }
 
+  const title = (
+    <>
+      {t('Vocabulary')}
+      {vocab ? ` (${vocab.words.length})` : ''}
+      <span className="muted"> {t('· names and words dictation should spell correctly')}</span>
+    </>
+  )
+  const Wrap = inline ? 'div' : 'details'
   return (
-    <details className="vocab">
-      <summary>
-        Vocabulary{vocab ? ` (${vocab.words.length})` : ''}
-        <span className="muted"> {t('· names and words dictation should spell correctly')}</span>
-      </summary>
+    <Wrap className="vocab">
+      {inline ? <h2>{title}</h2> : <summary>{title}</summary>}
       <p className="muted small">
         {t('Add names, products and jargon you say often (for example your name or a service). They are sent to the speech service with each dictation as a spelling hint. Only you can see and edit your own list.')}
       </p>
@@ -98,6 +103,6 @@ export default function VocabularyEditor({ api }: { api: Api }) {
           {error}
         </p>
       )}
-    </details>
+    </Wrap>
   )
 }

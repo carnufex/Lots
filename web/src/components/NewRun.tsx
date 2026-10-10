@@ -2,7 +2,6 @@ import { useState } from 'react'
 import type { Api, VoiceLanguage } from '../api'
 import type { ProfileInfo, VoiceConfig } from '../config'
 import MicButton from './MicButton'
-import VocabularyEditor from './VocabularyEditor'
 import { initialLanguage, saveLanguage } from '../voice/language'
 import { AttachPicker, type UploadedAttachment } from './Attachments'
 import { t } from '../i18n'
@@ -82,7 +81,11 @@ export default function NewRun({ api, profiles, voice }: { api: Api; profiles: P
           {busy ? t('Starting…') : t('Start run')}
         </button>
       </div>
-      {voice.enabled && <VocabularyEditor api={api} />}
+      {voice.enabled && (
+        <p className="small muted">
+          {t('Dictation misspells a name?')} <a href="#/voice/vocabulary">{t('Add it to your vocabulary')}</a>
+        </p>
+      )}
     </form>
   )
 }

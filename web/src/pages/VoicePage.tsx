@@ -4,6 +4,7 @@ import type { VoiceConfig } from '../config'
 import { initialLanguage } from '../voice/language'
 import { PASSAGES } from '../voice/passages'
 import VocabularyEditor from '../components/VocabularyEditor'
+import MicButton from '../components/MicButton'
 import { fmt, t } from '../i18n'
 
 const MIN_SECONDS = 8
@@ -21,11 +22,24 @@ const VOICE: Slider[] = [
   { key: 'pace', label: t('Pace'), low: t('Faster'), high: t('Slower, more careful') },
 ]
 
+export const VOICE_TABS = [
+  { slug: 'voice', label: t('Voice') },
+  { slug: 'personality', label: t('Personality') },
+  { slug: 'vocabulary', label: t('Vocabulary') },
+  { slug: 'my-voice', label: t('My voice') },
+  { slug: 'recorded', label: t('Recorded voices'), admin: true },
+] as const
+
+export type VoiceTab = (typeof VOICE_TABS)[number]['slug']
+
 /**
  * Personal voice and personality (ADR 0015): how the agent talks to you in text and speech, and recording your own voice for it
  * to use. The recording is yours: used only when the agent speaks to you, never shared, deleted here at any time.
  */
-export default function VoicePage({ api, voice }: { api: Api; voice: VoiceConfig }) {
+export default function VoicePage({ api, voice, tab = 'voice', admin = false }: { api: Api; voice: VoiceConfig; tab?: VoiceTab; admin?: boolean }) {
+  // One page, one place per thing (#154): tabs like Integrations, the recorded-voices overview for admins only.
+  const tabs = VOICE_TABS.filter((it) => !('admin' in it) || admin)
+  const active = tabs.find((it) => it.slug === tab) ?? tabs[0]
   const [settings, setSettings] = useState<UserSettings | null>(null)
   const [draft, setDraft] = useState<UserSettings | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -79,74 +93,123 @@ export default function VoicePage({ api, voice }: { api: Api; voice: VoiceConfig
 
   if (!draft || !settings) return <p className="muted">{error ?? t('Loading…')}</p>
 
+  const saveRow = (
+    <div className="row">
+      <button type="button" className="btn primary" disabled={!dirty || busy} onClick={() => void save()}>
+        {t('Save')}
+      </button>
+      {voice.enabled && (
+        <button type="button" className="btn" disabled={dirty} onClick={() => void preview()} title={dirty ? t('Save first, then listen') : undefined}>
+          {t('Listen')}
+        </button>
+      )}
+      {saved && <span className="muted small" role="status">{t('Saved')}</span>}
+    </div>
+  )
+  const off = <p className="muted">{t('Voice is not configured on this installation.')}</p>
+
   return (
     <div className="voicepage">
       <h1>{t('Voice and personality')}</h1>
-      <GpuStatus api={api} />
-
-      <section className="card">
-        <h2>{t('Personality')}</h2>
-        <p className="muted small">
-          {t('How the agent talks to you, in text and when speaking. These are style preferences only: they never change what the agent is allowed to do.')}
-        </p>
-        {PERSONALITY.map((s) => (
-          <SliderRow key={s.key} slider={s} value={draft[s.key]} onChange={(v) => setDraft({ ...draft, [s.key]: v })} />
+      <div className="tabs" role="tablist" aria-label={t('Voice')}>
+        {tabs.map((it) => (
+          <a key={it.slug} href={`#/voice/${it.slug}`} role="tab" aria-selected={it.slug === active.slug} className={it.slug === active.slug ? 'tab active' : 'tab'}>
+            {it.label}
+          </a>
         ))}
-      </section>
+      </div>
 
-      <section className="card">
-        <h2>{t('Voice')}</h2>
-        {voice.enabled ? (
-          <>
-            {VOICE.map((s) => (
-              <SliderRow key={s.key} slider={s} value={draft[s.key]} onChange={(v) => setDraft({ ...draft, [s.key]: v })} />
-            ))}
-            <p className="muted small">
-              Expressiveness and pace apply to the expressive voice; the fast fallback voice ignores them.
-            </p>
-          </>
-        ) : (
-          <p className="muted">{t('Voice is not configured on this installation.')}</p>
-        )}
-        <div className="row">
-          <button type="button" className="btn primary" disabled={!dirty || busy} onClick={() => void save()}>
-            {t('Save')}
-          </button>
-          {voice.enabled && (
-            <button type="button" className="btn" disabled={dirty} onClick={() => void preview()} title={dirty ? t('Save first, then listen') : undefined}>
-              {t('Listen')}
-            </button>
-          )}
-          {saved && <span className="muted small" role="status">{t('Saved')}</span>}
-        </div>
-      </section>
-
-      {voice.enabled && (
-        <OwnVoice
-          api={api}
-          current={settings.ownVoice}
-          onChange={(s) => {
-            setSettings(s)
-            setDraft((d) => (d ? { ...d, ownVoice: s.ownVoice } : s))
-          }}
-          setError={setError}
-        />
+      {active.slug === 'voice' && (
+        <>
+          <GpuStatus api={api} />
+          <section className="card">
+            <h2>{t('Voice')}</h2>
+            {voice.enabled ? (
+              <>
+                {VOICE.map((s) => (
+                  <SliderRow key={s.key} slider={s} value={draft[s.key]} onChange={(v) => setDraft({ ...draft, [s.key]: v })} />
+                ))}
+                <p className="muted small">{t('Expressiveness and pace apply to the expressive voice; the fast fallback voice ignores them.')}</p>
+              </>
+            ) : (
+              off
+            )}
+            {saveRow}
+          </section>
+        </>
       )}
 
-      {voice.enabled && (
+      {active.slug === 'personality' && (
         <section className="card">
-          <h2>{t('Dictation vocabulary')}</h2>
-          <VocabularyEditor api={api} />
+          <h2>{t('Personality')}</h2>
+          <p className="muted small">
+            {t('How the agent talks to you, in text and when speaking. These are style preferences only: they never change what the agent is allowed to do.')}
+          </p>
+          {PERSONALITY.map((s) => (
+            <SliderRow key={s.key} slider={s} value={draft[s.key]} onChange={(v) => setDraft({ ...draft, [s.key]: v })} />
+          ))}
+          {saveRow}
         </section>
       )}
+
+      {active.slug === 'vocabulary' &&
+        (voice.enabled ? (
+          <>
+            <VocabularyEditor api={api} inline />
+            <TestDictation api={api} voice={voice} />
+          </>
+        ) : (
+          off
+        ))}
+
+      {active.slug === 'my-voice' &&
+        (voice.enabled ? (
+          <OwnVoice
+            api={api}
+            current={settings.ownVoice}
+            onChange={(s) => {
+              setSettings(s)
+              setDraft((d) => (d ? { ...d, ownVoice: s.ownVoice } : s))
+            }}
+            setError={setError}
+          />
+        ) : (
+          off
+        ))}
+
+      {active.slug === 'recorded' && <OwnVoicesAdmin api={api} />}
 
       {error && (
         <p role="alert" className="error small">
           {error}
         </p>
       )}
-      <OwnVoicesAdmin api={api} />
     </div>
+  )
+}
+
+/** Try the vocabulary (#154): dictate a sentence and see the transcript as dictation would put it in the prompt, corrections included. */
+function TestDictation({ api, voice }: { api: Api; voice: VoiceConfig }) {
+  const [language, setLanguage] = useState<VoiceLanguage>(() => initialLanguage(voice.defaultLanguage))
+  const [text, setText] = useState<string | null>(null)
+  return (
+    <section className="card">
+      <h2>{t('Test dictation')}</h2>
+      <p className="muted small">{t('Say a sentence with your words in it. The text is shown here only; nothing is sent to the agent.')}</p>
+      <div className="row">
+        <select aria-label={t('Speech language')} value={language} onChange={(e) => setLanguage(e.target.value as VoiceLanguage)}>
+          <option value="auto">{t('Auto')}</option>
+          <option value="sv">Svenska</option>
+          <option value="en">English</option>
+        </select>
+        <MicButton api={api} language={language} onText={setText} />
+      </div>
+      {text !== null && (
+        <p className="dictated" aria-live="polite">
+          {text || <span className="muted">{t('Nothing was heard.')}</span>}
+        </p>
+      )}
+    </section>
   )
 }
 

@@ -720,4 +720,12 @@ export const sv: Record<string, string> = {
   "These settings follow you to other devices.": "Inställningarna följer med dig till andra enheter.",
   "No integration asks you to connect your own account.": "Ingen integration ber dig koppla ditt eget konto.",
   "Your data, API tokens and memory are on your": "Dina data, API-tokens och minne finns på ditt",
+  "My voice": "Min röst",
+  "Recorded voices": "Inspelade röster",
+  "Expressiveness and pace apply to the expressive voice; the fast fallback voice ignores them.": "Uttrycksfullhet och tempo gäller den uttrycksfulla rösten; den snabba reservrösten ignorerar dem.",
+  "Test dictation": "Testa diktering",
+  "Say a sentence with your words in it. The text is shown here only; nothing is sent to the agent.": "Säg en mening med dina ord. Texten visas bara här; inget skickas till agenten.",
+  "Nothing was heard.": "Inget hördes.",
+  "Dictation misspells a name?": "Stavar dikteringen fel på ett namn?",
+  "Add it to your vocabulary": "Lägg till det i ditt ordförråd",
 }

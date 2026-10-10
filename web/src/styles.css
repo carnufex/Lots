@@ -1835,3 +1835,9 @@ p.summary {
     grid-template-columns: 1fr;
   }
 }
+.dictated {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  background: var(--surface-2);
+  border-radius: var(--radius);
+}
