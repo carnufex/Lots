@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+
 namespace Lots.Shell.Core.Runs;
 
 /// <summary>
@@ -44,6 +46,12 @@ public sealed class RunWorker(IServiceScopeFactory scopes, ILogger<RunWorker> lo
         var id = await leases.ClaimNextAsync(_owner, LeaseTtl, stoppingToken);
         if (id is null) return false;
 
+        // Every log line written while this run executes carries its run, profile and user hash (#138).
+        var head = await scope.ServiceProvider.GetRequiredService<Lots.Shell.Persistence.LotsDbContext>().Runs.AsNoTracking()
+            .Where(r => r.Id == id.Value).Select(r => new { r.Profile, r.UserId, r.ConversationId }).SingleAsync(stoppingToken);
+        using var logScope = Lots.Shell.Core.Telemetry.RunLogScope.Begin(logger, id.Value, head.Profile,
+            scope.ServiceProvider.GetRequiredService<Lots.Shell.Core.Profiles.ProfileRegistry>().Find(head.Profile)?.Version, head.UserId, head.ConversationId);
+        logger.LogInformation("Claimed run {Run} (lease {LeaseSeconds} s)", id.Value, (int)LeaseTtl.TotalSeconds);
         using var lost = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
         var renewer = Task.Run(() => RenewLoopAsync(id.Value, lost), CancellationToken.None);
         try

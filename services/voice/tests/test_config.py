@@ -19,3 +19,16 @@ def test_only_installed_voices_are_offered(tmp_path):
     (tmp_path / v.directory / v.onnx).write_bytes(b"onnx")
 
     assert PiperTts(settings).voices() == {"sv-nst": "sv"}
+
+
+def test_json_log_lines(monkeypatch):
+    import json
+    import logging
+
+    from voice.logs import JsonFormatter, configure
+
+    monkeypatch.setenv("VOICE_LOG_FORMAT", "json")
+    assert configure()["formatters"]["json"]["()"] is JsonFormatter
+    record = logging.LogRecord("voice", logging.WARNING, __file__, 1, "GPU low: %s MB", (512,), None)
+    line = json.loads(JsonFormatter().format(record))
+    assert line["level"] == "warn" and line["msg"] == "GPU low: 512 MB" and line["time"].endswith("Z")

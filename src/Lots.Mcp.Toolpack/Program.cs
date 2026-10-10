@@ -5,6 +5,12 @@ using Npgsql;
 // Optional tool packs (#63), each off unless configured. The shell still decides per call whether a tool may run: a tool offered here is
 // unclassified (not callable) until a profile declares it with a risk class.
 var builder = WebApplication.CreateBuilder(args);
+// JSON lines with trace ids outside Development (#138), like the shell; Logging:Format=text switches it off.
+if ((builder.Configuration["Logging:Format"] ?? (builder.Environment.IsDevelopment() ? "text" : "json")) == "json")
+{
+    builder.Logging.ClearProviders().AddJsonConsole(o => { o.IncludeScopes = true; o.UseUtcTimestamp = true; o.TimestampFormat = "O"; });
+    builder.Logging.Configure(o => o.ActivityTrackingOptions = ActivityTrackingOptions.TraceId | ActivityTrackingOptions.SpanId);
+}
 var config = builder.Configuration;
 var mcp = builder.Services.AddMcpServer().WithHttpTransport();
 var packs = new List<string>();

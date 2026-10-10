@@ -21,6 +21,7 @@ ENV HOME=/tmp \
     VOICE_REFS_DIR=/models/refs \
     VOICE_HOST=0.0.0.0 \
     VOICE_PORT=8700 \
+    VOICE_LOG_FORMAT=json \
     LD_LIBRARY_PATH=/usr/local/lib/python3.11/site-packages/nvidia/cublas/lib:/usr/local/lib/python3.11/site-packages/nvidia/cudnn/lib
 
 RUN mkdir -p /models && chgrp -R 0 /app /models && chmod -R g=u /app /models

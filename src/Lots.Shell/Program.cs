@@ -140,6 +140,7 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<Lots.Shell.Core.Te
 // Secrets never reach logs, traces or tool results (#87): known values are registered, credential shapes are masked.
 Lots.Shell.Core.Security.SecretRedactor.RegisterEnvironment();
 Lots.Shell.Core.Security.SecretRedactor.RegisterConnectionString(builder.Configuration.GetConnectionString("Lots"));
+Lots.Shell.Core.Telemetry.JsonLogging.AddLotsLogging(builder); // JSON lines with trace correlation (#138), before redaction wraps the providers
 Lots.Shell.Core.Security.SecurityChecks.AddSecretRedaction(builder.Logging);
 // Personal data in log lines (#90): deployment-wide, e.g. Privacy:RedactLogs:0=email.
 Lots.Shell.Core.Security.PiiRedactor.LogKinds = (builder.Configuration.GetSection("Privacy:RedactLogs").Get<string[]>() ?? [])

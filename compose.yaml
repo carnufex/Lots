@@ -6,6 +6,7 @@ services:
     environment:
       # Local compose is a development stack: Dev auth and header identities are refused in any other environment (#87).
       ASPNETCORE_ENVIRONMENT: ${LOTS_ENVIRONMENT:-Development}
+      Logging__Format: ${LOTS_LOG_FORMAT:-text}   # json = one JSON object per line, as in production (#138)
       Auth__Mode: ${LOTS_AUTH_MODE:-Dev}
       Auth__Oidc__Authority: ${LOTS_OIDC_AUTHORITY:-}
       Auth__Oidc__Audience: ${LOTS_OIDC_AUDIENCE:-}

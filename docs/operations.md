@@ -49,6 +49,36 @@ The own-voice clips live in the voice service's `/models/refs` volume: back it u
 - Knowledge indexing is leased per source; the audit sealer takes a Postgres advisory lock; GitOps applies are idempotent.
 - Shared state: the database and the `/data` volume (ReadWriteMany if several replicas store audio).
 
+## Logs
+
+Outside Development, the shell, the MCP servers and the voice service write **one JSON object per line** to stdout. `Logging__Format`
+(shell, MCP servers) and `VOICE_LOG_FORMAT` (voice) switch between `json` and `text`. With `OTEL_EXPORTER_OTLP_ENDPOINT` set, the
+shell also exports its logs over OTLP, redacted the same way.
+
+| Field | Meaning |
+|---|---|
+| `time`, `level`, `category`, `msg` | UTC time, `trace`/`debug`/`info`/`warn`/`error`/`fatal`, the logger, the message |
+| `trace_id`, `span_id` | The active trace, the same as the run's trace (`traceId` on the run page) |
+| `lots.run.id`, `lots.profile`, `lots.profile.version`, `lots.conversation.id` | On every line written while a run executes |
+| `lots.user.hash` | A keyed hash of the user id, never the id itself. Set `Telemetry__UserHashKey` for hashes that are stable across restarts and replicas |
+| other fields | The event's own values in snake_case, e.g. `tool`, `decision`, `reason`, `server`, `attempt` |
+
+Joining logs, traces and audit: `lots.run.id` is the audit log's `runId`, and `trace_id` is the trace in Tempo or Jaeger.
+
+**Redaction.** Registered secrets, credential shapes and the personal data kinds in `Privacy:RedactLogs` are masked in the message,
+every field, every scope value and exceptions, before a line is written or exported. Prompts, answers and tool results are not logged.
+
+**Levels.** The defaults are Information for Lots and Warning for ASP.NET Core, EF Core commands and HttpClient. Change them per
+category with `Logging__LogLevel__<Category>`. Events worth knowing:
+
+| Event | Category | Level |
+|---|---|---|
+| Tool denied, approval requested or granted or refused | `Lots.Shell.Core.Runs.AgentRunner` | Information (plain allows at Debug) |
+| Run claimed, cancelled, lease lost | `Lots.Shell.Core.Runs.RunWorker` | Information / Warning |
+| Model endpoint failed, falling back | `Lots.Shell.Core.Models.ModelRouting` | Warning |
+| MCP server unavailable, retrying | `Lots.Shell.Core.Mcp.McpToolSource` | Warning |
+| Profile or resource invalid, GitOps sync | `Lots.Shell.Core.Config.*` | Warning / Error |
+
 ## Troubleshooting
 
 | Symptom | Look at | Usual cause and fix |

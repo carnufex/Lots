@@ -86,8 +86,11 @@ public sealed class AgentRunner(
     SubjectTokenVault? vault = null,
     ModelCatalog? catalog = null,
     Quotas.QuotaService? quotas = null,
-    RunStreams? streams = null)
+    RunStreams? streams = null,
+    ILogger<AgentRunner>? logger = null)
 {
+    private readonly ILogger _log = logger ?? (ILogger)Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+
     public static readonly ActivitySource Telemetry = new("Lots.Shell");
     private const int MaxTraceResultChars = 2000;
     private const string VoiceToolNudge =
@@ -506,7 +509,16 @@ public sealed class AgentRunner(
             : $"[empty reply; finish_reason={r.FinishReason}; reasoning: {Cut(r.Message.Reasoning?[..Math.Min(r.Message.Reasoning.Length, 300)]) ?? "none"}]";
 
     /// <summary>Appends an audit row. It is saved together with the effect it describes, never separately.</summary>
-    private void Audit(RunRecord run, Principal principal, ToolCall call, AuditDecision decision, string reason, string? approver, string? resultStatus, string? backendAuth = null) =>
+    private void Audit(RunRecord run, Principal principal, ToolCall call, AuditDecision decision, string reason, string? approver, string? resultStatus, string? backendAuth = null)
+    {
+        // Every policy decision is also a log event (#138): denials and approvals at Information, plain allows at Debug.
+        _log.Log(decision == AuditDecision.Allowed ? LogLevel.Debug : LogLevel.Information,
+            "Tool {Tool} {Decision}: {Reason} (backend auth {BackendAuth}, result {ResultStatus})",
+            call.Name, decision, reason, backendAuth ?? "-", resultStatus ?? "-");
+        AddAudit(run, principal, call, decision, reason, approver, resultStatus, backendAuth);
+    }
+
+    private void AddAudit(RunRecord run, Principal principal, ToolCall call, AuditDecision decision, string reason, string? approver, string? resultStatus, string? backendAuth) =>
         db.AuditLog.Add(new AuditRecord
         {
             Id = Guid.NewGuid(), At = clock.GetUtcNow(), UserId = principal.UserId, Roles = run.Roles,
