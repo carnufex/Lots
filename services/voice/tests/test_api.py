@@ -281,3 +281,10 @@ def test_health_reports_gpu_memory(parts):
     client = TestClient(create_app(settings, stt, tts, FakeGpu(800)))
     body = client.get("/health").json()
     assert body["gpu"]["low"] is True and body["gpu"]["free_bytes"] == 800 * 1024 * 1024
+
+
+def test_urlencoded_bodies_are_refused_before_parsing(client):
+    # Mitigation for CVE-2026-54283 (#147): no endpoint takes urlencoded forms.
+    c, auth = client
+    r = c.post("/v1/audio/transcriptions", headers={**auth, "Content-Type": "application/x-www-form-urlencoded"}, content=b"a=" + b"x" * 1000)
+    assert r.status_code == 415

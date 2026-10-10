@@ -1,18 +1,22 @@
 #!/usr/bin/env bash
 # Local CI: build, test, build container images, fail if an image would run as root.
 # GitHub Actions is billing-blocked for this account, so this is the gate until it is re-enabled.
-# Usage: scripts/ci.sh [--no-images]
+# Usage: scripts/ci.sh [--no-images] [--no-scan]
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 echo "== build + test"
-dotnet build --nologo -v q
+dotnet restore --locked-mode --nologo -v q
+dotnet build --nologo -v q --no-restore
 dotnet test --nologo --no-build -v q
 
 echo "== helm chart"
 bash scripts/check-chart.sh
 
-[[ "${1:-}" == "--no-images" ]] && { echo "== images skipped"; exit 0; }
+echo "== base images pinned"
+bash scripts/pin-base-images.sh --check
+
+[[ " $* " == *" --no-images "* ]] && { echo "== images skipped"; exit 0; }
 
 echo "== images"
 check_image() { # name, dockerfile
@@ -28,4 +32,9 @@ check_image() { # name, dockerfile
 check_image shell src/Lots.Shell/Dockerfile
 check_image mcp-homelab src/Lots.Mcp.Homelab/Dockerfile
 check_image mcp-toolpack src/Lots.Mcp.Toolpack/Dockerfile
+
+if [[ " $* " != *" --no-scan "* ]]; then
+  echo "== vulnerability scan"
+  bash scripts/supply-chain.sh scan
+fi
 echo "== CI passed"

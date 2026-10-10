@@ -37,6 +37,15 @@ def create_app(settings: Settings, stt: SttEngine, tts: TtsEngine, gpu: GpuMonit
     app = FastAPI(title="Lots voice service", version="0.1.0")
     gate = asyncio.Semaphore(settings.max_concurrency)
 
+    @app.middleware("http")
+    async def no_urlencoded_forms(request, call_next):
+        # No endpoint takes urlencoded forms, and the Starlette version held by chatterbox's pins parses them without size
+        # limits (CVE-2026-54283, #147): refuse them before any parsing happens.
+        if request.headers.get("content-type", "").lower().startswith("application/x-www-form-urlencoded"):
+            return JSONResponse({"detail": "Form-encoded bodies are not accepted."}, status_code=415)
+        return await call_next(request)
+
+
     def authorize(authorization: str | None = Header(default=None)) -> None:
         if settings.api_key is None:
             return  # validate() guarantees this only happens with VOICE_ALLOW_ANONYMOUS=1

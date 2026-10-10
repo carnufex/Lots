@@ -1,0 +1,14 @@
+# Accepted vulnerability findings (#91). One CVE per line with an expiry; each needs a reason and an issue.
+# Expired entries fail the scan again, which forces a review.
+
+# Voice service, pinned exactly by chatterbox-tts 0.1.7 (#147). Fixed models only (trust_remote_code paths unreachable),
+# gradio never started, no StaticFiles, Linux only, LAN-only behind an API key; urlencoded bodies are refused (CVE-2026-54283).
+CVE-2026-4372 exp:2027-01-10
+CVE-2026-5241 exp:2027-01-10
+CVE-2026-9856 exp:2027-01-10
+CVE-2026-44513 exp:2027-01-10
+CVE-2026-45804 exp:2027-01-10
+CVE-2026-48545 exp:2027-01-10
+CVE-2026-49119 exp:2027-01-10
+CVE-2026-48818 exp:2027-01-10
+CVE-2026-54283 exp:2027-01-10

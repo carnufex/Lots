@@ -1,0 +1,11 @@
+<Project>
+  <!-- Supply chain (#91): every restore uses exactly the versions in packages.lock.json (CI and images restore in locked mode),
+       and NuGet's vulnerability audit fails the build on a known high or critical advisory in any direct or transitive package. -->
+  <PropertyGroup>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <NuGetAuditLevel>moderate</NuGetAuditLevel>
+    <WarningsAsErrors>$(WarningsAsErrors);NU1903;NU1904</WarningsAsErrors>
+  </PropertyGroup>
+</Project>

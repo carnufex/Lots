@@ -1,13 +1,13 @@
-FROM python:3.11-slim
+FROM python:3.11-slim@sha256:e88e9763f943ec1834f992a4b51e0f24500486803e8bc534e5767af9ea65f6ce
 
 # CUDA libraries come from pip (nvidia-cublas-cu12 / nvidia-cudnn-cu12); the GPU itself is provided by the NVIDIA
 # container runtime (docker run --gpus all). No root needed at runtime: any UID with group 0 works (OpenShift style).
 WORKDIR /app
 # Dependencies first, in their own layer: a code change then rebuilds in seconds instead of reinstalling PyTorch.
-COPY pyproject.toml ./
+COPY pyproject.toml constraints.txt ./
 # CHATTERBOX=1 adds the expressive voice (PyTorch + Chatterbox, several GB). Piper alone is much smaller.
 ARG CHATTERBOX=0
-RUN mkdir voice && touch voice/__init__.py  && if [ "$CHATTERBOX" = "1" ]; then pip install --no-cache-dir ".[engines,chatterbox]"; else pip install --no-cache-dir ".[engines]"; fi  && pip uninstall -y lots-voice && rm -rf voice
+RUN mkdir voice && touch voice/__init__.py  && if [ "$CHATTERBOX" = "1" ]; then pip install --no-cache-dir -c constraints.txt ".[engines,chatterbox]"; else pip install --no-cache-dir -c constraints.txt ".[engines]"; fi  && pip uninstall -y lots-voice && rm -rf voice
 COPY voice/ voice/
 COPY scripts/ scripts/
 RUN pip install --no-cache-dir --no-deps .

@@ -7,3 +7,6 @@ evals/report*.md
 node_modules/
 dist/
 profiles.local/
+
+# supply-chain output (SBOMs, scan inputs)
+/out/
