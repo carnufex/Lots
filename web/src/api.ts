@@ -38,6 +38,7 @@ export interface RunDetail {
   /** What an unfinished run waits for; null when it is finished. */
   waiting: 'queued' | 'model' | 'tool' | 'approval' | 'cancelling' | null
   retryOf: string | null
+  traceId: string | null
 }
 
 export const isTerminal = (s: RunStatus) => s === 'Completed' || s === 'Failed' || s === 'Cancelled'

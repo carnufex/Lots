@@ -125,7 +125,7 @@ public sealed record StepDto(
 public sealed record RunDto(
     Guid Id, string Prompt, string Status, string? FinalAnswer, string? Error,
     DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, IReadOnlyList<StepDto> Steps,
-    string? Waiting = null, Guid? RetryOf = null);
+    string? Waiting = null, Guid? RetryOf = null, string? TraceId = null);
 
 /// <summary>A run can be read by its owner and by admins (<c>Auth:AdminRoles</c>, default admin). Others get 404.</summary>
 public sealed class GetRunEndpoint(LotsDbContext db, ICurrentPrincipal who, IConfiguration config) : Endpoint<GetRunRequest, RunDto>
@@ -155,7 +155,7 @@ public sealed class GetRunEndpoint(LotsDbContext db, ICurrentPrincipal who, ICon
                 return new StepDto(s.Seq, s.Kind.ToString(), s.Name, s.ToolCallId, s.ArgumentsJson, s.Result,
                     s.LatencyMs, s.PromptTokens, s.CompletionTokens, s.CreatedAt, s.Endpoint, decision?.Decision.ToString(), decision?.Reason);
             }).ToList(),
-            WaitingFor(run), run.RetryOf), ct);
+            WaitingFor(run), run.RetryOf, run.TraceId), ct);
     }
 
     internal static string? WaitingFor(RunRecord run)

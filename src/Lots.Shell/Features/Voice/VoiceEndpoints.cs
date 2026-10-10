@@ -68,6 +68,9 @@ public sealed class TranscribeEndpoint(
 
         var me = who.Get(HttpContext);
         var sw = Stopwatch.StartNew();
+        using var span = Lots.Shell.Core.Telemetry.Tracing.Source.StartActivity("speech_to_text", ActivityKind.Client);
+        span?.SetTag("lots.speech.language", language ?? "auto");
+        if (req.ConversationId is { } conversation) span?.SetTag("gen_ai.conversation.id", conversation.ToString());
         try
         {
             await using var stream = req.Audio.OpenReadStream();
@@ -75,6 +78,8 @@ public sealed class TranscribeEndpoint(
             var transcript = await stt.TranscribeAsync(
                 new AudioInput(stream, req.Audio.ContentType ?? "application/octet-stream", req.Audio.FileName ?? "audio"), language, words, ct);
             sw.Stop();
+            span?.SetTag("lots.speech.audio_seconds", transcript.DurationSeconds);
+            span?.SetTag("lots.speech.detected_language", transcript.Language);
             await RecordAsync(me.UserId, "Stt", transcript.Language ?? language, transcript.DurationSeconds, null, sw, "ok", null, req.ConversationId);
             await Send.OkAsync(new TranscribeResponse(transcript.Text, transcript.Language, transcript.DurationSeconds), ct);
         }
@@ -148,6 +153,12 @@ public sealed class SpeakRunEndpoint(
 
         var text = run.FinalAnswer.Length <= o.MaxTextChars ? run.FinalAnswer : run.FinalAnswer[..o.MaxTextChars];
         var sw = Stopwatch.StartNew();
+        // Part of the run's trace, so a turn shows model, tools and speech together.
+        using var span = Lots.Shell.Core.Telemetry.Tracing.Source.StartActivity("text_to_speech", ActivityKind.Client,
+            run.TraceId is { Length: 32 } tid ? new ActivityContext(ActivityTraceId.CreateFromString(tid), ActivitySpanId.CreateRandom(), ActivityTraceFlags.Recorded) : default);
+        span?.SetTag("lots.run.id", run.Id.ToString());
+        span?.SetTag("lots.speech.language", language);
+        span?.SetTag("lots.speech.characters", text.Length);
         try
         {
             using var audio = await tts.SynthesizeAsync(text, language, UserSettings.VoiceOf(await UserSettings.OfAsync(db, me.UserId, ct)), ct);
@@ -164,6 +175,8 @@ public sealed class SpeakRunEndpoint(
             await Send.StreamAsync(timed, contentType: audio.ContentType, cancellation: ct);
             usage.LatencyMs = timed.FirstByteMs ?? firstAudioMs; // time to the first audio bytes (the response headers come earlier)
             usage.DurationMs = sw.ElapsedMilliseconds; // the whole synthesis, now that the body has been streamed
+            span?.AddEvent(new ActivityEvent("first_audio", DateTimeOffset.UtcNow - TimeSpan.FromMilliseconds(usage.DurationMs.Value - usage.LatencyMs)));
+            span?.SetTag("lots.speech.first_audio_ms", usage.LatencyMs);
             await db.SaveChangesAsync(CancellationToken.None);
             Lots.Shell.Core.Telemetry.LotsMetrics.SpeechRequests.Add(1, new("direction", "tts"), new("outcome", "ok"));
             Lots.Shell.Core.Telemetry.LotsMetrics.SpeechLatency.Record(usage.LatencyMs / 1000.0, new KeyValuePair<string, object?>("direction", "tts"));

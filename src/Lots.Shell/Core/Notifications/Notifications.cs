@@ -187,6 +187,7 @@ public sealed class ApprovalExpiryWorker(IServiceScopeFactory scopes, TimeProvid
             var run = await db.Runs.SingleOrDefaultAsync(r => r.Id == a.RunId, ct);
             a.Status = ApprovalStatus.Expired;
             Telemetry.LotsMetrics.Approvals.Add(1, new("event", "expired"), new("risk", a.Risk));
+            if (run is not null) Telemetry.Tracing.ApprovalWait(run, a, "Expired", now);
             a.DecidedAt = now;
             a.DecidedBy = "system";
             a.Comment = "expired without a decision";

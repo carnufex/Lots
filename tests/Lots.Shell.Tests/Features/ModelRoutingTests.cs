@@ -150,3 +150,38 @@ public class ModelRoutingTests
         Assert.Equal(("m", "gpu"), (step.Name, step.Endpoint));
     }
 }
+
+public class TracingTests
+{
+    [Fact]
+    public async Task A_run_is_one_invoke_agent_span_with_its_model_calls_inside_and_the_run_keeps_the_trace_id()
+    {
+        var spans = new List<System.Diagnostics.Activity>();
+        using var listener = new System.Diagnostics.ActivityListener
+        {
+            ShouldListenTo = s => s.Name == "Lots.Shell",
+            Sample = (ref System.Diagnostics.ActivityCreationOptions<System.Diagnostics.ActivityContext> _) => System.Diagnostics.ActivitySamplingResult.AllDataAndRecorded,
+            ActivityStopped = a => { lock (spans) spans.Add(a); },
+        };
+        System.Diagnostics.ActivitySource.AddActivityListener(listener);
+
+        var db = new LotsDbContext(new DbContextOptionsBuilder<LotsDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var run = new RunRecord { Id = Guid.NewGuid(), Prompt = "p", Profile = TestProfiles.Name, UserId = "u", Roles = "operator", CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow };
+        db.Runs.Add(run);
+        await db.SaveChangesAsync();
+        var registry = TestProfiles.Registry();
+        await new AgentRunner(db, new AliasRecorderModel(), new ToolInvoker([], registry), registry, Options.Create(new AgentOptions()), TimeProvider.System).ExecuteAsync(run.Id, default);
+
+        // Other tests run in parallel and emit spans too: pick this run's.
+        var root = spans.ToList().Single(s => (string?)s.GetTagItem("lots.run.id") == run.Id.ToString() && s.OperationName.StartsWith("invoke_agent", StringComparison.Ordinal));
+        Assert.Contains(spans.ToList(), s => s.OperationName.StartsWith("chat", StringComparison.Ordinal) && s.ParentSpanId == root.SpanId);
+        Assert.Equal(root.TraceId.ToHexString(), run.TraceId);
+        Assert.Equal("Completed", root.GetTagItem("lots.run.status"));
+    }
+
+    private sealed class AliasRecorderModel : IModelClient
+    {
+        public Task<ModelResponse> CompleteAsync(IReadOnlyList<ChatMessage> m, IReadOnlyList<ToolDefinition> t, CancellationToken ct) =>
+            Task.FromResult(new ModelResponse(new ChatMessage("assistant", "ok"), "stop", new ModelUsage(1, 1), TimeSpan.Zero));
+    }
+}

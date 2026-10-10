@@ -98,6 +98,17 @@ public sealed class AgentRunner(
             return;
         }
 
+        // One span per execution of the run (GenAI "invoke_agent"); a resumed run's spans link to its first trace.
+        ActivityContext? first = run.TraceId is { Length: 32 } t ? new ActivityContext(ActivityTraceId.CreateFromString(t), ActivitySpanId.CreateRandom(), ActivityTraceFlags.Recorded) : null;
+        using var root = Telemetry.StartActivity($"invoke_agent {run.Profile}", ActivityKind.Internal, parentContext: default,
+            links: first is { } f ? [new ActivityLink(f)] : null);
+        root?.SetTag("gen_ai.operation.name", "invoke_agent");
+        root?.SetTag("gen_ai.agent.name", run.Profile);
+        root?.SetTag("lots.run.id", run.Id.ToString());
+        root?.SetTag("lots.run.voice", run.Voice);
+        if (run.ConversationId is { } conv) root?.SetTag("gen_ai.conversation.id", conv.ToString());
+        if (run.TraceId is null && root is not null) run.TraceId = root.TraceId.ToHexString();
+
         run.Status = RunStatus.Running;
         if (run.Messages.Count == 0)
         {
@@ -222,6 +233,9 @@ public sealed class AgentRunner(
             run.Status = RunStatus.Failed;
             run.Error = ex.Message;
         }
+
+        root?.SetTag("lots.run.status", run.Status.ToString());
+        if (run.Status == RunStatus.Failed) root?.SetStatus(ActivityStatusCode.Error, run.Error);
 
         // A finished run no longer needs the user's login token.
         if (run.Status is RunStatus.Completed or RunStatus.Failed)

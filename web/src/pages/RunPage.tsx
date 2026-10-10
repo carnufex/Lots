@@ -8,7 +8,7 @@ import { ConflictVote, conflictIds } from '../components/ConflictVote'
 
 const POLL_MS = 1500
 
-export default function RunPage({ api, id, voice }: { api: Api; id: string; voice: VoiceConfig }) {
+export default function RunPage({ api, id, voice, traceUrl }: { api: Api; id: string; voice: VoiceConfig; traceUrl?: string | null }) {
   const [run, setRun] = useState<RunDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -48,7 +48,7 @@ export default function RunPage({ api, id, voice }: { api: Api; id: string; voic
         </p>
       )}
       {!run && !error && <p className="muted">Loading…</p>}
-      {run && <Detail run={run} api={api} voice={voice} reconnecting={error !== null} />}
+      {run && <Detail run={run} api={api} voice={voice} reconnecting={error !== null} traceUrl={traceUrl ?? null} />}
     </section>
   )
 }
@@ -61,7 +61,7 @@ const WAITING: Record<NonNullable<RunDetail['waiting']>, string> = {
   cancelling: 'stopping…',
 }
 
-function Detail({ run, api, voice, reconnecting }: { run: RunDetail; api: Api; voice: VoiceConfig; reconnecting: boolean }) {
+function Detail({ run, api, voice, reconnecting, traceUrl }: { run: RunDetail; api: Api; voice: VoiceConfig; reconnecting: boolean; traceUrl: string | null }) {
   const live = !isTerminal(run.status)
   const tokens = run.steps.reduce((n, s) => n + (s.promptTokens ?? 0) + (s.completionTokens ?? 0), 0)
   const [busy, setBusy] = useState(false)
@@ -87,6 +87,18 @@ function Detail({ run, api, voice, reconnecting }: { run: RunDetail; api: Api; v
         {live && <span className="muted">{run.waiting ? WAITING[run.waiting] : 'working…'}</span>}
         {reconnecting && <span className="warn">connection problem, retrying…</span>}
         <span className="muted mono">{run.steps.length} steps · {tokens} tokens</span>
+        {run.traceId && (
+          <span className="muted mono small">
+            trace{' '}
+            {traceUrl ? (
+              <a href={traceUrl.replace('{traceId}', run.traceId)} target="_blank" rel="noreferrer noopener">
+                {run.traceId.slice(0, 12)}
+              </a>
+            ) : (
+              run.traceId.slice(0, 12)
+            )}
+          </span>
+        )}
         {live && run.waiting !== 'cancelling' && (
           <button type="button" className="btn" disabled={busy} onClick={() => void act(async () => void (await api.cancelRun(run.id)))}>
             Cancel

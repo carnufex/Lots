@@ -163,7 +163,7 @@ function Shell({ config, auth, session }: { config: ClientConfig; auth: Auth; se
         </header>
         <main>
           {route.name === 'runs' && <RunsPage api={api} profiles={config.profiles} voice={config.voice} />}
-          {route.name === 'run' && <RunPage api={api} id={route.id} voice={config.voice} />}
+          {route.name === 'run' && <RunPage api={api} id={route.id} voice={config.voice} traceUrl={config.traceUrl} />}
           {route.name === 'approvals' && <ApprovalsPage api={api} />}
           {route.name === 'audit' && <AuditPage api={api} />}
           {route.name === 'history' && <HistoryPage api={api} id={route.id} />}

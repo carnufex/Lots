@@ -35,6 +35,7 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
             e.HasIndex(x => x.Status);
             e.Property(x => x.LeaseOwner).HasMaxLength(256);
             e.Property(x => x.CancelRequestedBy).HasMaxLength(256);
+            e.Property(x => x.TraceId).HasMaxLength(32);
             e.HasMany(x => x.Messages).WithOne().HasForeignKey(x => x.RunId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(x => x.Steps).WithOne().HasForeignKey(x => x.RunId).OnDelete(DeleteBehavior.Cascade);
         });
@@ -209,6 +210,8 @@ public sealed class RunRecord
     public string? CancelRequestedBy { get; set; }
     /// <summary>The failed or cancelled run this one was started again from.</summary>
     public Guid? RetryOf { get; set; }
+    /// <summary>OpenTelemetry trace of the run's first execution (#76): resumed executions link to it.</summary>
+    public string? TraceId { get; set; }
     /// <summary>Worker currently executing the run, and until when (unix ms). See RunLeases.</summary>
     public string? LeaseOwner { get; set; }
     public long? LeaseUntilMs { get; set; }
