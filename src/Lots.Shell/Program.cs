@@ -7,6 +7,7 @@ using Lots.Shell.Core.Models;
 using Lots.Shell.Core.Runs;
 using Lots.Shell.Core.Speech;
 using Lots.Shell.Core.Tools;
+using FastEndpoints.Swagger;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
@@ -18,6 +19,21 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.AddLotsAuth();
 builder.Services.AddFastEndpoints();
+// The public API contract (#109): an OpenAPI document generated from the endpoints, served as JSON (no UI: the CSP allows no
+// third-party scripts). docs/api/openapi.json is the reviewed copy; a test fails when they differ.
+builder.Services.SwaggerDocument(o =>
+{
+    o.ShortSchemaNames = true;
+    o.EnableJWTBearerAuth = true;
+    o.DocumentSettings = s =>
+    {
+        s.DocumentName = "v1";
+        s.Title = "Lots API";
+        s.Version = "1";
+        s.Description = "Runs, approvals, audit, knowledge and administration. Authenticate with an OIDC access token or a " +
+                        "personal API token (Authorization: Bearer lots_pat_...). See docs/api.md.";
+    };
+});
 builder.Services.AddModelClient(builder.Configuration);
 builder.Services.AddSpeech(builder.Configuration);
 builder.Services.AddSingleton<Lots.Shell.Features.Voice.AcknowledgementCache>();
@@ -155,6 +171,7 @@ app.UseMiddleware<Lots.Shell.Core.Security.ApiTokenScopeMiddleware>(); // API to
 app.UseAuthorization();
 app.UseMiddleware<Lots.Shell.Core.Notifications.UserDirectoryMiddleware>(); // e-mail and roles from the login, for approval routing (#136)
 app.UseFastEndpoints();
+app.UseOpenApi(c => c.Path = "/openapi/{documentName}.json"); // anonymous: the contract is not a secret
 // Metrics carry no user identities; restrict who can reach /metrics with a network policy (the chart's ServiceMonitor scrapes in-cluster).
 if (app.Configuration.GetValue("Metrics:Enabled", true))
 {

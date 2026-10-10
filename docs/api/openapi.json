@@ -1,0 +1,6339 @@
+{
+  "x-generator": "NSwag v14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))",
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Lots API",
+    "description": "Runs, approvals, audit, knowledge and administration. Authenticate with an OIDC access token or a personal API token (Authorization: Bearer lots_pat_...). See docs/api.md.",
+    "version": "1"
+  },
+  "paths": {
+    "/admin/voices": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "LotsShellFeaturesVoiceListOwnVoicesEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnVoicesDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/admin/voices/{userId}": {
+      "delete": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "LotsShellFeaturesVoiceRevokeOwnVoiceEndpoint",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/voice/transcribe": {
+      "post": {
+        "tags": [
+          "Voice"
+        ],
+        "operationId": "LotsShellFeaturesVoiceTranscribeEndpoint",
+        "requestBody": {
+          "x-name": "TranscribeRequest",
+          "description": "",
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/TranscribeRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscribeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/runs/{id}/speak": {
+      "post": {
+        "tags": [
+          "Runs"
+        ],
+        "operationId": "LotsShellFeaturesVoiceSpeakRunEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "SpeakRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpeakRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/voice/vocabulary": {
+      "get": {
+        "tags": [
+          "Voice"
+        ],
+        "operationId": "LotsShellFeaturesVoiceGetVocabularyEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VocabularyDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Voice"
+        ],
+        "operationId": "LotsShellFeaturesVoiceSetVocabularyEndpoint",
+        "requestBody": {
+          "x-name": "SetVocabularyRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetVocabularyRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VocabularyDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/voice/ack": {
+      "get": {
+        "tags": [
+          "Voice"
+        ],
+        "operationId": "LotsShellFeaturesVoiceAcknowledgementEndpoint",
+        "parameters": [
+          {
+            "name": "language",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/voice/status": {
+      "get": {
+        "tags": [
+          "Voice"
+        ],
+        "operationId": "LotsShellFeaturesVoiceVoiceStatusEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VoiceStatusDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/me/quota": {
+      "get": {
+        "tags": [
+          "Me"
+        ],
+        "operationId": "LotsShellFeaturesUsageMyQuotaEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuotaStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/admin/v1/quotas/{user}": {
+      "put": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "LotsShellFeaturesUsageSetQuotaOverrideEndpoint",
+        "parameters": [
+          {
+            "name": "user",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "QuotaOverrideRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuotaOverrideRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuotaOverrideRecord"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "LotsShellFeaturesUsageDeleteQuotaOverrideEndpoint",
+        "parameters": [
+          {
+            "name": "user",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/admin/v1/quotas": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "LotsShellFeaturesUsageListQuotaOverridesEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/QuotaOverrideRecord"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/usage": {
+      "get": {
+        "tags": [
+          "Usage"
+        ],
+        "operationId": "LotsShellFeaturesUsageUsageEndpoint",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true
+            }
+          },
+          {
+            "name": "groupBy",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "user",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsageReport"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/tool-calls": {
+      "get": {
+        "tags": [
+          "Tool-Calls"
+        ],
+        "operationId": "LotsShellFeaturesToolCallsListToolCallsEndpoint",
+        "parameters": [
+          {
+            "name": "user",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "profile",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "tool",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "nullable": true
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolCallList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/me/settings": {
+      "get": {
+        "tags": [
+          "Me"
+        ],
+        "operationId": "LotsShellFeaturesSettingsGetSettingsEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Me"
+        ],
+        "operationId": "LotsShellFeaturesSettingsSetSettingsEndpoint",
+        "requestBody": {
+          "x-name": "SetSettingsRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetSettingsRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/me/voice": {
+      "put": {
+        "tags": [
+          "Me"
+        ],
+        "operationId": "LotsShellFeaturesSettingsRecordVoiceEndpoint",
+        "requestBody": {
+          "x-name": "RecordVoiceRequest",
+          "description": "",
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordVoiceRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Me"
+        ],
+        "operationId": "LotsShellFeaturesSettingsDeleteVoiceEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/me/away": {
+      "get": {
+        "tags": [
+          "Me"
+        ],
+        "operationId": "LotsShellFeaturesSettingsGetAwayEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AwayDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Me"
+        ],
+        "operationId": "LotsShellFeaturesSettingsSetAwayEndpoint",
+        "requestBody": {
+          "x-name": "AwayDto",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AwayDto"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AwayDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/me/tokens": {
+      "get": {
+        "tags": [
+          "Me"
+        ],
+        "operationId": "LotsShellFeaturesSecurityListMyTokensEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ApiTokenDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Me"
+        ],
+        "operationId": "LotsShellFeaturesSecurityCreateTokenEndpoint",
+        "requestBody": {
+          "x-name": "CreateApiTokenRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateApiTokenRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedApiTokenDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/me/tokens/{id}": {
+      "delete": {
+        "tags": [
+          "Me"
+        ],
+        "operationId": "LotsShellFeaturesSecurityRevokeMyTokenEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/admin/api-tokens": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "LotsShellFeaturesSecurityListAllTokensEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ApiTokenDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/admin/api-tokens/{id}": {
+      "delete": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "LotsShellFeaturesSecurityRevokeAnyTokenEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/runs": {
+      "post": {
+        "tags": [
+          "Runs"
+        ],
+        "operationId": "LotsShellFeaturesRunsStartRunEndpoint",
+        "requestBody": {
+          "x-name": "StartRunRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartRunRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartRunResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "get": {
+        "tags": [
+          "Runs"
+        ],
+        "operationId": "LotsShellFeaturesRunsListRunsEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RunSummaryDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/runs/{id}": {
+      "get": {
+        "tags": [
+          "Runs"
+        ],
+        "operationId": "LotsShellFeaturesRunsGetRunEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/runs/{id}/cancel": {
+      "post": {
+        "tags": [
+          "Runs"
+        ],
+        "operationId": "LotsShellFeaturesRunsCancelRunEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartRunResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/runs/{id}/retry": {
+      "post": {
+        "tags": [
+          "Runs"
+        ],
+        "operationId": "LotsShellFeaturesRunsRetryRunEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartRunResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/me/export": {
+      "get": {
+        "tags": [
+          "Me"
+        ],
+        "operationId": "LotsShellFeaturesPrivacyExportMyDataEndpoint",
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/me/data": {
+      "delete": {
+        "tags": [
+          "Me"
+        ],
+        "operationId": "LotsShellFeaturesPrivacyDeleteMyDataEndpoint",
+        "requestBody": {
+          "x-name": "DeleteMyDataRequest",
+          "description": "",
+          "content": {
+            "*/*": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteMyDataRequest"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteMyDataRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletionReport"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/admin/v1/data-report": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "LotsShellFeaturesPrivacyDataReportEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataReport"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/models": {
+      "get": {
+        "tags": [
+          "Models"
+        ],
+        "operationId": "LotsShellFeaturesModelsListModelsEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelsDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/knowledge/conflicts/{id}": {
+      "get": {
+        "tags": [
+          "Knowledge"
+        ],
+        "operationId": "LotsShellFeaturesKnowledgeGetConflictEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/knowledge/conflicts/{id}/vote": {
+      "post": {
+        "tags": [
+          "Knowledge"
+        ],
+        "operationId": "LotsShellFeaturesKnowledgeVoteConflictEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "VoteRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoteRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/knowledge/conflicts": {
+      "get": {
+        "tags": [
+          "Knowledge"
+        ],
+        "operationId": "LotsShellFeaturesKnowledgeListConflictsEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ConflictDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/knowledge/conflicts/{id}/resolve": {
+      "post": {
+        "tags": [
+          "Knowledge"
+        ],
+        "operationId": "LotsShellFeaturesKnowledgeResolveConflictEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "ResolveRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/knowledge": {
+      "get": {
+        "tags": [
+          "Knowledge"
+        ],
+        "operationId": "LotsShellFeaturesKnowledgeKnowledgeOverviewEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeOverview"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/knowledge/sources": {
+      "post": {
+        "tags": [
+          "Knowledge"
+        ],
+        "operationId": "LotsShellFeaturesKnowledgeCreateSourceEndpoint",
+        "requestBody": {
+          "x-name": "CreateSourceRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSourceRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/knowledge/sources/{id}": {
+      "delete": {
+        "tags": [
+          "Knowledge"
+        ],
+        "operationId": "LotsShellFeaturesKnowledgeDeleteSourceEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/knowledge/sources/{id}/reindex": {
+      "post": {
+        "tags": [
+          "Knowledge"
+        ],
+        "operationId": "LotsShellFeaturesKnowledgeReindexSourceEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/knowledge/sources/{id}/documents": {
+      "get": {
+        "tags": [
+          "Knowledge"
+        ],
+        "operationId": "LotsShellFeaturesKnowledgeListDocumentsEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DocumentDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Knowledge"
+        ],
+        "operationId": "LotsShellFeaturesKnowledgeAddTextEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "AddTextRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddTextRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/knowledge/sources/{id}/files": {
+      "post": {
+        "tags": [
+          "Knowledge"
+        ],
+        "operationId": "LotsShellFeaturesKnowledgeAddFileEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "AddFileRequest",
+          "description": "",
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/AddFileRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/knowledge/sources/{id}/documents/{documentId}": {
+      "delete": {
+        "tags": [
+          "Knowledge"
+        ],
+        "operationId": "LotsShellFeaturesKnowledgeDeleteDocumentEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/knowledge/search": {
+      "get": {
+        "tags": [
+          "Knowledge"
+        ],
+        "operationId": "LotsShellFeaturesKnowledgeSearchKnowledgeEndpoint",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "k",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "nullable": true
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HitDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/knowledge/chunks/{id}": {
+      "get": {
+        "tags": [
+          "Knowledge"
+        ],
+        "operationId": "LotsShellFeaturesKnowledgeGetChunkEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HitDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/integrations/credentials": {
+      "get": {
+        "tags": [
+          "Integrations"
+        ],
+        "operationId": "LotsShellFeaturesIntegrationsListCredentialsEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CredentialDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/integrations/connections/{server}": {
+      "post": {
+        "tags": [
+          "Integrations"
+        ],
+        "operationId": "LotsShellFeaturesIntegrationsStartConnectionEndpoint",
+        "parameters": [
+          {
+            "name": "server",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Integrations"
+        ],
+        "operationId": "LotsShellFeaturesIntegrationsDisconnectEndpoint",
+        "parameters": [
+          {
+            "name": "server",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/integrations/connections/callback": {
+      "get": {
+        "tags": [
+          "Integrations"
+        ],
+        "operationId": "LotsShellFeaturesIntegrationsConnectionCallbackEndpoint",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "error",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/integrations/servers": {
+      "get": {
+        "tags": [
+          "Integrations"
+        ],
+        "operationId": "LotsShellFeaturesIntegrationsListServersEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ServerDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/integrations/catalog": {
+      "get": {
+        "tags": [
+          "Integrations"
+        ],
+        "operationId": "LotsShellFeaturesIntegrationsCatalogEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CatalogEntry"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "operationId": "LotsShellFeaturesHealthLiveEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "operationId": "LotsShellFeaturesHealthReadyEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/dependencies": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "operationId": "LotsShellFeaturesHealthDependenciesEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DependencyStatus"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/status": {
+      "get": {
+        "tags": [
+          "Status"
+        ],
+        "operationId": "LotsShellFeaturesHealthStatusEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/conversations/{id}/audio": {
+      "get": {
+        "tags": [
+          "Conversations"
+        ],
+        "operationId": "LotsShellFeaturesConversationsListConversationAudioEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AudioClipDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Conversations"
+        ],
+        "operationId": "LotsShellFeaturesConversationsDeleteConversationAudioEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/conversations/audio/{id}": {
+      "get": {
+        "tags": [
+          "Conversations"
+        ],
+        "operationId": "LotsShellFeaturesConversationsPlayAudioEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/conversations/{id}": {
+      "delete": {
+        "tags": [
+          "Conversations"
+        ],
+        "operationId": "LotsShellFeaturesConversationsDeleteConversationEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "get": {
+        "tags": [
+          "Conversations"
+        ],
+        "operationId": "LotsShellFeaturesConversationsGetConversationEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/conversations/{id}/summarize": {
+      "post": {
+        "tags": [
+          "Conversations"
+        ],
+        "operationId": "LotsShellFeaturesConversationsSummarizeConversationEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationRecord"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/conversations/stats": {
+      "get": {
+        "tags": [
+          "Conversations"
+        ],
+        "operationId": "LotsShellFeaturesConversationsConversationStatsEndpoint",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DayStats"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/conversations": {
+      "get": {
+        "tags": [
+          "Conversations"
+        ],
+        "operationId": "LotsShellFeaturesConversationsListConversationsEndpoint",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "user",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true
+            }
+          },
+          {
+            "name": "profile",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/config": {
+      "get": {
+        "tags": [
+          "Config"
+        ],
+        "operationId": "LotsShellFeaturesConfigClientConfigEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientConfig"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/audit": {
+      "get": {
+        "tags": [
+          "Audit"
+        ],
+        "operationId": "LotsShellFeaturesAuditListAuditEndpoint",
+        "parameters": [
+          {
+            "name": "user",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true
+            }
+          },
+          {
+            "name": "runId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
+              "nullable": true
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "nullable": true
+            }
+          },
+          {
+            "name": "tool",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "decision",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "profile",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AuditDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/audit/export": {
+      "get": {
+        "tags": [
+          "Audit"
+        ],
+        "operationId": "LotsShellFeaturesAuditExportAuditEndpoint",
+        "parameters": [
+          {
+            "name": "user",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true
+            }
+          },
+          {
+            "name": "runId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
+              "nullable": true
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "nullable": true
+            }
+          },
+          {
+            "name": "tool",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "decision",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "profile",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/audit/verify": {
+      "get": {
+        "tags": [
+          "Audit"
+        ],
+        "operationId": "LotsShellFeaturesAuditVerifyAuditEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChainVerification"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/approvals": {
+      "get": {
+        "tags": [
+          "Approvals"
+        ],
+        "operationId": "LotsShellFeaturesApprovalsListApprovalsEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ApprovalDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/approvals/{id}/approve": {
+      "post": {
+        "tags": [
+          "Approvals"
+        ],
+        "operationId": "LotsShellFeaturesApprovalsApproveEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "DecideRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecideRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/approvals/{id}/deny": {
+      "post": {
+        "tags": [
+          "Approvals"
+        ],
+        "operationId": "LotsShellFeaturesApprovalsDenyEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "DecideRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecideRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/approvals/coverage": {
+      "get": {
+        "tags": [
+          "Approvals"
+        ],
+        "operationId": "LotsShellFeaturesApprovalsCoverageEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CoverageDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/admin/v1/apply": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "LotsShellFeaturesAdminApplyEndpoint",
+        "requestBody": {
+          "x-name": "ApplyRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplyOutcome"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/admin/v1/resources": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "LotsShellFeaturesAdminListResourcesEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ResourceDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/admin/v1/resources/{kind}/{name}": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "LotsShellFeaturesAdminGetResourceEndpoint",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourceSpecDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "LotsShellFeaturesAdminDeleteResourceEndpoint",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "DeleteResourceRequest",
+          "description": "",
+          "content": {
+            "*/*": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteResourceRequest"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteResourceRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplyResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/admin/v1/resources/{kind}/{name}/versions": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "LotsShellFeaturesAdminResourceVersionsEndpoint",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/VersionDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/admin/v1/changes": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "LotsShellFeaturesAdminChangesEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ChangeDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/admin/v1/export": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "LotsShellFeaturesAdminExportEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/admin/v1/gitops": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "LotsShellFeaturesAdminGitOpsStatusEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitOpsDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/admin/v1/gitops/sync": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "LotsShellFeaturesAdminGitOpsSyncNowEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitOpsState"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/admin/v1/identity": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "LotsShellFeaturesAdminIdentityEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/admin/v1/identity/test": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "LotsShellFeaturesAdminMappingTestEndpoint",
+        "requestBody": {
+          "x-name": "MappingTestRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MappingTestRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MappingTestResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/admin/v1/users": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "LotsShellFeaturesAdminUsersEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UserDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/admin/v1/policy/simulate": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "LotsShellFeaturesAdminSimulatePolicyEndpoint",
+        "requestBody": {
+          "x-name": "SimulateRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulateRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulateResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/admin/v1/policy": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "LotsShellFeaturesAdminPolicyOverviewEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProfilePolicy"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "OwnVoicesDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "voices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OwnVoiceDto"
+            }
+          },
+          "recentEvents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConsentEventDto"
+            }
+          }
+        }
+      },
+      "OwnVoiceDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "userId": {
+            "type": "string"
+          },
+          "seconds": {
+            "type": "number",
+            "format": "double"
+          },
+          "consentAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "registrationsLast30Days": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ConsentEventDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "userId": {
+            "type": "string"
+          },
+          "voiceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "event": {
+            "type": "string"
+          },
+          "actor": {
+            "type": "string"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "statement": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "RevokeVoiceRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "TranscribeResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string",
+            "nullable": true
+          },
+          "durationSeconds": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          }
+        }
+      },
+      "TranscribeRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "audio": {
+            "type": "string",
+            "format": "binary",
+            "nullable": true
+          },
+          "language": {
+            "type": "string",
+            "nullable": true
+          },
+          "conversationId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          }
+        }
+      },
+      "SpeakRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "language": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "VocabularyDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "words": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "shared": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "SetVocabularyRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "words": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "AckRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "VoiceStatusDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "gpuLow": {
+            "type": "boolean"
+          },
+          "gpuFreeBytes": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "gpuTotalBytes": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "expressiveLoaded": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "expressiveWaiting": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "QuotaStatus": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "limits": {
+            "$ref": "#/components/schemas/QuotaLimits"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/QuotaUsage"
+          }
+        }
+      },
+      "QuotaLimits": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "runsPerMinute": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "concurrentRuns": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "tokensPerDay": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "toolCallsPerRun": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "speechSecondsPerDay": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          }
+        }
+      },
+      "QuotaUsage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "runsLastMinute": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "activeRuns": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "tokensToday": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "speechSecondsToday": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "QuotaOverrideRecord": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "userId"
+        ],
+        "properties": {
+          "userId": {
+            "type": "string"
+          },
+          "runsPerMinute": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "concurrentRuns": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "tokensPerDay": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "toolCallsPerRun": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "speechSecondsPerDay": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "setBy": {
+            "type": "string",
+            "nullable": true
+          },
+          "setAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "QuotaOverrideRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "runsPerMinute": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "concurrentRuns": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "tokensPerDay": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "toolCallsPerRun": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "speechSecondsPerDay": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          }
+        }
+      },
+      "UserRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "UsageReport": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "currency": {
+            "type": "string"
+          },
+          "groupBy": {
+            "type": "string"
+          },
+          "from": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "to": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UsageRow"
+            }
+          },
+          "total": {
+            "$ref": "#/components/schemas/UsageRow"
+          },
+          "unpricedModels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "UsageRow": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "runs": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "failedRuns": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "modelCalls": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "promptTokens": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "completionTokens": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "cost": {
+            "type": "number",
+            "format": "double"
+          },
+          "modelSecondsP95": {
+            "type": "number",
+            "format": "double"
+          },
+          "errorRate": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "UsageQuery": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "ToolCallList": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "calls": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ToolCallDto"
+            }
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ToolStats"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ToolCallDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "runId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "seq": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "user": {
+            "type": "string"
+          },
+          "profile": {
+            "type": "string"
+          },
+          "tool": {
+            "type": "string"
+          },
+          "arguments": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "type": "string",
+            "nullable": true
+          },
+          "latencyMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "status": {
+            "type": "string"
+          },
+          "decision": {
+            "type": "string",
+            "nullable": true
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
+          },
+          "approver": {
+            "type": "string",
+            "nullable": true
+          },
+          "backendAuth": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ToolStats": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tool": {
+            "type": "string"
+          },
+          "calls": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "errors": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "denied": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "errorRate": {
+            "type": "number",
+            "format": "double"
+          },
+          "p50Ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "p95Ms": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ToolCallQuery": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "SettingsDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "talkativeness": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "warmth": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "formality": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "expressiveness": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pace": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "ownVoice": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/VoiceInfo"
+              }
+            ]
+          },
+          "voiceEnabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "VoiceInfo": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "seconds": {
+            "type": "number",
+            "format": "double"
+          },
+          "consentAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "SetSettingsRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "talkativeness": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "warmth": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "formality": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "expressiveness": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pace": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "RecordVoiceRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "audio": {
+            "type": "string",
+            "format": "binary",
+            "nullable": true
+          },
+          "consent": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AwayDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "until": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "delegateTo": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ApiTokenDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "hint": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastUsedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "revokedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "userId": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "CreatedApiTokenDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "info": {
+            "$ref": "#/components/schemas/ApiTokenDto"
+          }
+        }
+      },
+      "CreateApiTokenRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "expiresInDays": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "TokenRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "StartRunResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "StartRunRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "prompt": {
+            "type": "string"
+          },
+          "profile": {
+            "type": "string",
+            "nullable": true
+          },
+          "voice": {
+            "type": "boolean"
+          },
+          "conversationId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          }
+        }
+      },
+      "RunSummaryDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "profile": {
+            "type": "string"
+          },
+          "user": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "RunDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "finalAnswer": {
+            "type": "string",
+            "nullable": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StepDto"
+            }
+          },
+          "waiting": {
+            "type": "string",
+            "nullable": true
+          },
+          "retryOf": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "cost": {
+            "type": "number",
+            "format": "double"
+          },
+          "currency": {
+            "type": "string",
+            "nullable": true
+          },
+          "sensitivity": {
+            "type": "string"
+          }
+        }
+      },
+      "StepDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "seq": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "toolCallId": {
+            "type": "string",
+            "nullable": true
+          },
+          "arguments": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "type": "string",
+            "nullable": true
+          },
+          "latencyMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "promptTokens": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "completionTokens": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endpoint": {
+            "type": "string",
+            "nullable": true
+          },
+          "decision": {
+            "type": "string",
+            "nullable": true
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
+          },
+          "flagged": {
+            "type": "boolean"
+          }
+        }
+      },
+      "GetRunRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "RunActionRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "DeletionReport": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "deleted": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "kept": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "DeleteMyDataRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "confirm": {
+            "type": "string"
+          }
+        }
+      },
+      "DataReport": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tables": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TableReport"
+            }
+          },
+          "audioRetentionDays": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "audioStored": {
+            "type": "boolean"
+          }
+        }
+      },
+      "TableReport": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "rows": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "oldest": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "retentionDays": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      },
+      "ModelsDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "endpoints": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModelEndpointHealth"
+            }
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AliasDto"
+            }
+          }
+        }
+      },
+      "ModelEndpointHealth": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "baseUrl": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "up": {
+            "type": "boolean"
+          },
+          "latencyMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "clearance": {
+            "type": "string"
+          }
+        }
+      },
+      "AliasDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "targets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModelTarget"
+            }
+          },
+          "fastReasoningEffort": {
+            "type": "string",
+            "nullable": true
+          },
+          "usedBy": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ModelTarget": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "endpoint": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          }
+        }
+      },
+      "ConflictDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "question": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "detectedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConflictOptionDto"
+            }
+          },
+          "myVote": {
+            "type": "string",
+            "nullable": true
+          },
+          "tally": {
+            "$ref": "#/components/schemas/ConflictTally"
+          },
+          "resolvedOption": {
+            "type": "string",
+            "nullable": true
+          },
+          "resolvedBy": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ConflictOptionDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "chunkId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "sourceName": {
+            "type": "string"
+          },
+          "heading": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "changed": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ConflictTally": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "options": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OptionTally"
+            }
+          },
+          "votes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "staleVotes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "suggestion": {
+            "type": "string",
+            "nullable": true
+          },
+          "swing": {
+            "type": "boolean"
+          }
+        }
+      },
+      "OptionTally": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "option": {
+            "type": "string"
+          },
+          "weight": {
+            "type": "number",
+            "format": "double"
+          },
+          "votes": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ConflictRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "VoteRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "option": {
+            "type": "string"
+          }
+        }
+      },
+      "ResolveRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "option": {
+            "type": "string"
+          }
+        }
+      },
+      "KnowledgeOverview": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "backend": {
+            "type": "string"
+          },
+          "vectorExtension": {
+            "type": "boolean"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "embeddingsConfigured": {
+            "type": "boolean"
+          },
+          "embedModel": {
+            "type": "string"
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SourceDto"
+            }
+          }
+        }
+      },
+      "SourceDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string",
+            "nullable": true
+          },
+          "readers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "owner": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "indexedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "documents": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "chunks": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "embedModel": {
+            "type": "string",
+            "nullable": true
+          },
+          "managedBy": {
+            "type": "string"
+          },
+          "canManage": {
+            "type": "boolean"
+          },
+          "personal": {
+            "type": "boolean"
+          },
+          "sensitivity": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateSourceRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string",
+            "nullable": true
+          },
+          "readers": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "personal": {
+            "type": "boolean"
+          },
+          "sensitivity": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "SourceRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "DocumentDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "externalId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "nullable": true
+          },
+          "chars": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AddTextRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        }
+      },
+      "AddFileRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "nullable": true
+          }
+        }
+      },
+      "DocumentRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "HitDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "chunkId": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": "string"
+          },
+          "sourceName": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "nullable": true
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "heading": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "score": {
+            "type": "number",
+            "format": "double"
+          },
+          "vectorRank": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "textRank": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        }
+      },
+      "SearchRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "ChunkRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "CredentialDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "server": {
+            "type": "string"
+          },
+          "profiles": {
+            "type": "string"
+          },
+          "auth": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "secretReferences": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CredentialStatus"
+              }
+            ]
+          },
+          "userConnected": {
+            "type": "boolean"
+          },
+          "myConnection": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ConnectionDto"
+              }
+            ]
+          }
+        }
+      },
+      "CredentialStatus": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "lastFetched": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastUsed": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastError": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ConnectionDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "connectedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastUsedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "scope": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ConnectResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "authorizeUrl": {
+            "type": "string"
+          }
+        }
+      },
+      "ConnectRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "CallbackRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "ServerDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "auth": {
+            "type": "string"
+          },
+          "credentialType": {
+            "type": "string",
+            "nullable": true
+          },
+          "profiles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "health": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "checkedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServerToolDto"
+            }
+          }
+        }
+      },
+      "ServerToolDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "profiles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "CatalogEntry": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tool": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "server": {
+            "type": "string",
+            "nullable": true
+          },
+          "profile": {
+            "type": "string",
+            "nullable": true
+          },
+          "risk": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string"
+          },
+          "allowedRoles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "approvalRoles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "approverRoles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "calls": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lastUsed": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "DependencyStatus": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "up": {
+            "type": "boolean"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "latencyMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "checkedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PublicStatus": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "overall": {
+            "type": "string"
+          },
+          "components": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StatusComponent"
+            }
+          },
+          "checkedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "StatusComponent": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        }
+      },
+      "AudioClipDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "runId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "bytes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "contentType": {
+            "type": "string"
+          }
+        }
+      },
+      "ConversationIdRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "AudioRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "ConversationRecord": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "userId"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "summary": {
+            "type": "string",
+            "nullable": true
+          },
+          "summarizedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "DayStats": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "day": {
+            "type": "string"
+          },
+          "conversations": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "turns": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "avgTurnMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "sttMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "llmMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "toolMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "ttsMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "tokens": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "StatsRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "ConversationList": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "conversations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConversationSummary"
+            }
+          },
+          "stages": {
+            "$ref": "#/components/schemas/StageTotals"
+          },
+          "count": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ConversationSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "profile": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string",
+            "nullable": true
+          },
+          "voice": {
+            "type": "boolean"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "durationMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "turns": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "messages": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "status": {
+            "type": "string"
+          },
+          "promptTokens": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "completionTokens": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "stages": {
+            "$ref": "#/components/schemas/StageTotals"
+          }
+        }
+      },
+      "StageTotals": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sttMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "llmMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "toolMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "ttsMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "otherMs": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ListConversationsRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "ConversationDetail": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "conversation": {
+            "$ref": "#/components/schemas/ConversationSummary"
+          },
+          "turns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TurnDto"
+            }
+          }
+        }
+      },
+      "TurnDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "runId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "answer": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "durationMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TimelineEvent"
+            }
+          }
+        }
+      },
+      "TimelineEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "startMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "durationMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "promptTokens": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "completionTokens": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        }
+      },
+      "GetConversationRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "ClientConfig": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "authMode": {
+            "type": "string"
+          },
+          "oidc": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OidcClientConfig"
+              }
+            ]
+          },
+          "profiles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProfileInfo"
+            }
+          },
+          "voice": {
+            "$ref": "#/components/schemas/VoiceConfig"
+          },
+          "traceUrl": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "OidcClientConfig": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "authority": {
+            "type": "string"
+          },
+          "clientId": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "roleClaim": {
+            "type": "string"
+          },
+          "rolePrefix": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ProfileInfo": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "VoiceConfig": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "languages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "defaultLanguage": {
+            "type": "string"
+          }
+        }
+      },
+      "AuditDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "user": {
+            "type": "string"
+          },
+          "roles": {
+            "type": "string"
+          },
+          "profile": {
+            "type": "string"
+          },
+          "profileVersion": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "runId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "tool": {
+            "type": "string"
+          },
+          "arguments": {
+            "type": "string",
+            "nullable": true
+          },
+          "decision": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "approver": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "type": "string",
+            "nullable": true
+          },
+          "backendAuth": {
+            "type": "string",
+            "nullable": true
+          },
+          "seq": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "hash": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "AuditQuery": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "ChainVerification": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "intact": {
+            "type": "boolean"
+          },
+          "sealed": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "firstBrokenSeq": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "problem": {
+            "type": "string",
+            "nullable": true
+          },
+          "unsealed": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ApprovalDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "runId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "tool": {
+            "type": "string"
+          },
+          "arguments": {
+            "type": "string",
+            "nullable": true
+          },
+          "requestedBy": {
+            "type": "string"
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string"
+          },
+          "decidedBy": {
+            "type": "string",
+            "nullable": true
+          },
+          "decidedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "comment": {
+            "type": "string",
+            "nullable": true
+          },
+          "risk": {
+            "type": "string",
+            "nullable": true
+          },
+          "requiredApprovals": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "approvedBy": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "commentRequired": {
+            "type": "boolean"
+          }
+        }
+      },
+      "DecideRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "comment": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "CoverageDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "user": {
+            "type": "string"
+          },
+          "until": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "delegateTo": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ApplyOutcome": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "applied": {
+            "type": "boolean"
+          },
+          "dryRun": {
+            "type": "boolean"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApplyResult"
+            }
+          },
+          "hasErrors": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ApplyResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "diff": {
+            "type": "string",
+            "nullable": true
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ApplyRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "yaml": {
+            "type": "string"
+          },
+          "dryRun": {
+            "type": "boolean"
+          },
+          "managedBy": {
+            "type": "string"
+          },
+          "prune": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ResourceDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "managedBy": {
+            "type": "string"
+          },
+          "appliedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "appliedBy": {
+            "type": "string",
+            "nullable": true
+          },
+          "editable": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ResourceSpecDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "managedBy": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "spec": {
+            "type": "string"
+          }
+        }
+      },
+      "ResourceRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "VersionDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "action": {
+            "type": "string"
+          },
+          "managedBy": {
+            "type": "string"
+          },
+          "appliedBy": {
+            "type": "string"
+          },
+          "appliedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "diff": {
+            "type": "string"
+          }
+        }
+      },
+      "DeleteResourceRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "managedBy": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ChangeDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "action": {
+            "type": "string"
+          },
+          "managedBy": {
+            "type": "string"
+          },
+          "appliedBy": {
+            "type": "string"
+          },
+          "appliedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "GitOpsDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "state": {
+            "$ref": "#/components/schemas/GitOpsState"
+          },
+          "drift": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApplyResult"
+            }
+          }
+        }
+      },
+      "GitOpsState": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "path": {
+            "type": "string",
+            "nullable": true
+          },
+          "revision": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastSyncAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastResult": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastChanges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApplyResult"
+            }
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "IdentityDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "type": "string"
+          },
+          "authority": {
+            "type": "string",
+            "nullable": true
+          },
+          "clientId": {
+            "type": "string",
+            "nullable": true
+          },
+          "audience": {
+            "type": "string",
+            "nullable": true
+          },
+          "userClaim": {
+            "type": "string"
+          },
+          "roleClaim": {
+            "type": "string"
+          },
+          "rolePrefix": {
+            "type": "string",
+            "nullable": true
+          },
+          "adminRoles": {
+            "type": "string"
+          },
+          "auditRoles": {
+            "type": "string"
+          },
+          "knownRoles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "servers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServerIdentity"
+            }
+          },
+          "devHeaders": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ServerIdentity": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "server": {
+            "type": "string"
+          },
+          "profiles": {
+            "type": "string"
+          },
+          "auth": {
+            "type": "string"
+          },
+          "credentialType": {
+            "type": "string",
+            "nullable": true
+          },
+          "tokenUrl": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "MappingTestResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "user": {
+            "type": "string",
+            "nullable": true
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "unknownRoles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "isAdmin": {
+            "type": "boolean"
+          },
+          "isAuditor": {
+            "type": "boolean"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "issuer": {
+            "type": "string",
+            "nullable": true
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      },
+      "MappingTestRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "token": {
+            "type": "string"
+          }
+        }
+      },
+      "UserDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "user": {
+            "type": "string"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "firstSeen": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastActive": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "runs": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "runs30Days": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "tokens30Days": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "approvals30Days": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "ownVoice": {
+            "type": "boolean"
+          },
+          "personalSources": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "SimulateResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "decision": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "rule": {
+            "type": "string",
+            "nullable": true
+          },
+          "canApprove": {
+            "type": "boolean"
+          },
+          "approverRoles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "visibleTools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "SimulateRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "profile": {
+            "type": "string"
+          },
+          "roles": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "tool": {
+            "type": "string"
+          },
+          "user": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ProfilePolicy": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "profile": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "managedBy": {
+            "type": "string"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoleGrant"
+            }
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ToolRiskDto"
+            }
+          },
+          "tests": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PolicyTestResult"
+            }
+          }
+        }
+      },
+      "RoleGrant": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "type": "string"
+          },
+          "allow": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "requireApproval": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "approve": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ToolRiskDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "risk": {
+            "type": "string"
+          }
+        }
+      },
+      "PolicyTestResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "test": {
+            "$ref": "#/components/schemas/PolicyTest"
+          },
+          "passed": {
+            "type": "boolean"
+          },
+          "actual": {
+            "$ref": "#/components/schemas/Decision"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "PolicyTest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "tool": {
+            "type": "string"
+          },
+          "expect": {
+            "type": "string"
+          }
+        }
+      },
+      "Decision": {
+        "type": "integer",
+        "description": "",
+        "x-enumNames": [
+          "Allow",
+          "RequireApproval",
+          "Deny"
+        ],
+        "enum": [
+          0,
+          1,
+          2
+        ]
+      }
+    },
+    "securitySchemes": {
+      "JWTBearerAuth": {
+        "type": "http",
+        "description": "Enter a JWT token to authorize the requests...",
+        "scheme": "Bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  }
+}
