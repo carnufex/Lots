@@ -6,19 +6,36 @@ import RunsPage from './pages/RunsPage'
 import RunPage from './pages/RunPage'
 import ApprovalsPage from './pages/ApprovalsPage'
 import AuditPage from './pages/AuditPage'
+import PlaceholderPage from './pages/Placeholder'
+import { PLANNED } from './planned'
+import { Icon, type IconName } from './components/Icon'
 
-type Route = { name: 'runs' } | { name: 'run'; id: string } | { name: 'approvals' } | { name: 'audit' }
+type Route = { name: 'runs' } | { name: 'run'; id: string } | { name: 'approvals' } | { name: 'audit' } | { name: 'planned'; slug: string }
 
-const NAV: { route: Route['name']; label: string }[] = [
-  { route: 'runs', label: 'Runs' },
-  { route: 'approvals', label: 'Approvals' },
-  { route: 'audit', label: 'Audit' },
+type NavItem = { href: string; label: string; icon: IconName; active: (r: Route) => boolean }
+
+const nav = (name: 'runs' | 'approvals' | 'audit', label: string, icon: IconName): NavItem => ({
+  href: `#/${name}`,
+  label,
+  icon,
+  active: (r) => r.name === name || (name === 'runs' && r.name === 'run'),
+})
+const planned = (slug: string): NavItem => {
+  const p = PLANNED.find((x) => x.slug === slug)!
+  return { href: `#/${slug}`, label: p.label, icon: p.icon, active: (r) => r.name === 'planned' && r.slug === slug }
+}
+
+const NAV: { title: string; items: NavItem[] }[] = [
+  { title: 'Work', items: [nav('runs', 'Runs', 'runs'), nav('approvals', 'Approvals', 'approvals'), nav('audit', 'Audit', 'audit')] },
+  { title: 'Capabilities', items: ['knowledge', 'tools', 'mcp', 'voice', 'transcription', 'models'].map(planned) },
+  { title: 'Administration', items: ['profiles', 'policy', 'identity'].map(planned) },
 ]
 
 function useHashRoute(): Route {
   const read = (): Route => {
     const r = window.location.hash.replace(/^#\/?/, '')
     if (r === 'approvals' || r === 'audit') return { name: r }
+    if (PLANNED.some((p) => p.slug === r)) return { name: 'planned', slug: r }
     const m = /^runs\/([0-9a-f-]{36})$/i.exec(r)
     return m ? { name: 'run', id: m[1] } : { name: 'runs' }
   }
@@ -88,10 +105,16 @@ function Shell({ config, auth, session }: { config: ClientConfig; auth: Auth; se
       <aside className="rail">
         <Brand />
         <nav aria-label="Main">
-          {NAV.map((n) => (
-            <a key={n.route} href={`#/${n.route}`} className={route.name === n.route || (n.route === 'runs' && route.name === 'run') ? 'active' : ''}>
-              {n.label}
-            </a>
+          {NAV.map((g) => (
+            <div key={g.title} className="navgroup">
+              <div className="navtitle">{g.title}</div>
+              {g.items.map((n) => (
+                <a key={n.href} href={n.href} className={n.active(route) ? 'active' : ''} aria-current={n.active(route) ? 'page' : undefined}>
+                  <Icon name={n.icon} />
+                  {n.label}
+                </a>
+              ))}
+            </div>
           ))}
         </nav>
       </aside>
@@ -118,6 +141,7 @@ function Shell({ config, auth, session }: { config: ClientConfig; auth: Auth; se
           {route.name === 'run' && <RunPage api={api} id={route.id} voice={config.voice} />}
           {route.name === 'approvals' && <ApprovalsPage api={api} />}
           {route.name === 'audit' && <AuditPage api={api} />}
+          {route.name === 'planned' && <PlaceholderPage item={PLANNED.find((p) => p.slug === route.slug)!} />}
         </main>
       </div>
     </div>
@@ -157,9 +181,7 @@ function DevIdentity() {
 function Brand() {
   return (
     <div className="brand">
-      <svg viewBox="0 0 32 32" width="20" height="20" aria-hidden="true">
-        <path d="M9 7v14a3 3 0 0 0 3 3h11" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
+      <img src="/icon-192.png" width="24" height="24" alt="" />
       Lots
     </div>
   )
