@@ -351,4 +351,58 @@ public class AgentRunnerTests
         Assert.Contains("grants Write", restart.Reason);
         Assert.DoesNotContain("restart", tools.Called);
     }
+
+    [Fact]
+    public async Task Trace_covers_denied_and_approved_calls_across_a_resume()
+    {
+        var name = nameof(Trace_covers_denied_and_approved_calls_across_a_resume);
+        var spans = new System.Collections.Concurrent.ConcurrentBag<System.Diagnostics.Activity>();
+        using var listener = new System.Diagnostics.ActivityListener
+        {
+            ShouldListenTo = s => s.Name == "Lots.Shell",
+            Sample = (ref System.Diagnostics.ActivityCreationOptions<System.Diagnostics.ActivityContext> _) => System.Diagnostics.ActivitySamplingResult.AllDataAndRecorded,
+            ActivityStopped = spans.Add,
+        };
+        System.Diagnostics.ActivitySource.AddActivityListener(listener);
+        var tools = new FakeTools(("restart", ToolRisk.Write));
+        Guid id;
+        using (var db = NewDb(name))
+        {
+            id = await NewRunAs(db, "admin");
+            // First the model reaches for a tool the profile does not declare, then for one that needs an approval.
+            await Runner(db, new ScriptedModel(_ => new("assistant", null, [new ToolCall("d1", "drop_database", "{}"), new ToolCall("w1", "restart", "{}")])), tools)
+                .ExecuteAsync(id, default);
+            var approval = await db.Approvals.SingleAsync();
+            approval.Status = ApprovalStatus.Approved;
+            approval.DecidedBy = "bob";
+            await db.SaveChangesAsync();
+        }
+        using (var db = NewDb(name))
+            await Runner(db, new ScriptedModel(_ => Answer("restarted")), tools).ExecuteAsync(id, default);
+
+        var mine = spans.Where(a => (string?)a.GetTagItem("lots.run.id") == id.ToString()).ToList();
+        var roots = mine.Where(a => a.OperationName.StartsWith("invoke_agent", StringComparison.Ordinal)).OrderBy(a => a.StartTimeUtc).ToList();
+        Assert.Equal(2, roots.Count);
+        Assert.Equal(true, roots[1].GetTagItem("lots.run.resumed"));
+        Assert.Contains(roots[1].Links, l => l.Context.TraceId == roots[0].TraceId); // the resumed execution points back to the first trace
+
+        var denied = Assert.Single(mine, a => a.OperationName == "execute_tool drop_database");
+        Assert.Equal("Deny", denied.GetTagItem("lots.policy.decision"));
+        Assert.Equal("undeclared", denied.GetTagItem("lots.risk_class"));
+        Assert.Equal(roots[0].SpanId, denied.ParentSpanId);
+        var restarts = mine.Where(a => a.OperationName == "execute_tool restart").OrderBy(a => a.StartTimeUtc).ToList();
+        Assert.Equal("RequireApproval", restarts[0].GetTagItem("lots.policy.decision"));
+        Assert.Equal("write", restarts[0].GetTagItem("lots.risk_class"));
+        Assert.Equal("Allowed", restarts[^1].GetTagItem("lots.tool.decision"));
+        Assert.Equal("ok", restarts[^1].GetTagItem("lots.tool.outcome"));
+
+        Assert.Contains(mine, a => a.OperationName.StartsWith("chat", StringComparison.Ordinal) && a.GetTagItem("gen_ai.usage.input_tokens") is not null);
+        Assert.All(mine.Where(a => a.OperationName != "read_memory"), a =>
+        {
+            Assert.NotNull(a.GetTagItem("lots.user.hash"));
+            Assert.Equal(TestProfiles.Name, a.GetTagItem("lots.profile"));
+            Assert.Equal("web", a.GetTagItem("lots.channel"));
+        });
+        Assert.DoesNotContain(mine.SelectMany(a => a.TagObjects), t => t.Value as string == "alice"); // never the user id in clear
+    }
 }

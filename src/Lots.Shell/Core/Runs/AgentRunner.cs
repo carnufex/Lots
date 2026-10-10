@@ -120,9 +120,9 @@ public sealed class AgentRunner(
             links: first is { } f ? [new ActivityLink(f)] : null);
         root?.SetTag("gen_ai.operation.name", "invoke_agent");
         root?.SetTag("gen_ai.agent.name", run.Profile);
-        root?.SetTag("lots.run.id", run.Id.ToString());
         root?.SetTag("lots.run.voice", run.Voice);
-        if (run.ConversationId is { } conv) root?.SetTag("gen_ai.conversation.id", conv.ToString());
+        root?.SetTag("lots.run.resumed", first is not null);
+        Lots.Shell.Core.Telemetry.Tracing.RunTags(root, run, profiles.Find(run.Profile)?.Version);
         if (run.TraceId is null && root is not null) run.TraceId = root.TraceId.ToHexString();
 
         run.Status = RunStatus.Running;
@@ -132,7 +132,12 @@ public sealed class AgentRunner(
             var system = string.IsNullOrWhiteSpace(instructions) ? _options.SystemPrompt : _options.SystemPrompt + "\n\n" + instructions;
             if (run.Voice) system += "\n\n" + _options.VoiceInstructions;
             // The user's confirmed memories (#99), as their own notes inside the untrusted-data envelope.
-            if (await Memory.UserMemory.ContextAsync(db, run.UserId, ct) is { } memory) system += "\n\n" + memory;
+            using (var memorySpan = Telemetry.StartActivity("read_memory", ActivityKind.Internal))
+            {
+                var memory = await Memory.UserMemory.ContextAsync(db, run.UserId, ct);
+                memorySpan?.SetTag("lots.memory.used", memory is not null);
+                if (memory is not null) system += "\n\n" + memory;
+            }
             Add(run, new ChatMessage("system", system));
             foreach (var turn in await PreviousTurnsAsync(run, ct))
             {
@@ -215,7 +220,12 @@ public sealed class AgentRunner(
                 using var activity = Telemetry.StartActivity($"chat {modelName}", ActivityKind.Client);
                 activity?.SetTag("gen_ai.operation.name", "chat");
                 activity?.SetTag("gen_ai.request.model", modelName);
-                activity?.SetTag("lots.run.id", run.Id.ToString());
+                activity?.SetTag("lots.model.alias", callOptions.Alias ?? ModelCatalog.Default);
+                activity?.SetTag("lots.model.attempt", modelCalls + 1);
+                if (callOptions.ReasoningEffort is { } effort) activity?.SetTag("gen_ai.request.reasoning_effort", effort);
+                Lots.Shell.Core.Telemetry.Tracing.RunTags(activity, run, profiles.Find(run.Profile)?.Version);
+                Lots.Shell.Core.Telemetry.Tracing.Content(activity, "gen_ai.user.message", "user",
+                    run.Messages.OrderBy(m => m.Seq).LastOrDefault(m => m.Role is "user" or "tool")?.Content);
                 ModelResponse response;
                 try
                 {
@@ -225,11 +235,13 @@ public sealed class AgentRunner(
                 {
                     // Nothing was sent: the run stops, and the decision is on record (#89).
                     AuditModel(run, principal, callOptions.Alias, AuditDecision.ModelBlocked, ex.Message);
+                    Lots.Shell.Core.Telemetry.Tracing.Error(activity, ex);
                     LotsMetrics.ModelCalls.Add(1, new("model", modelName), new("endpoint", ""), new("outcome", "blocked"));
                     throw;
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
+                    Lots.Shell.Core.Telemetry.Tracing.Error(activity, ex);
                     LotsMetrics.ModelCalls.Add(1, new("model", modelName), new("endpoint", ""), new("outcome", "error"));
                     throw;
                 }
@@ -238,6 +250,10 @@ public sealed class AgentRunner(
                     if (streams is not null) await streams.ClearAsync(run.Id); // the finished message (or none) replaces the partial text
                 }
                 activity?.SetTag("gen_ai.response.model", response.Model);
+                activity?.SetTag("gen_ai.response.finish_reasons", new[] { response.FinishReason });
+                if (response.Endpoint is { } endpoint) activity?.SetTag("lots.model.endpoint", endpoint);
+                Lots.Shell.Core.Telemetry.Tracing.Content(activity, "gen_ai.choice", "assistant",
+                    response.Message.Content ?? (response.Message.ToolCalls is null ? null : JsonSerializer.Serialize(response.Message.ToolCalls, Json)));
                 if (response.Rerouted is { } why)
                 {
                     activity?.SetTag("lots.model.rerouted", why);
@@ -362,6 +378,9 @@ public sealed class AgentRunner(
             activity?.SetTag("gen_ai.operation.name", "execute_tool");
             activity?.SetTag("gen_ai.tool.name", call.Name);
             activity?.SetTag("gen_ai.tool.call.id", call.Id);
+            Lots.Shell.Core.Telemetry.Tracing.RunTags(activity, run, profiles.Find(run.Profile)?.Version);
+            activity?.SetTag("lots.risk_class", profiles.Find(run.Profile)?.Tools.FirstOrDefault(t => t.Name == call.Name)?.Risk.ToString().ToLowerInvariant() ?? "undeclared");
+            Lots.Shell.Core.Telemetry.Tracing.Content(activity, "gen_ai.tool.arguments", "tool", call.ArgumentsJson);
             var sw = Stopwatch.StartNew();
             ToolInvoker.ToolResult result;
             var policy = tools.Evaluate(call, principal, run.Profile);
@@ -371,6 +390,9 @@ public sealed class AgentRunner(
                 && profiles.Find(run.Profile)?.Tools.FirstOrDefault(t => t.Name == call.Name)?.Risk is ToolRisk.Write or ToolRisk.Destructive)
                 policy = new PolicyResult(Decision.RequireApproval,
                     "approval required: this run read content that looked like an injected instruction", "escalated after untrusted content (#85)");
+            activity?.SetTag("lots.policy.decision", policy.Decision.ToString());
+            activity?.SetTag("lots.policy.rule", policy.Rule);
+            activity?.SetTag("lots.policy.reason", policy.Reason);
             AuditDecision audit;
             string? approver = null;
             if (policy.Decision == Decision.RequireApproval)
@@ -439,6 +461,12 @@ public sealed class AgentRunner(
             var backendAuth = audit == AuditDecision.Allowed ? await tools.AuthStrategyAsync(call.Name, run.Profile, ct) : null;
             var outcome = audit == AuditDecision.Allowed ? (result.Text.StartsWith("Error:", StringComparison.Ordinal) ? "error" : "ok") : null;
             Audit(run, principal, call, audit, policy.Reason, approver, outcome, backendAuth);
+            activity?.SetTag("lots.tool.decision", audit.ToString());
+            activity?.SetTag("lots.tool.outcome", outcome ?? "not-run");
+            activity?.SetTag("lots.tool.result_bytes", result.Text.Length);
+            if (backendAuth is not null) activity?.SetTag("lots.backend.auth", backendAuth);
+            if (outcome == "error") { activity?.SetStatus(ActivityStatusCode.Error, "tool returned an error"); activity?.SetTag("error.type", "tool_error"); }
+            Lots.Shell.Core.Telemetry.Tracing.Content(activity, "gen_ai.tool.result", "tool", result.Text);
             LotsMetrics.ToolCalls.Add(1, new("tool", call.Name), new("decision", audit.ToString()), new("result", outcome ?? "not-run"));
             if (outcome is not null) LotsMetrics.ToolLatency.Record(sw.Elapsed.TotalSeconds, new KeyValuePair<string, object?>("tool", call.Name));
             Add(run, new ChatMessage("tool", result.ModelText, ToolCallId: call.Id));

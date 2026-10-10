@@ -18,9 +18,10 @@ class JsonFormatter(logging.Formatter):
             "category": record.name,
             "msg": record.getMessage(),
         }
-        for key in ("trace_id", "span_id"):
-            if hasattr(record, key):
-                line[key] = getattr(record, key)
+        from .tracing import current_ids
+
+        if ids := current_ids():
+            line["trace_id"], line["span_id"] = ids
         if record.exc_info:
             line["exception"] = self.formatException(record.exc_info)
         return json.dumps(line, ensure_ascii=False)

@@ -157,5 +157,6 @@ public static class JsonLogging
                 o.AddProcessor(new RedactingLogProcessor()).AddOtlpExporter();
             });
         UserHash.Configure(builder.Configuration["Telemetry:UserHashKey"]);
+        Tracing.CaptureContent = builder.Configuration.GetValue("Telemetry:CaptureContent", builder.Environment.IsDevelopment());
     }
 }

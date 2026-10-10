@@ -21,6 +21,8 @@ engines = [
 ]
 # The expressive voice (Chatterbox Multilingual, MIT). Heavy: PyTorch with CUDA.
 chatterbox = ["chatterbox-tts>=0.1.4"]
+# Trace export (#139); the API alone is enough to adopt the caller's trace context.
+telemetry = ["opentelemetry-sdk==1.45.1", "opentelemetry-exporter-otlp-proto-http==1.45.1"]
 test = ["pytest>=8", "httpx>=0.27"]
 
 [tool.setuptools.packages.find]

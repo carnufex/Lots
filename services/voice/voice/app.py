@@ -13,6 +13,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel
 
+from . import tracing
 from .config import LANGUAGES, Settings
 from .engines import SttEngine, SynthOptions, TtsEngine
 from .gpu import GpuMonitor
@@ -36,6 +37,17 @@ def create_app(settings: Settings, stt: SttEngine, tts: TtsEngine, gpu: GpuMonit
     settings.validate()
     app = FastAPI(title="Lots voice service", version="0.1.0")
     gate = asyncio.Semaphore(settings.max_concurrency)
+
+    tracing.configure()
+
+    @app.middleware("http")
+    async def trace_requests(request, call_next):
+        # Joins the run's trace: the shell sends traceparent with every call (#139).
+        with tracing.request_span(f"{request.method} {request.url.path}", dict(request.headers)) as span:
+            response = await call_next(request)
+            if span is not None:
+                span.set_attribute("http.response.status_code", response.status_code)
+            return response
 
     @app.middleware("http")
     async def no_urlencoded_forms(request, call_next):

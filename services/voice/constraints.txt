@@ -29,6 +29,7 @@ ffmpy==1.0.0
 filelock==4.1.0
 flatbuffers==25.12.19
 fsspec==2026.9.0
+googleapis-common-protos==1.75.5
 gradio==6.8.0
 gradio_client==2.2.0
 groovy==0.1.2
@@ -75,6 +76,13 @@ omegaconf==2.4.0
 onnx==1.23.2
 onnxruntime==1.31.0
 opentelemetry-api==1.45.1
+opentelemetry-exporter-http-transport==0.66b1
+opentelemetry-exporter-otlp-common==0.66b1
+opentelemetry-exporter-otlp-proto-common==1.45.1
+opentelemetry-exporter-otlp-proto-http==1.45.1
+opentelemetry-proto==1.45.1
+opentelemetry-sdk==1.45.1
+opentelemetry-semantic-conventions==0.66b1
 orjson==3.13.0
 packaging==26.3
 pandas==3.0.6
@@ -124,8 +132,8 @@ torchaudio==2.6.0
 tqdm==4.70.1
 transformers==5.2.0
 triton==3.2.0
-typer==0.27.3
 typer-slim==0.24.0
+typer==0.27.3
 typing-inspection==0.4.4
 typing_extensions==4.16.0
 urllib3==2.8.0

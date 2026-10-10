@@ -11,6 +11,8 @@ RUN mkdir voice && touch voice/__init__.py  && if [ "$CHATTERBOX" = "1" ]; then 
 # License hygiene (#131): chatterbox-tts pulls in pykakasi (GPL-3.0, only for Japanese text, imported lazily with a fallback) and
 # gradio (its demo UI). The service uses neither, so they are not shipped.
 RUN pip uninstall -y pykakasi gradio gradio_client
+# Trace export (#139), its own small layer next to the big one.
+RUN pip install --no-cache-dir -c constraints.txt opentelemetry-sdk==1.45.1 opentelemetry-exporter-otlp-proto-http==1.45.1
 COPY voice/ voice/
 COPY scripts/ scripts/
 RUN pip install --no-cache-dir --no-deps .

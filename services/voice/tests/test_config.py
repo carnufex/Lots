@@ -32,3 +32,33 @@ def test_json_log_lines(monkeypatch):
     record = logging.LogRecord("voice", logging.WARNING, __file__, 1, "GPU low: %s MB", (512,), None)
     line = json.loads(JsonFormatter().format(record))
     assert line["level"] == "warn" and line["msg"] == "GPU low: 512 MB" and line["time"].endswith("Z")
+
+
+
+def test_requests_join_the_callers_trace():
+    import logging
+
+    from fastapi.testclient import TestClient
+
+    from tests.test_api import FakeStt, FakeTts
+    from voice.app import create_app
+    from voice.logs import JsonFormatter
+
+    seen = {}
+
+    class Capture(logging.Handler):
+        def emit(self, record):
+            seen.update(__import__("json").loads(JsonFormatter().format(record)))
+
+    log = logging.getLogger("voice.test")
+    log.addHandler(Capture())
+    app = create_app(Settings(api_key="secret"), FakeStt(), FakeTts())
+
+    @app.get("/probe")
+    def probe():
+        log.warning("inside a request")
+        return {}
+
+    trace_id = "4bf92f3577b34da6a3ce929d0e0e4736"
+    TestClient(app).get("/probe", headers={"traceparent": f"00-{trace_id}-00f067aa0ba902b7-01"})
+    assert seen.get("trace_id") == trace_id

@@ -79,6 +79,34 @@ category with `Logging__LogLevel__<Category>`. Events worth knowing:
 | MCP server unavailable, retrying | `Lots.Shell.Core.Mcp.McpToolSource` | Warning |
 | Profile or resource invalid, GitOps sync | `Lots.Shell.Core.Config.*` | Warning / Error |
 
+## Traces
+
+One trace per run (`traceId` on the run page). A resumed execution, for example after an approval, starts a new trace that links
+to the first. Every Lots span carries `lots.run.id`, `lots.profile`, `lots.profile.version`, `lots.user.hash`, `lots.channel` and
+`gen_ai.conversation.id`, so changes can be compared before and after a profile version. Spans export over OTLP when
+`OTEL_EXPORTER_OTLP_ENDPOINT` is set (shell, MCP servers, voice service).
+
+| Step | Span | Notable attributes |
+|---|---|---|
+| Run execution | `invoke_agent <profile>` | `lots.run.resumed`, link to the first trace |
+| Model call | `chat <model>` | `gen_ai.request.model`, `gen_ai.response.model`, `gen_ai.usage.input_tokens`/`output_tokens`, `gen_ai.response.finish_reasons`, `gen_ai.request.reasoning_effort`, `lots.model.alias`, `lots.model.endpoint`, `lots.model.rerouted`, `lots.model.attempt`, error status |
+| Tool call | `execute_tool <tool>` | `lots.risk_class`, `lots.policy.decision`, `lots.policy.rule`, `lots.policy.reason`, `lots.tool.decision`, `lots.tool.outcome`, `lots.tool.result_bytes`, `lots.backend.auth` |
+| Approval wait | `approval_wait` | real start and end, outcome, risk, approvals required |
+| Knowledge search | `retrieve knowledge` | query size, hits, sources |
+| Memory | `read_memory` | whether memories were used |
+| Token exchange | `token_exchange` | server, cached, status (never the token) |
+| Speech | `speech_to_text`, `text_to_speech` | language, audio seconds, time to first audio, fallback |
+| MCP server, voice service | `POST /mcp`, `POST /v1/audio/...` | child spans in the same trace: the shell sends `traceparent` |
+
+**Content.** Prompts, answers, tool arguments and results are span events (`gen_ai.user.message`, `gen_ai.choice`,
+`gen_ai.tool.arguments`, `gen_ai.tool.result`), redacted. They are only recorded with `Telemetry__CaptureContent=true`, which is the
+default in Development only (ADR 0019).
+
+**Not traced.** The browser itself: a turn starts at the shell's HTTP request. Endpointing in the browser is measured in History,
+not as a span.
+
+**Cardinality.** Metric labels are never user ids or free text. Per-user and per-run detail lives on spans and in Postgres.
+
 ## Troubleshooting
 
 | Symptom | Look at | Usual cause and fix |

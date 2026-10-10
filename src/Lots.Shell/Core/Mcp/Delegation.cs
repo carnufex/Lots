@@ -58,9 +58,16 @@ public sealed class TokenExchangeClient(HttpClient http, TimeProvider clock, Fun
         var key = $"{server.Name}|{userId}|{Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(subjectToken)))}";
 
         await _gate.WaitAsync(ct);
+        // A span per exchange (#139): outcome and whether the cache answered, never the token or the subject.
+        using var span = Telemetry.Tracing.Source.StartActivity("token_exchange", System.Diagnostics.ActivityKind.Client);
+        span?.SetTag("lots.server", server.Name);
         try
         {
-            if (_cache.TryGetValue(key, out var hit) && clock.GetUtcNow() < hit.Expires - Skew) return hit.Token;
+            if (_cache.TryGetValue(key, out var hit) && clock.GetUtcNow() < hit.Expires - Skew)
+            {
+                span?.SetTag("lots.token_exchange.cached", true);
+                return hit.Token;
+            }
 
             var form = new Dictionary<string, string>
             {
@@ -76,8 +83,12 @@ public sealed class TokenExchangeClient(HttpClient http, TimeProvider clock, Fun
                 form["client_secret"] = SecretReference.Resolve(c.ClientSecretEnv, _env);
 
             using var response = await http.PostAsync(c.TokenUrl, new FormUrlEncodedContent(form), ct);
+            span?.SetTag("http.response.status_code", (int)response.StatusCode);
             if (!response.IsSuccessStatusCode)
+            {
+                span?.SetStatus(System.Diagnostics.ActivityStatusCode.Error, "refused");
                 throw new HttpRequestException($"Token exchange for server '{server.Name}' was refused ({(int)response.StatusCode}).");
+            }
 
             using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
             var token = doc.RootElement.GetProperty("access_token").GetString()

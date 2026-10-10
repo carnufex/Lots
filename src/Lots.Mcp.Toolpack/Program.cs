@@ -1,3 +1,5 @@
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using Lots.Mcp.Toolpack;
 using ModelContextProtocol.Server;
 using Npgsql;
@@ -11,6 +13,14 @@ if ((builder.Configuration["Logging:Format"] ?? (builder.Environment.IsDevelopme
     builder.Logging.ClearProviders().AddJsonConsole(o => { o.IncludeScopes = true; o.UseUtcTimestamp = true; o.TimestampFormat = "O"; });
     builder.Logging.Configure(o => o.ActivityTrackingOptions = ActivityTrackingOptions.TraceId | ActivityTrackingOptions.SpanId);
 }
+// Spans for every MCP request, children of the shell's tool span (W3C trace context); exported only with an OTLP endpoint.
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(r => r.AddService("lots-mcp-toolpack"))
+    .WithTracing(t =>
+    {
+        t.AddAspNetCoreInstrumentation();
+        if (!string.IsNullOrEmpty(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"])) t.AddOtlpExporter();
+    });
 var config = builder.Configuration;
 var mcp = builder.Services.AddMcpServer().WithHttpTransport();
 var packs = new List<string>();
