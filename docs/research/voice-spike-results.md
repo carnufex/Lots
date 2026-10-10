@@ -74,3 +74,24 @@ Consequence: the meeting flow should accept an optional speaker count and show l
 - Meetings run on CPU or GPU without a problem (diarization 0.07x real time; Whisper on GPU is much faster than real time).
 - Not yet known and carried into the evals (#36) and the service issue (#40): accuracy on real recordings, behaviour with a game using the GPU,
   concurrent users, streaming STT latency, tool-using questions, Swedish TTS naturalness by ear, Whisper large-v3-turbo for English.
+
+## 6. Language identification on real recordings (added after a real failure)
+
+A real Swedish sentence ("hej jag heter christopher och sitter och spelar expedition 33") came back as English text. Cause and measurements
+(owner's recordings plus synthetic clips, `Systran/faster-whisper-*` identifiers, GPU):
+
+| Clip | `base` sv / en | `small` sv / en |
+|---|---|---|
+| sv-intro (real) | 0.22 / 0.15 | **0.96** / 0.01 |
+| sv-monster (real) | 0.22 / 0.00 | **0.99** / 0.00 |
+| en-intro (real) | 0.00 / 0.92 | 0.02 / **0.90** |
+
+- The `base` identifier is far too unsure on real speech (22 % for a clear Swedish clip). Default is now `small`.
+- A language error is costly: the English-only model invents English sentences from Swedish speech, and the Swedish model
+  **translates** English speech into Swedish ("Hej jag heter Kristoffer, vad är ditt namn?"). Because of that the models' own
+  confidence (`avg_logprob`) cannot pick the language (the Swedish model scored higher on English audio); only identification can.
+- When the two languages together carry less than 50 % probability the service now uses a configured default (Swedish here) instead of a coin flip.
+- The UI preselects the installation's default language (Swedish here) and remembers the user's choice; an explicit hint is
+  always more reliable than identification on a short clip.
+
+After the change all three real recordings are identified correctly in auto mode and the failing sentence (synthetic version) is transcribed correctly with and without a hint.

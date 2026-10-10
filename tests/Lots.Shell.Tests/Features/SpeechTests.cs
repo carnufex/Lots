@@ -369,5 +369,6 @@ public class VoiceApiTests : IClassFixture<WebApplicationFactory<Program>>
 
         Assert.True(config.GetProperty("voice").GetProperty("enabled").GetBoolean());
         Assert.Equal(["sv", "en"], config.GetProperty("voice").GetProperty("languages").EnumerateArray().Select(l => l.GetString()!));
+        Assert.Equal("auto", config.GetProperty("voice").GetProperty("defaultLanguage").GetString());
     }
 }

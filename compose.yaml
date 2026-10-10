@@ -12,6 +12,7 @@ services:
       # Voice (ADR 0012): the voice service on the GPU PC; empty = voice off
       Speech__BaseUrl: ${LOTS_VOICE_URL:-}
       Speech__ApiKeyEnv: LOTS_VOICE_KEY
+      Speech__DefaultLanguage: ${LOTS_VOICE_DEFAULT_LANGUAGE:-auto}
       Speech__Vocabulary: ${LOTS_VOICE_VOCABULARY:-}
       LOTS_VOICE_KEY: ${LOTS_VOICE_KEY:-}
       Model__BaseUrl: ${LOTS_MODEL_URL:-http://host.docker.internal:11434/v1}

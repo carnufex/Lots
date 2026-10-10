@@ -8,7 +8,7 @@ public sealed record OidcClientConfig(string Authority, string ClientId, string 
 
 public sealed record ProfileInfo(string Name, string Description);
 
-public sealed record VoiceConfig(bool Enabled, IReadOnlyList<string> Languages);
+public sealed record VoiceConfig(bool Enabled, IReadOnlyList<string> Languages, string DefaultLanguage);
 
 public sealed record ClientConfig(string AuthMode, OidcClientConfig? Oidc, IReadOnlyList<ProfileInfo> Profiles, VoiceConfig Voice);
 
@@ -35,6 +35,7 @@ public sealed class ClientConfigEndpoint(IConfiguration config, ProfileRegistry 
         await Send.OkAsync(new ClientConfig(
             oidc is null ? "dev" : "oidc", oidc,
             profiles.All.Select(p => new ProfileInfo(p.Name, p.Description)).OrderBy(p => p.Name).ToList(),
-            new VoiceConfig(speech.Value.Enabled, Lots.Shell.Core.Speech.SpeechOptions.Languages)), ct);
+            new VoiceConfig(speech.Value.Enabled, Lots.Shell.Core.Speech.SpeechOptions.Languages,
+                Lots.Shell.Core.Speech.SpeechOptions.Languages.Contains(speech.Value.DefaultLanguage) ? speech.Value.DefaultLanguage : "auto")), ct);
     }
 }

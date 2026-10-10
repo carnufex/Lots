@@ -99,10 +99,22 @@ class WhisperStt:
 
 
     def _identify(self, samples) -> str:
-        """Swedish or English, by the larger probability among just those two (anything else is Swedish or English anyway)."""
         _lang, _prob, all_probs = self._model("detect").detect_language(samples)
-        probs = dict(all_probs)
-        return max(self._settings.stt_models, key=lambda lang: probs.get(lang, 0.0))
+        return choose_language(dict(all_probs), tuple(self._settings.stt_models), self._settings.default_language,
+                               self._settings.detect_min_confidence)
+
+
+def choose_language(probs: dict[str, float], languages: tuple[str, ...], default: str, min_confidence: float = 0.5) -> str:
+    """
+    Picks between our languages from the identifier's probabilities. The model's own transcription confidence cannot decide
+    this (the Swedish model happily translates English speech into Swedish), so only identification counts.
+    If the two languages together carry little probability, the clip is probably something else (noise, a name, a very
+    short utterance): use the configured default instead of a coin flip.
+    """
+    mine = {lang: probs.get(lang, 0.0) for lang in languages}
+    if sum(mine.values()) < min_confidence:
+        return default if default in languages else languages[0]
+    return max(mine, key=mine.get)
 
 
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+")

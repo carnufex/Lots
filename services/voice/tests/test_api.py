@@ -165,3 +165,15 @@ def test_wav_helpers():
     assert len(streaming_header(16000)) == 44
     pcm = to_pcm16(np.array([0.0, 1.0, -1.0, 2.0], dtype=np.float32))
     assert np.frombuffer(pcm, dtype="<i2").tolist() == [0, 32767, -32767, 32767]  # clipped
+
+
+def test_language_choice_uses_identification_and_falls_back_to_the_default_when_unsure():
+    from voice.engines import choose_language
+
+    langs = ("sv", "en")
+    assert choose_language({"sv": 0.96, "en": 0.01}, langs, "sv") == "sv"
+    assert choose_language({"sv": 0.02, "en": 0.90}, langs, "sv") == "en"
+    assert choose_language({"sv": 0.30, "en": 0.45, "no": 0.2}, langs, "sv") == "en"      # together 0.75: trusted
+    assert choose_language({"sv": 0.22, "en": 0.15, "de": 0.4}, langs, "sv") == "sv"      # together 0.37: unsure -> default
+    assert choose_language({"sv": 0.10, "en": 0.12, "de": 0.7}, langs, "en") == "en"      # a deployment default can differ
+    assert choose_language({}, langs, "xx") == "sv"                                       # an unknown default is ignored

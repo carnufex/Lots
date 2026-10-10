@@ -14,6 +14,7 @@ export interface ProfileInfo {
 export interface VoiceConfig {
   enabled: boolean
   languages: string[]
+  defaultLanguage: 'auto' | 'sv' | 'en'
 }
 
 export interface ClientConfig {

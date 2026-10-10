@@ -50,6 +50,9 @@ public sealed class SpeechOptions
     public int MaxTextChars { get; set; } = 1500;
     public int TimeoutSeconds { get; set; } = 60;
 
+    /// <summary>Language the UI preselects for dictation: sv, en or auto. A Swedish installation sets sv.</summary>
+    public string DefaultLanguage { get; set; } = "auto";
+
     /// <summary>
     /// Words shared by everyone on this deployment (product names, jargon), comma separated, e.g. "Lots, Authentik, Longhorn".
     /// Users add their own on the website. All of it is sent to the speech provider, so it must never contain secrets.

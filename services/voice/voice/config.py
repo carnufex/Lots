@@ -34,7 +34,11 @@ class Settings:
         "en": "Systran/faster-whisper-small.en",  # MIT
     })
     # Small multilingual Whisper used only to tell Swedish from English (the Swedish model is specialised and biased).
-    stt_detect_model: str = "Systran/faster-whisper-base"
+    stt_detect_model: str = "Systran/faster-whisper-small"  # "base" was too unsure on real speech (22 % for a clear Swedish clip)
+    # Language used when identification is not confident (the owner mostly speaks Swedish).
+    default_language: str = "sv"
+    # Minimum combined probability of Swedish and English for the identification to be trusted.
+    detect_min_confidence: float = 0.5
     preload: bool = True
     stt_device: str = "cuda"
     stt_compute_type: str = "float16"
@@ -58,6 +62,8 @@ class Settings:
             models_dir=Path(e.get("VOICE_MODELS_DIR", "models")),
             stt_models={"sv": e.get("VOICE_STT_SV", base.stt_models["sv"]), "en": e.get("VOICE_STT_EN", base.stt_models["en"])},
             stt_detect_model=e.get("VOICE_STT_DETECT", base.stt_detect_model),
+            default_language=e.get("VOICE_DEFAULT_LANGUAGE", base.default_language),
+            detect_min_confidence=float(e.get("VOICE_DETECT_MIN_CONFIDENCE", base.detect_min_confidence)),
             preload=e.get("VOICE_PRELOAD", "1") == "1",
             stt_device=e.get("VOICE_STT_DEVICE", base.stt_device),
             stt_compute_type=e.get("VOICE_STT_COMPUTE", base.stt_compute_type),
