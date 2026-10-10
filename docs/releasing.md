@@ -34,7 +34,7 @@ A local release does, in order:
 
 - pushes the images and records their digests in `out/release/digests-X.Y.Z.txt`;
 - pushes the chart as an OCI artifact to `oci://$LOTS_REGISTRY/charts`;
-- signs the images when `COSIGN_KEY` is set (key decision: #148);
+- signs the images when `COSIGN_KEY` or `COSIGN_KEY_B64` is set (ADR 0021);
 - pushes the commit and the tag.
 
 To abandon a local release before pushing: `git tag -d vX.Y.Z && git reset --hard HEAD~1`.

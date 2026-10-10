@@ -95,10 +95,10 @@ for i in "${images[@]}"; do
   echo "pushed $digest"
 done
 helm push "$out/lots-$version.tgz" "oci://$registry/charts" >/dev/null && echo "pushed chart oci://$registry/charts/lots:$version"
-if [[ -n "${COSIGN_KEY:-}" ]]; then
+if [[ -n "${COSIGN_KEY:-}${COSIGN_KEY_B64:-}" ]]; then
   bash scripts/supply-chain.sh sign "${refs[@]}"
 else
-  echo "not signed: COSIGN_KEY is not set (#148)"
+  echo "not signed: neither COSIGN_KEY nor COSIGN_KEY_B64 is set (ADR 0021)"
 fi
 git push -q origin main "$tag"
 printf '%s\n' "${refs[@]}" > "$out/digests-$version.txt"

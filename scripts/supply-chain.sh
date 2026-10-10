@@ -4,7 +4,8 @@
 #
 #   scripts/supply-chain.sh sbom [image...]   CycloneDX SBOMs for the images and the source tree -> out/sbom/
 #   scripts/supply-chain.sh scan [image...]   fail on known high/critical vulnerabilities (NuGet, npm, pip, images)
-#   scripts/supply-chain.sh sign <ref@digest...>   sign pushed images with cosign (COSIGN_KEY, COSIGN_PASSWORD,
+#   scripts/supply-chain.sh sign <ref@digest...>   sign pushed images with cosign (COSIGN_KEY = key file, or COSIGN_KEY_B64 =
+#                                                   the key base64-encoded as stored in the secret store; COSIGN_PASSWORD,
 #                                                   REGISTRY_USERNAME, REGISTRY_PASSWORD)
 #   scripts/supply-chain.sh verify <ref...>        check a signature against cosign.pub
 #
@@ -63,7 +64,12 @@ case "$cmd" in
     ;;
 
   sign)
-    : "${COSIGN_KEY:?path to the cosign private key}" "${COSIGN_PASSWORD:?its password}"
+    if [[ -z "${COSIGN_KEY:-}" && -n "${COSIGN_KEY_B64:-}" ]]; then
+      keydir=$(mktemp -d); trap 'rm -rf "$keydir"' EXIT   # the decoded key exists only while signing
+      echo "$COSIGN_KEY_B64" | base64 -d > "$keydir/cosign.key"
+      COSIGN_KEY="$keydir/cosign.key"
+    fi
+    : "${COSIGN_KEY:?path to the cosign private key (or COSIGN_KEY_B64)}" "${COSIGN_PASSWORD:?its password}"
     : "${REGISTRY_USERNAME:?registry user}" "${REGISTRY_PASSWORD:?registry password}"
     for ref in "$@"; do
       [[ "$ref" == *@sha256:* ]] || { echo "sign by digest, not tag: $ref" >&2; exit 1; }

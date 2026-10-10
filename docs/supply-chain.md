@@ -31,8 +31,12 @@ issue; an expired entry fails the scan again. Current exceptions: the voice serv
 2. Build and push (`scripts/release.sh`, or by hand as `registry.example.com/org/<app>:sha-<short>`).
 3. `bash scripts/supply-chain.sh sbom registry.example.com/org/<app>:sha-<short>` and keep the SBOM with the release.
 4. Sign the pushed digest: `bash scripts/supply-chain.sh sign registry.example.com/org/<app>@sha256:…`
-   (needs `COSIGN_KEY`, `COSIGN_PASSWORD`, `REGISTRY_USERNAME`, `REGISTRY_PASSWORD`). Signatures are stored in the registry next
+   (needs the key as `COSIGN_KEY` (a file) or `COSIGN_KEY_B64` (as kept in the secret store), `COSIGN_PASSWORD`,
+   `REGISTRY_USERNAME` and `REGISTRY_PASSWORD`). Signatures are stored in the registry next
    to the image (`sha256-<digest>.sig`, a tagged manifest, so registry GC keeps it); there is no public transparency log.
 5. Anyone can check: `bash scripts/supply-chain.sh verify registry.example.com/org/<app>@sha256:…` against `cosign.pub`.
 
-Where the signing key lives is an open decision (#148); until it is made, step 4 is skipped and `cosign.pub` does not exist.
+The key pair (ADR 0021): the private key, base64-encoded, and its password live in the operator's secret store (Bitwarden Secrets
+Manager for the reference deployment), never on disk except decoded into a temporary file while signing. `cosign.pub` is in the
+repository root. A cluster can enforce the signatures with the same public key (Kyverno `verifyImages` or the sigstore policy
+controller); that is a separate change in the deployment repository.
