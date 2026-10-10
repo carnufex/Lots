@@ -6,11 +6,14 @@ WORKDIR /app
 COPY pyproject.toml ./
 COPY voice/ voice/
 COPY scripts/ scripts/
-RUN pip install --no-cache-dir ".[engines]"
+# CHATTERBOX=1 adds the expressive voice (PyTorch + Chatterbox, several GB). Piper alone is much smaller.
+ARG CHATTERBOX=0
+RUN if [ "$CHATTERBOX" = "1" ]; then pip install --no-cache-dir ".[engines,chatterbox]"; else pip install --no-cache-dir ".[engines]"; fi
 
 ENV HOME=/tmp \
     HF_HOME=/models/hf \
     VOICE_MODELS_DIR=/models/piper \
+    VOICE_REFS_DIR=/models/refs \
     VOICE_HOST=0.0.0.0 \
     VOICE_PORT=8700 \
     LD_LIBRARY_PATH=/usr/local/lib/python3.11/site-packages/nvidia/cublas/lib:/usr/local/lib/python3.11/site-packages/nvidia/cudnn/lib

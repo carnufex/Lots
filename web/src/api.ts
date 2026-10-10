@@ -83,6 +83,16 @@ export interface Vocabulary {
   shared: string[]
 }
 
+export interface UserSettings {
+  talkativeness: number
+  warmth: number
+  formality: number
+  expressiveness: number
+  pace: number
+  ownVoice: { seconds: number; consentAt: string } | null
+  voiceEnabled: boolean
+}
+
 export type VoiceLanguage = 'auto' | 'sv' | 'en'
 
 export type RunStatus = 'Pending' | 'Running' | 'WaitingForApproval' | 'Completed' | 'Failed'
@@ -121,6 +131,20 @@ export function createApi(auth: Auth) {
       if (language !== 'auto') form.append('Language', language)
       return request<Transcription>('/voice/transcribe', { method: 'POST', body: form })
     },
+    getSettings: () => request<UserSettings>('/me/settings'),
+    putSettings: (s: Pick<UserSettings, 'talkativeness' | 'warmth' | 'formality' | 'expressiveness' | 'pace'>) =>
+      request<UserSettings>('/me/settings', {
+        method: 'PUT',
+        body: JSON.stringify({ talkativeness: s.talkativeness, warmth: s.warmth, formality: s.formality, expressiveness: s.expressiveness, pace: s.pace }),
+      }),
+    /** Registers the caller's own voice. `consent` must be true: the user confirmed it is their own voice. */
+    recordVoice: (clip: Blob, consent: boolean) => {
+      const form = new FormData()
+      form.append('Audio', clip, 'voice.webm')
+      form.append('Consent', String(consent))
+      return request<UserSettings>('/me/voice', { method: 'PUT', body: form })
+    },
+    deleteVoice: () => request<UserSettings>('/me/voice', { method: 'DELETE' }),
     getVocabulary: () => request<Vocabulary>('/voice/vocabulary'),
     putVocabulary: (words: string[]) => request<Vocabulary>('/voice/vocabulary', { method: 'PUT', body: JSON.stringify({ words }) }),
     /** The spoken final answer of a run, as an audio blob. */

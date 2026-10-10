@@ -19,6 +19,8 @@ engines = [
     "nvidia-cublas-cu12",         # CUDA libraries for CTranslate2 on the GPU
     "nvidia-cudnn-cu12",
 ]
+# The expressive voice (Chatterbox Multilingual, MIT). Heavy: PyTorch with CUDA.
+chatterbox = ["chatterbox-tts>=0.1.4"]
 test = ["pytest>=8", "httpx>=0.27"]
 
 [tool.setuptools.packages.find]

@@ -6,11 +6,12 @@ import RunsPage from './pages/RunsPage'
 import RunPage from './pages/RunPage'
 import ApprovalsPage from './pages/ApprovalsPage'
 import AuditPage from './pages/AuditPage'
+import VoicePage from './pages/VoicePage'
 import PlaceholderPage from './pages/Placeholder'
 import { PLANNED } from './planned'
 import { Icon, type IconName } from './components/Icon'
 
-type Route = { name: 'runs' } | { name: 'run'; id: string } | { name: 'approvals' } | { name: 'audit' } | { name: 'planned'; slug: string }
+type Route = { name: 'runs' } | { name: 'run'; id: string } | { name: 'approvals' } | { name: 'audit' } | { name: 'voice' } | { name: 'planned'; slug: string }
 
 type NavItem = { href: string; label: string; icon: IconName; active: (r: Route) => boolean }
 
@@ -25,16 +26,18 @@ const planned = (slug: string): NavItem => {
   return { href: `#/${slug}`, label: p.label, icon: p.icon, active: (r) => r.name === 'planned' && r.slug === slug }
 }
 
+const voiceNav: NavItem = { href: '#/voice', label: 'Voice', icon: 'voice', active: (r) => r.name === 'voice' }
+
 const NAV: { title: string; items: NavItem[] }[] = [
   { title: 'Work', items: [nav('runs', 'Runs', 'runs'), nav('approvals', 'Approvals', 'approvals'), nav('audit', 'Audit', 'audit')] },
-  { title: 'Capabilities', items: ['knowledge', 'tools', 'mcp', 'voice', 'transcription', 'models'].map(planned) },
+  { title: 'Capabilities', items: ['knowledge', 'tools', 'mcp'].map(planned).concat([voiceNav], ['transcription', 'models'].map(planned)) },
   { title: 'Administration', items: ['profiles', 'policy', 'identity'].map(planned) },
 ]
 
 function useHashRoute(): Route {
   const read = (): Route => {
     const r = window.location.hash.replace(/^#\/?/, '')
-    if (r === 'approvals' || r === 'audit') return { name: r }
+    if (r === 'approvals' || r === 'audit' || r === 'voice') return { name: r }
     if (PLANNED.some((p) => p.slug === r)) return { name: 'planned', slug: r }
     const m = /^runs\/([0-9a-f-]{36})$/i.exec(r)
     return m ? { name: 'run', id: m[1] } : { name: 'runs' }
@@ -141,6 +144,7 @@ function Shell({ config, auth, session }: { config: ClientConfig; auth: Auth; se
           {route.name === 'run' && <RunPage api={api} id={route.id} voice={config.voice} />}
           {route.name === 'approvals' && <ApprovalsPage api={api} />}
           {route.name === 'audit' && <AuditPage api={api} />}
+          {route.name === 'voice' && <VoicePage api={api} voice={config.voice} />}
           {route.name === 'planned' && <PlaceholderPage item={PLANNED.find((p) => p.slug === route.slug)!} />}
         </main>
       </div>
