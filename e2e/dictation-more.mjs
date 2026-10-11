@@ -1,4 +1,5 @@
 // More dictation scenarios: keyboard shortcut, three in a row, a failed transcription followed by a retry.
+// Phrases are counted by a word, not by '?': Whisper's punctuation of the same clip varies.
 import { chromium } from 'playwright'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -20,7 +21,7 @@ console.log('1 (keyboard):', JSON.stringify(await prompt.inputValue()))
 for (const n of [2, 3]) {
   await page.getByRole('button', { name: 'Dictate', exact: true }).click(); await page.waitForTimeout(3000)
   await page.getByRole('button', { name: 'Stop', exact: true }).click(); await page.getByRole('button', { name: 'Dictate', exact: true }).waitFor({ timeout: 20000 })
-  console.log(`${n}:`, (await prompt.inputValue()).split('?').length - 1, 'phrases in prompt')
+  console.log(`${n}:`, (await prompt.inputValue()).match(/fungerar/gi)?.length ?? 0, 'phrases in prompt')
 }
 
 // 3. voice service down: error, then it must be usable again
@@ -31,5 +32,5 @@ console.log('503 case: alert =', await page.getByRole('alert').first().innerText
 await page.unroute('**/voice/transcribe')
 await page.getByRole('button', { name: 'Dictate', exact: true }).click(); await page.waitForTimeout(3000)
 await page.getByRole('button', { name: 'Stop', exact: true }).click(); await page.getByRole('button', { name: 'Dictate', exact: true }).waitFor({ timeout: 20000 })
-console.log('after recovery:', (await prompt.inputValue()).split('?').length - 1, 'phrases; alert shown:', await page.getByRole('alert').count())
+console.log('after recovery:', (await prompt.inputValue()).match(/fungerar/gi)?.length ?? 0, 'phrases; alert shown:', await page.getByRole('alert').count())
 await browser.close()
