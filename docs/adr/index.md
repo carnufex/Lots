@@ -29,3 +29,4 @@ records themselves.
 | [0022](0022-playbooks-as-config.md) | Playbooks: step-by-step flows declared as config and enforced by the shell | accepted (2026-10-10). Decides #159; implemented in #161 (example: `examples/playbooks/restart-after-logs.yaml`). |
 | [0023](0023-automatic-context-routing.md) | Automatic context routing: a router in front of the run | accepted (2026-10-11). Implements #150. |
 | [0024](0024-multi-context-supervisor.md) | Multi-context questions: a tool-less supervisor over read-only sub-runs | accepted (2026-10-11). Implements #151, builds on ADR 0023. |
+| [0025](0025-speak-answers-while-they-stream.md) | Speak answers while they are written | accepted (2026-10-11). Extends ADR 0013 for #37. |

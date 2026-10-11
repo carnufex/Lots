@@ -66,6 +66,51 @@
         ]
       }
     },
+    "/runs/{id}/speak/next": {
+      "post": {
+        "tags": [
+          "Runs"
+        ],
+        "operationId": "LotsShellFeaturesVoiceSpeakNextEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "SpeakNextRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpeakNextRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/voice/transcribe": {
       "post": {
         "tags": [
@@ -5998,6 +6043,24 @@
       "RevokeVoiceRequest": {
         "type": "object",
         "additionalProperties": false
+      },
+      "SpeakNextRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "from": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "hash": {
+            "type": "string",
+            "nullable": true
+          },
+          "language": {
+            "type": "string",
+            "nullable": true
+          }
+        }
       },
       "TranscribeResponse": {
         "type": "object",

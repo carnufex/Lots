@@ -148,6 +148,34 @@ export default function Conversation({
           })
         }, ACK_AFTER_MS)
 
+        // Speak the answer sentence by sentence while it is written (#37): the first sentence plays while the rest is generated.
+        const speaker = (async () => {
+          let from = 0
+          let hash: string | undefined
+          let spoke = false
+          let pending: ReturnType<typeof api.speakNext> | null = api.speakNext(run.id, from, hash)
+          while (pending && mine === turn.current) {
+            const r: Awaited<ReturnType<typeof api.speakNext>> = await pending
+            if (r.reset) { from = 0; hash = undefined }
+            if (r.audio) {
+              from = r.to
+              hash = r.hash
+              pending = r.done ? null : api.speakNext(run.id, from, hash) // fetch the next sentence while this one plays
+              window.clearTimeout(ack)
+              if (!spoke) player.current.stop() // the acknowledgement, if it is still playing
+              spoke = true
+              if (mine !== turn.current) break
+              go('speaking')
+              await player.current.play(r.audio)
+              continue
+            }
+            if (r.done) break
+            await new Promise((ok) => setTimeout(ok, 250))
+            pending = mine === turn.current ? api.speakNext(run.id, from, hash) : null
+          }
+          return spoke
+        })().catch(() => false)
+
         const deadline = Date.now() + GIVE_UP_MS
         let detail = await api.getRun(run.id)
         while (!isTerminal(detail.status) && mine === turn.current && Date.now() < deadline) {
@@ -172,6 +200,11 @@ export default function Conversation({
         add({ who: 'agent', text: detail.finalAnswer, runId: run.id })
         turns.current++
         hooks.current.onTurn?.(conversationId.current)
+        if (await speaker) {
+          if (mine === turn.current && stateRef.current === 'speaking') go('listening')
+          return
+        }
+        // Sentence streaming unavailable (an older shell): the whole answer at once.
         const audio = await api.speak(run.id, 'auto')
         player.current.stop() // the acknowledgement, if it is still playing
         await speakNow(audio, mine)

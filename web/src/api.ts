@@ -625,6 +625,25 @@ export function createApi(auth: Auth) {
     getVocabulary: () => request<Vocabulary>('/voice/vocabulary'),
     putVocabulary: (words: string[]) => request<Vocabulary>('/voice/vocabulary', { method: 'PUT', body: JSON.stringify({ words }) }),
     /** The spoken final answer of a run, as an audio blob. */
+    /**
+     * The next sentences of a run's answer as audio while it is being written (#37): null audio when none is complete yet. Pass back
+     * `to` and `hash` to continue; `reset` means the answer started over; stop when `done`.
+     */
+    speakNext: async (runId: string, from: number, hash?: string): Promise<{ audio: Blob | null; to: number; hash?: string; done: boolean; reset: boolean }> => {
+      const res = await fetch(`/runs/${runId}/speak/next`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await auth.headers()) },
+        body: JSON.stringify({ from, ...(hash ? { hash } : {}) }),
+      })
+      if (!res.ok && res.status !== 204) throw new ApiError(res.status, `${res.status} ${res.statusText}`)
+      return {
+        audio: res.status === 204 ? null : await res.blob(),
+        to: Number(res.headers.get('X-Spoken-To') ?? from),
+        hash: res.headers.get('X-Spoken-Hash') ?? hash,
+        done: res.headers.get('X-Run-Done') === 'true',
+        reset: res.headers.get('X-Speak-Reset') === '1',
+      }
+    },
     speak: async (runId: string, language: VoiceLanguage): Promise<Blob> => {
       const res = await fetch(`/runs/${runId}/speak`, {
         method: 'POST',
