@@ -10,6 +10,7 @@ and Whisper (English), Piper voices through sherpa-onnx for synthesis. Measured 
 |---|---|
 | `POST /v1/audio/transcriptions` | multipart `file`, optional `language` (`sv`/`en`, otherwise detected), `response_format` `json`/`verbose_json`/`text` |
 | `POST /v1/audio/speech` | JSON `{input, voice, response_format: wav|pcm, speed}`; streams one sentence at a time |
+| `POST /v1/audio/meetings` | a whole recording (#41): multipart `file`, optional `language`, `num_speakers` (1-20), `prompt`, `word_timestamps`; returns timestamped `segments` (with `words`) and speaker `turns` (sherpa-onnx diarization, CPU). Limits `VOICE_MAX_MEETING_BYTES` (300 MB), `VOICE_MAX_MEETING_SECONDS` (4 h); models from `scripts/fetch_models.py` into `VOICE_DIARIZATION_DIR` (default `/models/diarization`) |
 | `GET /v1/models` | languages and voices |
 | `GET /health` | open; everything else needs `Authorization: Bearer $VOICE_API_KEY` |
 

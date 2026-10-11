@@ -128,6 +128,11 @@ public sealed class ExportMyDataEndpoint(LotsDbContext db, IAudioStore audio, IK
             speechUsage = await db.VoiceUsage.AsNoTracking().Where(v => v.UserId == me).ToListAsync(ct),
             memories = await db.Memories.AsNoTracking().Where(m => m.UserId == me).ToListAsync(ct),
             groups = await db.ConversationGroups.AsNoTracking().Where(g => g.UserId == me).ToListAsync(ct),
+            meetings = (await db.Meetings.AsNoTracking().Where(m => m.UserId == me).ToListAsync(ct)).Select(m => new
+            {
+                m.Id, m.Title, m.CreatedAt, m.Language, m.DurationSeconds, m.SpeakerNamesJson,
+                lines = db.MeetingSegments.AsNoTracking().Where(s => s.MeetingId == m.Id).OrderBy(s => s.Seq).Select(s => new { s.StartMs, s.EndMs, s.Speaker, s.Text }).ToList(),
+            }).ToList(),
             feedback = await db.Feedback.AsNoTracking().Where(f => f.UserId == me).ToListAsync(ct),
         };
 
@@ -164,7 +169,8 @@ public sealed record DeletionReport(Dictionary<string, int> Deleted, IReadOnlyLi
 /// vocabulary, personal knowledge, connected accounts, votes, out-of-office and the login profile. Kept: the audit log (append-only
 /// accountability record, purged by Retention:AuditDays) and approvals other people requested.
 /// </summary>
-public sealed class DeleteMyDataEndpoint(LotsDbContext db, IAudioStore audio, IKnowledgeStore knowledge, IVoiceRegistry voices, ICurrentPrincipal who)
+public sealed class DeleteMyDataEndpoint(LotsDbContext db, IAudioStore audio, IKnowledgeStore knowledge, IVoiceRegistry voices, ICurrentPrincipal who,
+    Core.Meetings.MeetingAudioStore meetingAudio)
     : Endpoint<DeleteMyDataRequest, DeletionReport>
 {
     public override void Configure() => Delete("/me/data");
@@ -181,7 +187,7 @@ public sealed class DeleteMyDataEndpoint(LotsDbContext db, IAudioStore audio, IK
         Dictionary<string, int> deleted;
         try
         {
-            deleted = await DataDeletion.DeleteUserAsync(db, audio, knowledge, voices, me, ct);
+            deleted = await DataDeletion.DeleteUserAsync(db, audio, knowledge, voices, me, ct, meetingAudio);
         }
         catch (Exception ex) when (ex is InvalidOperationException or SpeechUnavailableException)
         {
@@ -196,7 +202,8 @@ public sealed class DeleteMyDataEndpoint(LotsDbContext db, IAudioStore audio, IK
 
 public static class DataDeletion
 {
-    public static async Task<Dictionary<string, int>> DeleteUserAsync(LotsDbContext db, IAudioStore audio, IKnowledgeStore knowledge, IVoiceRegistry voices, string user, CancellationToken ct)
+    public static async Task<Dictionary<string, int>> DeleteUserAsync(LotsDbContext db, IAudioStore audio, IKnowledgeStore knowledge, IVoiceRegistry voices, string user, CancellationToken ct,
+        Core.Meetings.MeetingAudioStore? meetingAudio = null)
     {
         var d = new Dictionary<string, int>();
         var settings = await db.UserSettings.SingleOrDefaultAsync(s => s.UserId == user, ct);
@@ -236,6 +243,12 @@ public static class DataDeletion
         var groups = await db.ConversationGroups.Where(g => g.UserId == user).ToListAsync(ct);
         db.ConversationGroups.RemoveRange(groups);
         d["chat groups"] = groups.Count;
+        var meetings = await db.Meetings.Where(m => m.UserId == user).ToListAsync(ct);
+        foreach (var m in meetings) meetingAudio?.Delete(m.Id);
+        var meetingIds = meetings.Select(m => m.Id).ToList();
+        db.MeetingSegments.RemoveRange(await db.MeetingSegments.Where(s => meetingIds.Contains(s.MeetingId)).ToListAsync(ct));
+        db.Meetings.RemoveRange(meetings);
+        d["meetings"] = meetings.Count;
         var memories = await db.Memories.Where(m => m.UserId == user).ToListAsync(ct);
         db.Memories.RemoveRange(memories);
         d["memories"] = memories.Count;

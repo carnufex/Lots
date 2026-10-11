@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import uvicorn
 
@@ -9,6 +10,7 @@ from .app import create_app
 from .config import Settings
 from .engines import ChatterboxTts, CompositeTts, PiperTts, WhisperStt
 from .gpu import GpuMonitor
+from .meetings import SherpaDiarizer, WhisperMeetings
 from .logs import configure as configure_logging
 
 
@@ -21,7 +23,10 @@ def build():
     if settings.preload:
         stt.warm_up()
         tts.warm_up()
-    return create_app(settings, stt, tts, gpu)
+    # Meetings (#41): diarization models live next to the voices (scripts/fetch_models.py downloads both).
+    diarization = Path(os.environ.get("VOICE_DIARIZATION_DIR", str(settings.models_dir.parent / "diarization")))
+    meetings = WhisperMeetings(stt, SherpaDiarizer(diarization, settings.tts_threads))
+    return create_app(settings, stt, tts, gpu, meetings)
 
 
 app = build() if os.environ.get("VOICE_BUILD_ON_IMPORT") == "1" else None

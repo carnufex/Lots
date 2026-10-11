@@ -297,3 +297,42 @@ def test_a_registered_voice_can_be_looked_up_so_deletion_can_be_verified(client,
     assert c.get("/v1/voices/u-gone", headers=h).status_code == 404
     assert c.get("/v1/voices/cb-default", headers=h).status_code == 404  # built-in voices are not user voices
     assert c.get("/v1/voices/u-abc").status_code == 401
+
+
+class FakeMeetings:
+    def __init__(self):
+        self.calls = []
+
+    def process(self, audio, language, num_speakers, prompt, words):
+        from voice.meetings import MeetingResult, TimedSegment, Turn, Word
+
+        self.calls.append((len(audio), language, num_speakers, words))
+        segs = [TimedSegment(0.0, 2.0, "hej lots", [Word(0.0, 0.5, " hej"), Word(0.6, 1.0, " lots")] if words else []),
+                TimedSegment(2.5, 4.0, "tack")]
+        return MeetingResult(language or "sv", 4.0, segs, [Turn(0.0, 2.2, 0), Turn(2.4, 4.0, 1)])
+
+
+def test_meetings_return_segments_words_and_turns():
+    settings = Settings(api_key="secret", max_audio_bytes=10, max_meeting_bytes=1000)
+    engine = FakeMeetings()
+    client = TestClient(create_app(settings, FakeStt(), FakeTts(), meetings=engine))
+    auth = {"Authorization": "Bearer secret"}
+    # Larger than a dictation may be, still fine for a meeting.
+    r = client.post("/v1/audio/meetings", headers=auth, files={"file": ("m.wav", b"x" * 500)}, data={"num_speakers": "2", "word_timestamps": "true", "prompt": "Lots"})
+    assert r.status_code == 200
+    body = r.json()
+    assert [t["speaker"] for t in body["turns"]] == [0, 1]
+    assert body["segments"][0]["words"][1]["word"] == " lots"
+    assert body["segments"][0]["text"] == "hej Lots"  # vocabulary spelling applies
+    assert engine.calls == [(500, None, 2, True)]
+
+
+def test_meetings_limits_and_absence():
+    settings = Settings(api_key="secret", max_meeting_bytes=100)
+    auth = {"Authorization": "Bearer secret"}
+    client = TestClient(create_app(settings, FakeStt(), FakeTts(), meetings=FakeMeetings()))
+    assert client.post("/v1/audio/meetings", headers=auth, files={"file": ("m.wav", b"x" * 101)}).status_code == 413
+    assert client.post("/v1/audio/meetings", headers=auth, files={"file": ("m.wav", b"x")}, data={"num_speakers": "50"}).status_code == 400
+    assert client.post("/v1/audio/meetings", files={"file": ("m.wav", b"x")}).status_code == 401
+    bare = TestClient(create_app(settings, FakeStt(), FakeTts()))
+    assert bare.post("/v1/audio/meetings", headers=auth, files={"file": ("m.wav", b"x")}).status_code == 503

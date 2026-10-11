@@ -17,6 +17,7 @@ from . import tracing
 from .config import LANGUAGES, Settings
 from .engines import SttEngine, SynthOptions, TtsEngine
 from .gpu import GpuMonitor
+from .meetings import MeetingEngine
 from .vocabulary import apply_vocabulary, parse_vocabulary
 from .wav import streaming_header, to_pcm16
 
@@ -33,7 +34,8 @@ class SpeechRequest(BaseModel):
     pace: float | None = None
 
 
-def create_app(settings: Settings, stt: SttEngine, tts: TtsEngine, gpu: GpuMonitor | None = None) -> FastAPI:
+def create_app(settings: Settings, stt: SttEngine, tts: TtsEngine, gpu: GpuMonitor | None = None,
+               meetings: MeetingEngine | None = None) -> FastAPI:
     settings.validate()
     app = FastAPI(title="Lots voice service", version="0.1.0")
     gate = asyncio.Semaphore(settings.max_concurrency)
@@ -127,6 +129,47 @@ def create_app(settings: Settings, stt: SttEngine, tts: TtsEngine, gpu: GpuMonit
                              for i, s in enumerate(result.segments)],
             }
         return JSONResponse(body, headers=headers)
+
+    @app.post("/v1/audio/meetings", dependencies=[Depends(authorize)])
+    async def meeting(
+        file: UploadFile = File(...),
+        language: str | None = Form(None),
+        num_speakers: int | None = Form(None),
+        prompt: str | None = Form(None),
+        word_timestamps: bool = Form(False),
+    ):
+        """A whole recording (#41): timestamped segments (with words for #44) and speaker turns. The shell merges them."""
+        if meetings is None:
+            raise HTTPException(503, "Meeting transcription is not available on this voice service.")
+        if language is not None and language not in LANGUAGES:
+            raise HTTPException(400, f"Unsupported language '{language}' (supported: {', '.join(LANGUAGES)}).")
+        if num_speakers is not None and not 1 <= num_speakers <= 20:
+            raise HTTPException(400, "num_speakers must be 1-20.")
+        if prompt is not None and len(prompt) > settings.max_prompt_chars:
+            raise HTTPException(413, f"prompt is longer than {settings.max_prompt_chars} characters.")
+        data = await file.read(settings.max_meeting_bytes + 1)
+        if not data:
+            raise HTTPException(400, "Empty audio.")
+        if len(data) > settings.max_meeting_bytes:
+            raise HTTPException(413, f"Recording is larger than {settings.max_meeting_bytes // (1024 * 1024)} MB.")
+        started = time.perf_counter()
+        async with gate:
+            try:
+                result = await run_in_threadpool(meetings.process, data, language, num_speakers, prompt, word_timestamps)
+            except RuntimeError as ex:
+                raise HTTPException(503, str(ex)) from ex
+            except Exception as ex:
+                raise HTTPException(422, f"Could not process this recording: {type(ex).__name__}") from ex
+        if result.duration > settings.max_meeting_seconds:
+            raise HTTPException(413, f"Recording is longer than {settings.max_meeting_seconds // 60} minutes.")
+        words = parse_vocabulary(prompt)
+        return JSONResponse({
+            "language": result.language, "duration": round(result.duration, 3),
+            "segments": [{"start": s.start, "end": s.end, "text": apply_vocabulary(s.text, words) if words else s.text,
+                          **({"words": [{"start": w.start, "end": w.end, "word": w.word} for w in s.words]} if s.words else {})}
+                         for s in result.segments],
+            "turns": [{"start": t.start, "end": t.end, "speaker": t.speaker} for t in result.turns],
+        }, headers={"X-Processing-Ms": str(round((time.perf_counter() - started) * 1000))})
 
     @app.post("/v1/audio/speech", dependencies=[Depends(authorize)])
     async def speech(req: SpeechRequest):

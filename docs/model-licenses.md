@@ -11,6 +11,8 @@ against the model cards (last checked 2026-10-10).
 | `KBLab/kb-whisper-medium` | Swedish speech to text | Apache-2.0 | |
 | `Systran/faster-whisper-small.en` | English speech to text | MIT | |
 | `Systran/faster-whisper-small` | Telling Swedish from English | MIT | |
+| `sherpa-onnx-pyannote-segmentation-3-0` | Meetings: speaker segmentation (#41) | MIT | pyannote segmentation 3.0 as ONNX from the sherpa-onnx releases (no gated download) |
+| `3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k` | Meetings: speaker embeddings (#41) | Apache-2.0 | 3D-Speaker ERes2Net; speaker voices are compared, never stored |
 | Piper `sv_SE-nst-medium` (`sv-nst`) | Swedish speech output, default | CC0 | Dataset: NST, Språkbanken |
 | Piper `sv_SE-alma-medium` (`sv-alma`) | Swedish speech output | CC BY 4.0 | **Attribution required**: "NST Swedish TTS dataset, Språkbanken, National Library of Norway" |
 | Piper `en_US-ljspeech-medium` (`en-ljspeech`) | English speech output, default | Public domain | Dataset: LJ Speech |

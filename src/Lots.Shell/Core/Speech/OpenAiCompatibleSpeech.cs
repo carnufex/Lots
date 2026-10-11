@@ -212,6 +212,15 @@ public static class SpeechRegistration
         services.AddHttpClient<ISpeechToText, OpenAiCompatibleSpeech>(Configure);
         services.AddHttpClient<ITextToSpeech, OpenAiCompatibleSpeech>(Configure);
         services.AddHttpClient<IVoiceRegistry, OpenAiCompatibleSpeech>(Configure);
+        // Meetings (#41): whole recordings take minutes, so their own client and timeout.
+        services.Configure<Meetings.MeetingOptions>(config.GetSection(Meetings.MeetingOptions.Section));
+        services.AddHttpClient<Meetings.IMeetingTranscriber, Meetings.VoiceMeetingTranscriber>((sp, http) =>
+        {
+            Configure(sp, http);
+            http.Timeout = TimeSpan.FromMinutes(sp.GetRequiredService<IOptions<Meetings.MeetingOptions>>().Value.TimeoutMinutes + 1);
+        });
+        services.AddSingleton<Meetings.MeetingAudioStore>();
+        services.AddHostedService<Meetings.MeetingWorker>();
         return services;
     }
 }

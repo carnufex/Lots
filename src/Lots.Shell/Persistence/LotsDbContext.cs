@@ -19,6 +19,8 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
     public DbSet<ConversationAudioRecord> ConversationAudio => Set<ConversationAudioRecord>();
     public DbSet<ConversationRecord> Conversations => Set<ConversationRecord>();
     public DbSet<ConversationGroupRecord> ConversationGroups => Set<ConversationGroupRecord>();
+    public DbSet<MeetingRecord> Meetings => Set<MeetingRecord>();
+    public DbSet<MeetingSegmentRecord> MeetingSegments => Set<MeetingSegmentRecord>();
     public DbSet<AuditForwardStateRecord> AuditForwardState => Set<AuditForwardStateRecord>();
     public DbSet<ConfigVersionRecord> ConfigVersions => Set<ConfigVersionRecord>();
     public DbSet<ConflictVoteRecord> ConflictVotes => Set<ConflictVoteRecord>();
@@ -97,6 +99,24 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
             e.Property(x => x.UserId).HasMaxLength(256).IsRequired();
             e.Property(x => x.Title).HasMaxLength(200);
             e.HasIndex(x => new { x.UserId, x.GroupId });
+        });
+
+        modelBuilder.Entity<MeetingRecord>(e =>
+        {
+            e.ToTable("meetings");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.UserId).HasMaxLength(256).IsRequired();
+            e.Property(x => x.Title).HasMaxLength(200);
+            e.Property(x => x.Status).HasMaxLength(20);
+            e.HasIndex(x => new { x.UserId, x.CreatedAt });
+            e.HasIndex(x => new { x.Status, x.LeaseUntilMs });
+        });
+
+        modelBuilder.Entity<MeetingSegmentRecord>(e =>
+        {
+            e.ToTable("meeting_segments");
+            e.HasKey(x => new { x.MeetingId, x.Seq });
+            e.Property(x => x.Speaker).HasMaxLength(100);
         });
 
         modelBuilder.Entity<ConversationGroupRecord>(e =>
@@ -549,6 +569,46 @@ public sealed class ConversationRecord
     public bool Isolated { get; set; }
     public bool Pinned { get; set; }
     public bool Archived { get; set; }
+}
+
+/// <summary>An uploaded meeting recording (#41) and its processing state; the transcript lines are <see cref="MeetingSegmentRecord"/>.</summary>
+public sealed class MeetingRecord
+{
+    public Guid Id { get; set; }
+    public required string UserId { get; set; }
+    public string Title { get; set; } = "";
+    public string Status { get; set; } = "queued";
+    public string? Error { get; set; }
+    public string FileName { get; set; } = "recording";
+    public string ContentType { get; set; } = "application/octet-stream";
+    public long Bytes { get; set; }
+    /// <summary>The language asked for (sv/en); null = detect.</summary>
+    public string? RequestedLanguage { get; set; }
+    public string? Language { get; set; }
+    /// <summary>The number of speakers if the uploader knows it: diarization is more accurate with it.</summary>
+    public int? Speakers { get; set; }
+    public int SpeakerCount { get; set; }
+    public double? DurationSeconds { get; set; }
+    /// <summary>"Speaker 1" -> "Anna", as JSON: the names users gave the detected speakers.</summary>
+    public string? SpeakerNamesJson { get; set; }
+    public bool AudioDeleted { get; set; }
+    public bool CancelRequested { get; set; }
+    public int Attempts { get; set; }
+    public string? LeaseOwner { get; set; }
+    public long? LeaseUntilMs { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+    public DateTimeOffset? ProcessedAt { get; set; }
+}
+
+public sealed class MeetingSegmentRecord
+{
+    public Guid MeetingId { get; set; }
+    public int Seq { get; set; }
+    public long StartMs { get; set; }
+    public long EndMs { get; set; }
+    public string Speaker { get; set; } = "";
+    public string Text { get; set; } = "";
 }
 
 /// <summary>A folder of one user's chats (#153), with optional instructions, default context and shared context.</summary>

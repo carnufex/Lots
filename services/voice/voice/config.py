@@ -52,6 +52,9 @@ class Settings:
     tts_threads: int = 4
     voices: dict[str, VoiceDef] = field(default_factory=lambda: dict(DEFAULT_VOICES))
     max_audio_bytes: int = 25 * 1024 * 1024
+    # Meetings (#41): whole recordings, much larger than a dictation.
+    max_meeting_bytes: int = 300 * 1024 * 1024
+    max_meeting_seconds: int = 4 * 3600
     max_text_chars: int = 2000
     max_prompt_chars: int = 600
     max_concurrency: int = 2
@@ -93,6 +96,8 @@ class Settings:
             tts_threads=int(e.get("VOICE_TTS_THREADS", base.tts_threads)),
             voices=voices,
             max_audio_bytes=int(e.get("VOICE_MAX_AUDIO_BYTES", base.max_audio_bytes)),
+            max_meeting_bytes=int(e.get("VOICE_MAX_MEETING_BYTES", base.max_meeting_bytes)),
+            max_meeting_seconds=int(e.get("VOICE_MAX_MEETING_SECONDS", base.max_meeting_seconds)),
             max_text_chars=int(e.get("VOICE_MAX_TEXT_CHARS", base.max_text_chars)),
             max_prompt_chars=int(e.get("VOICE_MAX_PROMPT_CHARS", base.max_prompt_chars)),
             max_concurrency=int(e.get("VOICE_MAX_CONCURRENCY", base.max_concurrency)),

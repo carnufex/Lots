@@ -7,6 +7,8 @@ Licenses (see docs/third-party-licenses.md in the Lots repository):
   sv_SE alma  CC BY 4.0   (attribution required: NST Swedish TTS dataset, Sprakbanken / National Library of Norway)
   en_US ljspeech  public domain (dataset: LJ Speech)
   en_US lessac    research only, no commercial use (Blizzard 2013 Lessac license): only with --research or VOICE_RESEARCH_VOICES=1
+  diarization (#41): pyannote segmentation 3.0 (MIT) and 3D-Speaker ERes2Net (Apache-2.0), into $VOICE_DIARIZATION_DIR or
+  <target>/../diarization
 """
 from __future__ import annotations
 
@@ -19,6 +21,11 @@ from pathlib import Path
 BASE = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models"
 VOICES = ["vits-piper-sv_SE-nst-medium", "vits-piper-sv_SE-alma-medium", "vits-piper-en_US-ljspeech-medium"]
 RESEARCH = ["vits-piper-en_US-lessac-medium"]
+SEGMENTATION = ("https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-segmentation-models/"
+                "sherpa-onnx-pyannote-segmentation-3-0.tar.bz2")
+# (sic: the release tag is spelled "recongition")
+EMBEDDING = ("https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/"
+             "3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx")
 
 
 def main() -> None:
@@ -36,6 +43,20 @@ def main() -> None:
         with tarfile.open(archive, "r:bz2") as tar:
             tar.extractall(target, filter="data")  # 'data' filter: no absolute paths, links or special files
         archive.unlink()
+
+    diarization = Path(os.environ.get("VOICE_DIARIZATION_DIR", str(target.parent / "diarization")))
+    diarization.mkdir(parents=True, exist_ok=True)
+    if not (diarization / "sherpa-onnx-pyannote-segmentation-3-0" / "model.onnx").exists():
+        print("diarization segmentation: downloading")
+        archive = diarization / "segmentation.tar.bz2"
+        urllib.request.urlretrieve(SEGMENTATION, archive)
+        with tarfile.open(archive, "r:bz2") as tar:
+            tar.extractall(diarization, filter="data")
+        archive.unlink()
+    embedding = diarization / EMBEDDING.rsplit("/", 1)[1]
+    if not embedding.exists():
+        print("diarization embedding: downloading")
+        urllib.request.urlretrieve(EMBEDDING, embedding)
     print("done")
 
 
