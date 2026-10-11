@@ -1,0 +1,22 @@
+# Restart a service only after its logs were read, with an approval, and check that it runs again (ADR 0022, #161).
+# Apply with: lotsctl apply -f examples/playbooks --url <shell>  (or POST /admin/v1/apply)
+kind: Playbook
+name: restart-after-logs
+version: 1
+profile: docker-ops
+description: Restart a failing service after checking its logs, then verify that it runs again.
+steps:
+  - name: inspect
+    instruction: Find the container and read its recent logs with get_container_logs. Say what is wrong.
+    tools: [list_containers, get_container_logs]
+    check: { tool: get_container_logs }
+  - name: restart
+    instruction: Restart the container with restart_container. A person approves it.
+    tools: [restart_container]
+    requireApproval: true
+    check: { tool: restart_container }
+  - name: verify
+    instruction: List the containers and confirm the service is running again.
+    tools: [list_containers]
+    check: { tool: list_containers, contains: running }
+outputs: [what was wrong, what you did, current state]

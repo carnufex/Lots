@@ -20,7 +20,8 @@ public static class AuditHash
     {
         var canonical = string.Join('\u001f', a.Seq, a.Id, a.At.ToUniversalTime().ToString("O"), a.UserId, a.Roles, a.Profile, a.ProfileVersion,
             a.RunId, a.Tool, a.ToolCallId, a.ArgumentsJson, a.Decision, a.Reason, a.ApproverId, a.BackendAuth, a.ResultStatus, previous ?? "")
-            + (a.Preview is null ? "" : "\u001fpreview=" + a.Preview); // rows without a preview hash exactly as before #156
+            + (a.Preview is null ? "" : "\u001fpreview=" + a.Preview) // rows without a preview hash exactly as before #156
+            + (a.Playbook is null ? "" : "\u001fplaybook=" + a.Playbook); // likewise for #161
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical))).ToLowerInvariant();
     }
 }

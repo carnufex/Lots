@@ -48,6 +48,7 @@ export interface RunDetail {
   subRuns?: string[] | null
   /** The chat this run is a turn of (#152); null for scheduled, API and webhook runs. */
   conversationId?: string | null
+  playbook?: PlaybookProgress | null
 }
 
 export const isTerminal = (s: RunStatus) => s === 'Completed' || s === 'Failed' || s === 'Cancelled'
@@ -311,9 +312,31 @@ export interface RouteChoice {
   candidates: { profile: string; score: number; readOnly: boolean }[]
 }
 
+/** A playbook (#161). */
+export interface Playbook {
+  name: string
+  version: number
+  profile: string
+  description: string
+  steps: { name: string; instruction: string; tools: string[]; requireApproval: boolean; check: { tool: string; contains: string | null } | null }[]
+  outputs: string[]
+  managedBy: string
+  spec: string
+}
+
+export interface PlaybookProgress {
+  name: string
+  version: number
+  steps: string[]
+  completed: string[]
+  current: string | null
+}
+
 export interface StartedRun {
   id: string
   status: RunStatus
+  /** A playbook that fits the question (#161): offered, never started on its own. */
+  suggestedPlaybook?: string | null
   /** The context that answers and how it was chosen (manual, only, auto, sticky, chosen, corrected, default). */
   profile?: string
   routing?: string
@@ -642,6 +665,7 @@ export function createApi(auth: Auth) {
     followUp: (id: string) => request<FollowUp>(`/insights/proposals/${id}/follow-up`),
     capabilities: () => request<Capabilities>('/me/capabilities'),
     groups: () => request<ChatGroup[]>('/groups'),
+    playbooks: () => request<Playbook[]>('/playbooks'),
     createGroup: (g: Partial<ChatGroup>) => request<ChatGroup>('/groups', { method: 'POST', body: JSON.stringify(g) }),
     updateGroup: (id: string, g: Partial<ChatGroup>) => request<ChatGroup>(`/groups/${id}`, { method: 'PUT', body: JSON.stringify(g) }),
     deleteGroup: (id: string) => request<void>(`/groups/${id}`, { method: 'DELETE' }),
@@ -733,7 +757,7 @@ export function createApi(auth: Auth) {
     startRun: async (
       prompt: string,
       profile: string | null,
-      options: { voice?: boolean; conversationId?: string; attachments?: string[]; routing?: 'chosen'; contexts?: string[]; groupId?: string } = {},
+      options: { voice?: boolean; conversationId?: string; attachments?: string[]; routing?: 'chosen'; contexts?: string[]; groupId?: string; playbook?: string } = {},
     ): Promise<StartedRun | { choose: RouteChoice }> => {
       const r = await request<StartedRun | RouteChoice>('/runs', { method: 'POST', body: JSON.stringify({ prompt, profile: profile || 'auto', ...options }) }, [409])
       return 'candidates' in r ? { choose: r } : r

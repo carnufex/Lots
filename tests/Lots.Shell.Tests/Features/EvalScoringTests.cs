@@ -18,6 +18,16 @@ public class EvalScoringTests
     }
 
     [Fact]
+    public void A_skipped_or_reordered_playbook_step_fails_the_case()
+    {
+        var c = new EvalCase("pb", "q", Playbook: "restart-after-logs", ExpectSteps: ["inspect", "restart", "verify"]);
+        Assert.True(Scoring.Score(c, Outcome() with { PlaybookSteps = ["inspect", "restart", "verify"] }).Passed);
+        Assert.False(Scoring.Score(c, Outcome() with { PlaybookSteps = ["inspect", "verify"] }).Passed);
+        Assert.False(Scoring.Score(c, Outcome() with { PlaybookSteps = ["restart", "inspect", "verify"] }).Passed);
+        Assert.False(Scoring.Score(c, Outcome()).Passed); // not run as a playbook at all
+    }
+
+    [Fact]
     public void Fails_on_missing_tool_missing_fact_or_failed_run()
     {
         var c = new EvalCase("x", "q", ["get_container_logs"], ["healthy"]);

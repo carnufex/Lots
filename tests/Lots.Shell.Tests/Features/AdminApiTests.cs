@@ -92,6 +92,16 @@ public class AdminApiTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+    public async Task A_playbook_can_be_applied_together_with_its_profile()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..");
+        var yaml = File.ReadAllText(Path.Combine(root, "examples/profiles/docker-ops.yaml")) + "\n---\n" + File.ReadAllText(Path.Combine(root, "examples/playbooks/restart-after-logs.yaml"));
+        var (status, outcome) = await Apply(yaml);
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.Equal(["create", "create"], outcome.Results.Select(r => r.Action));
+    }
+
+    [Fact]
     public async Task Only_admins_apply()
     {
         Assert.Equal(HttpStatusCode.Forbidden, (await Apply(Ops, roles: "operator")).Status);

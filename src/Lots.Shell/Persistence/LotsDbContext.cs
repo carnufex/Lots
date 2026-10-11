@@ -436,6 +436,8 @@ public sealed class RunRecord
     public string? SuperviseJson { get; set; }
     /// <summary>The sibling chats (#153) whose context this run was given, as a JSON array of conversation ids.</summary>
     public string? GroupContextJson { get; set; }
+    /// <summary>The playbook the run follows (#161): a snapshot of its spec when the run started, the current step and what is done.</summary>
+    public string? PlaybookJson { get; set; }
     /// <summary>Only read-class tools, whatever the roles grant (#151 fan-out sub-runs).</summary>
     public bool ReadOnly { get; set; }
     /// <summary>Started in a role preview (#156): the admin's real roles; the run's <see cref="Roles"/> are the previewed ones.</summary>
@@ -661,6 +663,8 @@ public sealed class AuditRecord
     public string? BackendAuth { get; set; }
     /// <summary>Set when the decision was made while an admin viewed Lots as other roles (#156): the previewed and the real roles.</summary>
     public string? Preview { get; set; }
+    /// <summary>Set when the decision was made in a playbook run (#161): "name vN step".</summary>
+    public string? Playbook { get; set; }
     /// <summary>ok / error for executed calls, null otherwise.</summary>
     public string? ResultStatus { get; set; }
     /// <summary>Position in the hash chain (#81), assigned by the sealer; null until sealed.</summary>

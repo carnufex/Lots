@@ -15,7 +15,9 @@ public static class ResourceKinds
     public const string KnowledgeSource = "KnowledgeSource";
     /// <summary>A run started by cron or a webhook (#101).</summary>
     public const string Schedule = "Schedule";
-    public static readonly string[] Applicable = [Profile, KnowledgeSource, Schedule];
+    /// <summary>A step-by-step flow enforced by the shell (ADR 0022, #161).</summary>
+    public const string Playbook = "Playbook";
+    public static readonly string[] Applicable = [Profile, KnowledgeSource, Schedule, Playbook];
 }
 
 public static class ManagedBy
@@ -80,6 +82,14 @@ public sealed class ConfigService(LotsDbContext db, ProfileRegistry profiles, Mo
         foreach (var dup in docs.GroupBy(d => (d.Kind, d.Name)).Where(g => g.Count() > 1))
             results.Add(new ApplyResult(dup.Key.Kind, dup.Key.Name, "invalid", 0, null, ["appears more than once in this apply"]));
 
+        // Schedules and playbooks may refer to a profile applied in the same request: validate them against both.
+        var incoming = new List<Profile>();
+        foreach (var doc in docs.Where(d => d.Kind == ResourceKinds.Profile))
+            try { incoming.Add(ProfileParser.Parse(doc.Spec, doc.Name)); }
+            catch (ProfileException) { /* reported below */ }
+        var withIncoming = incoming.Count == 0 ? profiles
+            : new ProfileRegistry(profiles.All.Where(p => incoming.All(i => !i.Name.Equals(p.Name, StringComparison.OrdinalIgnoreCase))).Concat(incoming));
+
         foreach (var doc in docs.DistinctBy(d => (d.Kind, d.Name)))
         {
             var errors = new List<string>();
@@ -104,9 +114,17 @@ public sealed class ConfigService(LotsDbContext db, ProfileRegistry profiles, Mo
                 }
                 catch (ProfileException ex) { errors.AddRange(ex.Errors); }
             }
+            else if (doc.Kind == ResourceKinds.Playbook)
+            {
+                var pb = Playbooks.PlaybookParser.Parse(doc.Spec, doc.Name, withIncoming, errors);
+                parsed = pb!;
+                version = pb?.Version ?? 1;
+                if (pb is not null && existing is not null && Normalise(existing.Spec) != Normalise(doc.Spec) && pb.Version <= existing.Version)
+                    errors.Add($"content changed but version {pb.Version} is not higher than the stored {existing.Version}");
+            }
             else if (doc.Kind == ResourceKinds.Schedule)
             {
-                parsed = Schedules.ScheduleParser.Parse(doc.Spec, doc.Name, profiles, errors);
+                parsed = Schedules.ScheduleParser.Parse(doc.Spec, doc.Name, withIncoming, errors);
                 version = existing is null ? 1 : Normalise(existing.Spec) == Normalise(doc.Spec) ? existing.Version : existing.Version + 1;
             }
             else

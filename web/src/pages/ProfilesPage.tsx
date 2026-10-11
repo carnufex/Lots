@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ApiError, type Api } from '../api'
 import { adminApi, type ApplyOutcome, type GitOpsInfo, type Resource, type ResourceVersion } from '../adminApi'
 import { fmt, t } from '../i18n'
+import { PlaybookList } from '../components/Playbooks'
 
 const NEW_PROFILE = `kind: Profile
 name: my-profile
@@ -160,6 +161,7 @@ export default function ProfilesPage({ api }: { api: Api }) {
         />
       )}
       <Schedules api={api} />
+      <PlaybookList api={api} />
     </section>
   )
 }

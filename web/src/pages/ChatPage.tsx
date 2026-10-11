@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Feedback from '../components/Feedback'
-import { type Api, type ConversationDetail, type ConversationSummary, type ConversationTurn, type RouteChoice } from '../api'
+import { type Api, type ConversationDetail, type ConversationSummary, type ConversationTurn, type Playbook, type RouteChoice } from '../api'
 import type { ProfileInfo, VoiceConfig } from '../config'
 import Conversation from '../components/Conversation'
 import ChatList from '../components/ChatList'
@@ -31,6 +31,11 @@ export default function ChatPage({ api, profiles, id, voice }: { api: Api; profi
   const [profile, setProfile] = useState(() => preferredContext(profiles))
   const [ask, setAsk] = useState<{ text: string; choice: RouteChoice } | null>(null)
   const newInGroup = new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('group')
+  // Playbooks (#161): picked here, or suggested by the shell after a question and confirmed with one click.
+  const [playbooks, setPlaybooks] = useState<Playbook[]>([])
+  const [playbook, setPlaybook] = useState('')
+  const [suggested, setSuggested] = useState<{ name: string; text: string } | null>(null)
+  useEffect(() => void api.playbooks().then(setPlaybooks, () => setPlaybooks([])), [api])
   const [editing, setEditing] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [note, setNote] = useState<string | null>(null)
@@ -95,8 +100,8 @@ export default function ChatPage({ api, profiles, id, voice }: { api: Api; profi
   const last = turns.at(-1)
   const busy = live !== null
 
-  const send = async (picked?: string | string[]) => {
-    const text = (picked ? ask?.text : prompt.trim()) ?? ''
+  const send = async (picked?: string | string[], asPlaybook?: string, again?: string) => {
+    const text = (again ?? (picked ? ask?.text : prompt.trim())) ?? ''
     if (!text || busy) return
     setError(null)
     setAsk(null)
@@ -111,12 +116,15 @@ export default function ChatPage({ api, profiles, id, voice }: { api: Api; profi
         ...(several ? { contexts: several } : {}),
         // A new chat started from a group's "+" joins that group (#153).
         ...(!id && newInGroup ? { groupId: newInGroup } : {}),
+        ...(asPlaybook || playbook ? { playbook: asPlaybook || playbook } : {}),
       })
       if ('choose' in started) {
         setAsk({ text, choice: started.choose }) // one click, never a silent guess
         return
       }
       const run = started
+      setSuggested(run.suggestedPlaybook ? { name: run.suggestedPlaybook, text } : null)
+      setPlaybook('')
       setPrompt('')
       setFiles([])
       if (!id) window.location.hash = `#/chat/${conversationId}`
@@ -245,6 +253,19 @@ export default function ChatPage({ api, profiles, id, voice }: { api: Api; profi
           <div ref={endRef} />
         </div>
 
+        {suggested && !busy && (
+          <div className="route-choice card" role="group" aria-label={t('Suggested playbook')}>
+            <p className="small">
+              {t('This looks like the playbook {name}: it runs the steps in order, with approvals where needed.', { name: suggested.name })}
+            </p>
+            <div className="row">
+              <button type="button" className="btn" onClick={() => { const s = suggested; setSuggested(null); void send(undefined, s.name, s.text) }}>
+                {t('Run it as the playbook')}
+              </button>
+              <button type="button" className="btn ghost" onClick={() => setSuggested(null)}>{t('No thanks')}</button>
+            </div>
+          </div>
+        )}
         {ask && (
           <div className="route-choice card" role="group" aria-label={t('Choose a context')}>
             <p className="small">{t('Where does this belong?')} <span className="muted">{ask.choice.reason}</span></p>
@@ -304,6 +325,16 @@ export default function ChatPage({ api, profiles, id, voice }: { api: Api; profi
               <span className="muted small">{profile}</span>
             )}
             <AttachPicker api={api} files={files} onChange={setFiles} disabled={busy} />
+            {playbooks.length > 0 && (
+              <select aria-label={t('Playbook')} value={playbook} onChange={(e) => setPlaybook(e.target.value)}>
+                <option value="">{t('No playbook')}</option>
+                {playbooks.map((p) => (
+                  <option key={p.name} value={p.name} title={p.description}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            )}
             <span className="grow" />
             {voice?.enabled && (
               <>

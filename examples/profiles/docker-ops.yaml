@@ -1,0 +1,30 @@
+# Example: operate Docker services with write tools behind approvals (#161). It needs an MCP server that offers these tools
+# (the bundled homelab server is read-only by design); the playbook in examples/playbooks/ runs on it.
+name: docker-ops
+version: 1
+description: Restart and inspect Docker services, with approvals for changes.
+routing:
+  examples:
+    - "Restart the web container."
+    - "Why does the api service keep failing?"
+instructions: |
+  You operate Docker services. Read before you act: check a service's logs before restarting it. Name the containers you refer to.
+servers:
+  - name: docker-ops
+    url: http://mcp-docker-ops:8080/mcp
+    auth: shared-service-account
+tools:
+  - { name: list_containers, risk: read }
+  - { name: get_container_logs, risk: read }
+  - { name: restart_container, risk: write }
+roles:
+  - name: operator
+    allow: [read, write]
+    requireApproval: [write]
+  - name: admin
+    allow: [read, write]
+    requireApproval: [write]
+    approve: [write]
+policyTests:
+  - { roles: [operator], tool: restart_container, expect: approval }
+  - { roles: [operator], tool: get_container_logs, expect: allow }

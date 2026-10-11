@@ -7,6 +7,7 @@ import Citations from '../components/Citations'
 import ToolResult from '../components/ToolResult'
 import { ConflictVote, conflictIds } from '../components/ConflictVote'
 import { fmt, statusText, t } from '../i18n'
+import { PlaybookSteps } from '../components/Playbooks'
 
 const POLL_MS = 1500
 
@@ -84,6 +85,7 @@ function Detail({ run, api, voice, reconnecting, traceUrl }: { run: RunDetail; a
   return (
     <>
       <h1 className="runtitle">{run.prompt}</h1>
+      {run.playbook && <PlaybookSteps progress={run.playbook} />}
       <div className="meta">
         <span className={`status ${run.status}`}>{statusText(run.status)}</span>
         {run.conversationId && (

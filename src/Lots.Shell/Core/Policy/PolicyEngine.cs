@@ -11,7 +11,13 @@ public sealed record Principal(string UserId, IReadOnlyList<string> Roles)
 
     /// <summary>Only read-class tools for this principal, whatever the roles grant: multi-context fan-out (#151) and its supervisor.</summary>
     public bool ReadOnly { get; init; }
+
+    /// <summary>The run follows a playbook (#161): only the current step's tools, and the step may require approvals.</summary>
+    public PlaybookGate? Playbook { get; init; }
 }
+
+/// <summary>A playbook step as policy sees it (#161). It only narrows what the profile and roles allow; it never widens.</summary>
+public sealed record PlaybookGate(string Playbook, int Version, string Step, IReadOnlySet<string> Tools, bool RequireApproval, bool Finished);
 
 /// <summary>
 /// A role preview (#156): the admin's real roles, whether write-class tools may run, and when it ends. Rights are the intersection of the
@@ -32,6 +38,19 @@ public static class PolicyEngine
 {
     public static PolicyResult Decide(Principal principal, Profile profile, string toolName)
     {
+        if (principal.Playbook is { } gate)
+        {
+            // complete_step only moves the run through its own playbook; it reaches no system, so the gate itself grants it.
+            if (toolName == Playbooks.PlaybookParser.CompleteStep)
+                return gate.Finished ? new(Decision.Deny, "denied: the playbook is finished", "playbook (#161)")
+                    : new(Decision.Allow, "allowed", $"playbook '{gate.Playbook}' v{gate.Version}");
+            if (!gate.Tools.Contains(toolName))
+                return new(Decision.Deny, $"denied: '{toolName}' is not part of step '{gate.Step}' of playbook '{gate.Playbook}'", "playbook step (#161)");
+            var inner = Decide(principal with { Playbook = null }, profile, toolName);
+            return inner.Decision == Decision.Allow && gate.RequireApproval
+                ? new(Decision.RequireApproval, $"step '{gate.Step}' of playbook '{gate.Playbook}' needs approval", "playbook step (#161)")
+                : inner;
+        }
         if (principal.ReadOnly)
         {
             var d = Decide(principal with { ReadOnly = false }, profile, toolName);

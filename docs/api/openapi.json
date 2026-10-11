@@ -1518,6 +1518,37 @@
         ]
       }
     },
+    "/playbooks": {
+      "get": {
+        "tags": [
+          "Playbooks"
+        ],
+        "operationId": "LotsShellFeaturesPlaybooksListPlaybooksEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PlaybookDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/models": {
       "get": {
         "tags": [
@@ -6423,6 +6454,10 @@
           "routing": {
             "type": "string",
             "nullable": true
+          },
+          "suggestedPlaybook": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -6475,6 +6510,10 @@
           "groupId": {
             "type": "string",
             "format": "guid",
+            "nullable": true
+          },
+          "playbook": {
+            "type": "string",
             "nullable": true
           }
         }
@@ -6660,6 +6699,14 @@
             "type": "string",
             "format": "guid",
             "nullable": true
+          },
+          "playbook": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PlaybookProgress"
+              }
+            ]
           }
         }
       },
@@ -6721,6 +6768,35 @@
           },
           "flagged": {
             "type": "boolean"
+          }
+        }
+      },
+      "PlaybookProgress": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "completed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "current": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -6815,6 +6891,85 @@
           },
           "note": {
             "type": "string"
+          }
+        }
+      },
+      "PlaybookDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "profile": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlaybookStep"
+            }
+          },
+          "outputs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "managedBy": {
+            "type": "string"
+          },
+          "spec": {
+            "type": "string"
+          }
+        }
+      },
+      "PlaybookStep": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "instruction": {
+            "type": "string"
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "requireApproval": {
+            "type": "boolean"
+          },
+          "check": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/StepCheck"
+              }
+            ]
+          }
+        }
+      },
+      "StepCheck": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tool": {
+            "type": "string"
+          },
+          "contains": {
+            "type": "string",
+            "nullable": true
           }
         }
       },

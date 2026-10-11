@@ -51,6 +51,13 @@ A **profile** is a domain: the tools the agent may use there and the rules for t
 Profiles are config as code: applied with `lotsctl`, through GitOps, or edited in the UI when they are API-managed. Each change is a new
 version, and runs and audit rows record the version they ran under.
 
+## Playbooks
+
+A **playbook** is a declared step-by-step flow inside one context (`kind: Playbook`, applied like profiles). While a run follows it,
+only the current step's tools are visible and callable, a step can require approvals, and the run moves on only when the step's
+check passes (`complete_step`). The model cannot skip or reorder steps: that is policy, not prompting (ADR 0022). Users pick a
+playbook in Chat, or accept one the shell suggests for their question.
+
 ## Policy: one choke point
 
 Every tool call, whatever produced it, goes through the shell's **ToolInvoker**:

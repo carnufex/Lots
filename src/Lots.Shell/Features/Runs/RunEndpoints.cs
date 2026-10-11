@@ -14,10 +14,11 @@ namespace Lots.Shell.Features.Runs;
 /// <param name="Contexts">Ask these contexts together (#151): 2-3 contexts where the user may only read; one sub-run each, one combined answer.</param>
 public sealed record StartRunRequest(string Prompt, string? Profile = null, bool Voice = false, Guid? ConversationId = null,
     List<Guid>? Attachments = null, string? Model = null, string? ReasoningEffort = null, string? Routing = null, List<string>? Contexts = null,
-    Guid? GroupId = null);
+    Guid? GroupId = null, string? Playbook = null);
 
 /// <param name="Profile">The context to answer in; null or "auto" lets the router choose (#150). Context is the UI name of a profile.</param>
-public sealed record StartRunResponse(Guid Id, string Status, string? Profile = null, string? Routing = null);
+/// <param name="SuggestedPlaybook">A playbook that fits the question (#161); the user may start it, it is never started on its own.</param>
+public sealed record StartRunResponse(Guid Id, string Status, string? Profile = null, string? Routing = null, string? SuggestedPlaybook = null);
 
 /// <summary>Returned with 409 when the router cannot choose with confidence: the user picks one of these and sends again with it.</summary>
 public sealed record RouteChoiceDto(string Reason, IReadOnlyList<Core.Routing.RouteCandidate> Candidates);
@@ -60,7 +61,22 @@ public sealed class StartRunEndpoint(LotsDbContext db, TimeProvider clock, Profi
         Core.Routing.RouteDecision? route = null;
         string? routing = "manual";
         List<string>? supervise = null;
-        if (req.Contexts is { Count: > 0 } asked)
+        var playbooks = await Core.Playbooks.PlaybookCatalog.LoadAsync(db, profiles, ct);
+        Core.Playbooks.PlaybookSpec? playbook = null;
+        if (req.Playbook is { Length: > 0 } wanted)
+        {
+            // A playbook fixes the context (its profile), and only one the user can use (#161).
+            playbook = playbooks.FirstOrDefault(p => p.Name.Equals(wanted, StringComparison.OrdinalIgnoreCase));
+            if (playbook is null || !Core.Routing.ContextRouter.Usable(who.Get(HttpContext), profiles).Any(p => p.Name == playbook.Profile))
+            {
+                AddError(x => x.Playbook!, $"No playbook '{wanted}' you can use.");
+                await Send.ErrorsAsync(cancellation: ct);
+                return;
+            }
+            route = new Core.Routing.RouteDecision(playbook.Profile, "playbook", [], 0, "the playbook's context", "none", 0);
+            routing = "playbook";
+        }
+        else if (req.Contexts is { Count: > 0 } asked)
         {
             // Fan-out is for reading only (#151): every context must be one the user can use, and only read in.
             var me = who.Get(HttpContext);
@@ -145,12 +161,14 @@ public sealed class StartRunEndpoint(LotsDbContext db, TimeProvider clock, Profi
         run.ReasoningEffort = string.IsNullOrWhiteSpace(req.ReasoningEffort) ? null : req.ReasoningEffort.Trim().ToLowerInvariant();
         run.RoutingMode = req.Routing is "chosen" && routing == "manual" ? "chosen" : routing;
         run.SuperviseJson = supervise is { Count: >= 2 } ? System.Text.Json.JsonSerializer.Serialize(supervise) : null;
+        if (playbook is not null) new Core.Playbooks.PlaybookState(playbook, 0, 0, []).Save(run);
+        var suggested = playbook is null && supervise is null ? Core.Playbooks.PlaybookCatalog.Suggest(playbooks, run.Profile, req.Prompt)?.Name : null;
         run.RoutingJson = route is null || route.Mode == "only" ? null : System.Text.Json.JsonSerializer.Serialize(
             new { route.Method, route.Margin, route.LatencyMs, candidates = route.Candidates.Select(c => new { c.Profile, c.Score }) });
         db.Runs.Add(run);
         await db.SaveChangesAsync(ct);
         Lots.Shell.Core.Telemetry.LotsMetrics.RunsStarted.Add(1, new("profile", run.Profile), new("voice", run.Voice));
-        await Send.ResponseAsync(new StartRunResponse(run.Id, run.Status.ToString(), run.Profile, run.RoutingMode), 202, ct);
+        await Send.ResponseAsync(new StartRunResponse(run.Id, run.Status.ToString(), run.Profile, run.RoutingMode, suggested), 202, ct);
     }
 }
 
@@ -294,7 +312,10 @@ public sealed record RunDto(
     DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, IReadOnlyList<StepDto> Steps,
     string? Waiting = null, Guid? RetryOf = null, string? TraceId = null, double Cost = 0, string? Currency = null,
     string Sensitivity = "public", Guid? ParentRunId = null, IReadOnlyList<Guid>? SubRuns = null, string? ModelAlias = null, string? ReasoningEffort = null,
-    Guid? ConversationId = null);
+    Guid? ConversationId = null, PlaybookProgress? Playbook = null);
+
+/// <summary>Where a playbook run is (#161): its steps in order, the done ones, and the current one (null when finished).</summary>
+public sealed record PlaybookProgress(string Name, int Version, IReadOnlyList<string> Steps, IReadOnlyList<string> Completed, string? Current);
 
 /// <summary>A run can be read by its owner and by admins (<c>Auth:AdminRoles</c>, default admin). Others get 404.</summary>
 public sealed class GetRunEndpoint(LotsDbContext db, ICurrentPrincipal who, IConfiguration config, Lots.Shell.Features.Usage.PriceTable prices) : Endpoint<GetRunRequest, RunDto>
@@ -330,7 +351,10 @@ public sealed class GetRunEndpoint(LotsDbContext db, ICurrentPrincipal who, ICon
             Math.Round(run.Steps.Where(s => s.Kind == StepKind.ModelCall).Sum(s => prices.Cost(s.Name, s.PromptTokens ?? 0, s.CompletionTokens ?? 0)), 4),
             prices.Currency, run.Sensitivity.ToString().ToLowerInvariant(), run.ParentRunId,
             await db.Runs.AsNoTracking().Where(r => r.ParentRunId == run.Id).OrderBy(r => r.CreatedAt).Select(r => r.Id).ToListAsync(ct),
-            run.ModelAlias, run.ReasoningEffort, run.ConversationId), ct);
+            run.ModelAlias, run.ReasoningEffort, run.ConversationId,
+            Core.Playbooks.PlaybookState.Of(run) is { } pb
+                ? new PlaybookProgress(pb.Spec.Name, pb.Spec.Version, pb.Spec.Steps.Select(s => s.Name).ToList(), pb.Completed, pb.Current?.Name)
+                : null), ct);
     }
 
     internal static string? WaitingFor(RunRecord run)

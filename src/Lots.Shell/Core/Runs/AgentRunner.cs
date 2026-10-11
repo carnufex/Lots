@@ -136,6 +136,7 @@ public sealed class AgentRunner(
             var instructions = profiles.Find(run.Profile)?.Instructions;
             var system = string.IsNullOrWhiteSpace(instructions) ? _options.SystemPrompt : _options.SystemPrompt + "\n\n" + instructions;
             if (run.Voice) system += "\n\n" + _options.VoiceInstructions;
+            if (Playbooks.PlaybookState.Of(run) is { } playbook) system += "\n\n" + PlaybookPrompt(playbook);
             // The user's confirmed memories (#99), as their own notes inside the untrusted-data envelope.
             using (var memorySpan = Telemetry.StartActivity("read_memory", ActivityKind.Internal))
             {
@@ -167,9 +168,15 @@ public sealed class AgentRunner(
         {
             ct = budget.Token; // from here on the run's own time budget applies as well
             var principal = PrincipalOf(run);
-            var definitions = await tools.DefinitionsAsync(principal, run.Profile, ct);
-            if (run.ParentRunId is not null) // a sub-agent (#103) only gets tools it may use without asking anyone
-                definitions = definitions.Where(d => tools.Evaluate(new ToolCall("", d.Name, "{}"), principal, run.Profile).Decision == Decision.Allow).ToList();
+            async Task<IReadOnlyList<ToolDefinition>> DefinitionsAsync()
+            {
+                var defs = await tools.DefinitionsAsync(principal, run.Profile, ct);
+                if (run.ParentRunId is not null) // a sub-agent (#103) only gets tools it may use without asking anyone
+                    defs = defs.Where(d => tools.Evaluate(new ToolCall("", d.Name, "{}"), principal, run.Profile).Decision == Decision.Allow).ToList();
+                if (principal.Playbook is { Finished: false }) defs = [.. defs, CompleteStepDefinition];
+                return defs;
+            }
+            var definitions = await DefinitionsAsync();
             if (run.SuperviseJson is not null)
             {
                 // The supervisor (#151) has no tools of its own: it asks each context and composes their answers.
@@ -183,6 +190,12 @@ public sealed class AgentRunner(
                 // Resume point: answer any tool calls of the last assistant message that have no result yet.
                 if (await AnswerPendingToolCallsAsync(run, principal, ct))
                     return; // paused: waiting for an approval; the run resumes when it is decided
+                if (run.PlaybookJson is not null && (PrincipalOf(run).Playbook?.Step, PrincipalOf(run).Playbook?.Finished) != (principal.Playbook?.Step, principal.Playbook?.Finished))
+                {
+                    // The playbook moved to its next step: from now on only that step's tools are visible and callable (#161).
+                    principal = PrincipalOf(run);
+                    definitions = await DefinitionsAsync();
+                }
 
                 var last = run.Messages.OrderBy(m => m.Seq).Last();
                 if (last.Role == "assistant" && last.ToolCallsJson is null)
@@ -203,6 +216,20 @@ public sealed class AgentRunner(
                         continue;
                     }
 
+                    if (Playbooks.PlaybookState.Of(run) is { Finished: false } open)
+                    {
+                        // A playbook cannot be skipped (#161): one reminder, then the run fails instead of "completing" half of it.
+                        if (run.Messages.Any(m => m.Role == "user" && m.Content?.StartsWith(PlaybookNudgePrefix, StringComparison.Ordinal) == true))
+                        {
+                            run.Status = RunStatus.Failed;
+                            run.Error = $"Stopped before step '{open.Current!.Name}' of playbook '{open.Spec.Name}' was done.";
+                            break;
+                        }
+                        Add(run, new ChatMessage("user", $"{PlaybookNudgePrefix} the current step is '{open.Current!.Name}': {open.Current.Instruction} " +
+                            $"Use its tools, then call {Playbooks.PlaybookParser.CompleteStep}."));
+                        await SaveAsync(run);
+                        continue;
+                    }
                     run.FinalAnswer = last.Content;
                     run.Status = RunStatus.Completed;
                     break;
@@ -335,6 +362,58 @@ public sealed class AgentRunner(
 
     public const string ContextStepPrefix = "context:";
 
+    private const string PlaybookNudgePrefix = "The playbook is not finished:";
+
+    private static readonly ToolDefinition CompleteStepDefinition = new(Playbooks.PlaybookParser.CompleteStep,
+        "Marks the current playbook step as done and moves to the next one. The shell checks the step first; give short evidence " +
+        "(what you found or did).",
+        JsonDocument.Parse("""{ "type": "object", "properties": { "evidence": { "type": "string" } }, "required": ["evidence"] }""").RootElement.Clone());
+
+    private static string PlaybookPrompt(Playbooks.PlaybookState p)
+    {
+        var sb = new System.Text.StringBuilder($"You are following the playbook '{p.Spec.Name}' (v{p.Spec.Version}): {p.Spec.Description} " +
+            $"Do its steps in order. Only the current step's tools are available. When a step is done, call {Playbooks.PlaybookParser.CompleteStep} " +
+            "with short evidence; the shell checks the step and then gives you the next one. Steps:\n");
+        foreach (var (s, i) in p.Spec.Steps.Select((s, i) => (s, i + 1))) sb.Append($"{i}. {s.Name}: {s.Instruction}\n");
+        if (p.Spec.Outputs.Count > 0) sb.Append($"When all steps are done, answer with: {string.Join(", ", p.Spec.Outputs)}.");
+        if (p.Current is { } c) sb.Append($"\nCurrent step: {c.Name}.");
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// complete_step (#161): the step is done only when its check passes (its tool returned without an error in this step, optionally with
+    /// the expected text); without a check, evidence is required. Then the playbook moves on and the gate narrows to the next step.
+    /// </summary>
+    private string CompleteStep(RunRecord run, ToolCall call)
+    {
+        var state = Playbooks.PlaybookState.Of(run)!;
+        if (state.Current is not { } step) return "Error: the playbook is already finished; give the final answer.";
+        string evidence;
+        try
+        {
+            using var args = JsonDocument.Parse(string.IsNullOrWhiteSpace(call.ArgumentsJson) ? "{}" : call.ArgumentsJson);
+            evidence = args.RootElement.TryGetProperty("evidence", out var e) && e.ValueKind == JsonValueKind.String ? e.GetString()!.Trim() : "";
+        }
+        catch (JsonException) { evidence = ""; }
+        if (step.Check is { } check)
+        {
+            var ok = run.Steps.Any(s => s.Kind == StepKind.ToolCall && s.Seq >= state.StepSince && s.Name == check.Tool
+                && s.Result is { } r && !r.StartsWith("Error", StringComparison.OrdinalIgnoreCase)
+                && (check.Contains is null || r.Contains(check.Contains, StringComparison.OrdinalIgnoreCase)));
+            if (!ok)
+                return $"Error: step '{step.Name}' is not done: {check.Tool} has not returned a result in this step" +
+                       (check.Contains is null ? "." : $" containing '{check.Contains}'.") + $" {step.Instruction}";
+        }
+        else if (evidence.Length == 0) return $"Error: give evidence that step '{step.Name}' is done.";
+
+        var next = state with { Step = state.Step + 1, StepSince = NextStepSeq(run) + 1, Completed = [.. state.Completed, step.Name] };
+        next.Save(run);
+        return next.Current is { } n
+            ? $"Step '{step.Name}' is done. Next, step {next.Step + 1} of {next.Spec.Steps.Count}: '{n.Name}': {n.Instruction}"
+            : $"Step '{step.Name}' is done. All steps of the playbook are done: give the final answer" +
+              (next.Spec.Outputs.Count > 0 ? $" with {string.Join(", ", next.Spec.Outputs)}." : ".");
+    }
+
     /// <summary>
     /// Chat groups (#153): the group's instructions and what its other chats said, for the run's system prompt. Same user only; sibling
     /// content goes inside the untrusted-data envelope; which chats were read is recorded on the run and the span.
@@ -466,6 +545,7 @@ public sealed class AgentRunner(
                 : null,
             // Fan-out sub-runs and their supervisor read only (#151); the choke point enforces it, not the prompt or the tool list.
             ReadOnly = run.ReadOnly || run.SuperviseJson is not null,
+            Playbook = Playbooks.PlaybookState.Of(run)?.Gate(),
         };
 
     /// <summary>Executes the tool calls that have no result yet. Returns true if the run had to pause for an approval.</summary>
@@ -481,6 +561,7 @@ public sealed class AgentRunner(
 
         foreach (var call in calls.Where(c => !answered.Contains(c.Id)))
         {
+            if (run.PlaybookJson is not null) principal = PrincipalOf(run); // a complete_step earlier in this message may have moved the step
             ct.ThrowIfCancellationRequested();
             using var activity = Telemetry.StartActivity($"execute_tool {call.Name}", ActivityKind.Internal);
             activity?.SetTag("gen_ai.operation.name", "execute_tool");
@@ -563,10 +644,13 @@ public sealed class AgentRunner(
             else
             {
                 audit = policy.Decision == Decision.Deny ? AuditDecision.Denied : AuditDecision.Allowed;
-                result = await InvokeWithTimeoutAsync(run, call, principal, run.Profile, approved: false, ct);
+                // complete_step passed the choke point above; it changes only this run's playbook state, so the runner carries it out.
+                result = call.Name == Playbooks.PlaybookParser.CompleteStep && run.PlaybookJson is not null && policy.Decision == Decision.Allow
+                    ? ToolInvoker.ToolResult.Own(CompleteStep(run, call))
+                    : await InvokeWithTimeoutAsync(run, call, principal, run.Profile, approved: false, ct);
             }
             sw.Stop();
-            var backendAuth = audit == AuditDecision.Allowed ? await tools.AuthStrategyAsync(call.Name, run.Profile, ct) : null;
+            var backendAuth = audit == AuditDecision.Allowed && call.Name != Playbooks.PlaybookParser.CompleteStep ? await tools.AuthStrategyAsync(call.Name, run.Profile, ct) : null;
             var outcome = audit == AuditDecision.Allowed ? (result.Text.StartsWith("Error:", StringComparison.Ordinal) ? "error" : "ok") : null;
             Audit(run, principal, call, audit, policy.Reason, approver, outcome, backendAuth);
             activity?.SetTag("lots.tool.decision", audit.ToString());
@@ -662,6 +746,7 @@ public sealed class AgentRunner(
             Tool = call.Name, ToolCallId = call.Id, ArgumentsJson = Pii(run, Security.SecretRedactor.Redact(call.ArgumentsJson)), Decision = decision, Reason = reason,
             ApproverId = approver, ResultStatus = resultStatus, BackendAuth = backendAuth,
             Preview = run.PreviewRealRoles is { } real ? $"as {run.Roles} (actor's roles {real})" : null,
+            Playbook = Playbooks.PlaybookState.Of(run) is { } pb ? $"{pb.Spec.Name} v{pb.Spec.Version} {pb.Current?.Name ?? "done"}" : null,
         });
 
     /// <summary>Masks the personal data kinds the run's profile opted into (#90); unchanged when it did not.</summary>

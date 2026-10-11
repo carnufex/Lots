@@ -13,7 +13,8 @@ public sealed record ExpectedCall(string Tool, Dictionary<string, JsonElement>? 
 /// <param name="Judge">Criteria a correct answer meets, graded by the judge model when one is configured.</param>
 /// <param name="Roles">Roles to run this case with (dev header identities only), e.g. to check refusals for a role without access.</param>
 public sealed record EvalCase(string Id, string Question, List<string>? ExpectedTools = null, List<string>? ExpectedFacts = null, string? Profile = null,
-    List<ExpectedCall>? ExpectedCalls = null, List<string>? ForbiddenTools = null, bool ExpectRefusal = false, string? Judge = null, string? Roles = null);
+    List<ExpectedCall>? ExpectedCalls = null, List<string>? ForbiddenTools = null, bool ExpectRefusal = false, string? Judge = null, string? Roles = null,
+    string? Playbook = null, List<string>? ExpectSteps = null);
 
 /// <param name="Decision">The policy decision on the call (Allowed, Denied, ApprovalGranted, ...).</param>
 public sealed record ToolCallSeen(string Tool, string? Arguments, string? Decision);
@@ -21,7 +22,8 @@ public sealed record ToolCallSeen(string Tool, string? Arguments, string? Decisi
 /// <param name="WallMs">Start to finished run, as the user waits for it.</param>
 /// <param name="Models">The models that answered (model step names).</param>
 public sealed record RunOutcome(string Status, string? FinalAnswer, string? Error, IReadOnlyList<string> ToolsCalled, long ModelLatencyMs, int Tokens,
-    long WallMs = 0, double Cost = 0, IReadOnlyList<string>? Models = null, IReadOnlyList<ToolCallSeen>? Calls = null);
+    long WallMs = 0, double Cost = 0, IReadOnlyList<string>? Models = null, IReadOnlyList<ToolCallSeen>? Calls = null,
+    IReadOnlyList<string>? PlaybookSteps = null);
 
 /// <param name="Checks">Each metric that applied to the case and whether it held (completed, tools, arguments, facts, forbidden, refusal, judge).</param>
 public sealed record EvalResult(EvalCase Case, bool Passed, IReadOnlyList<string> Failures, RunOutcome Outcome,
@@ -66,6 +68,15 @@ public static class Scoring
             var wrong = calls.Where(e => !seen.Any(s => s.Tool == e.Tool && ArgsMatch(e.Args, s.Arguments))).ToList();
             failures.AddRange(wrong.Select(e => $"no call to {e.Tool} with {JsonSerializer.Serialize(e.Args ?? [])}"));
             checks["arguments"] = wrong.Count == 0;
+        }
+
+        // Playbooks (#161): the completed steps, in order. A skipped or reordered step fails the case.
+        if (c.ExpectSteps is { Count: > 0 } expectSteps)
+        {
+            var done = o.PlaybookSteps ?? [];
+            var ok = done.SequenceEqual(expectSteps, StringComparer.OrdinalIgnoreCase);
+            if (!ok) failures.Add($"playbook steps were [{string.Join(", ", done)}], expected [{string.Join(", ", expectSteps)}]");
+            checks["steps"] = ok;
         }
 
         if (c.ExpectedFacts is { Count: > 0 } facts)
@@ -226,7 +237,7 @@ public static class EvalCli
                 {
                     Console.Write(repeat > 1 ? $"{c.Id} #{attempt} ... " : $"{c.Id} ... ");
                     var roles = devHeaders ? ModelComparison.RolesFor(c.Roles ?? devRoles, model, effort) : null;
-                    var result = Scoring.Score(c, await RunAsync(http, c.Question, c.Profile, roles, model, effort));
+                    var result = Scoring.Score(c, await RunAsync(http, c.Question, c.Playbook is null ? c.Profile : null, roles, model, effort, c.Playbook));
                     if (judge is not null && c.Judge is { Length: > 0 } criteria)
                         result = Scoring.WithJudge(result, await judge.GradeAsync(c.Question, criteria, result.Outcome.FinalAnswer));
                     results.Add(result);
@@ -268,14 +279,15 @@ public static class EvalCli
     private static double Number(string[] args, string name, double fallback) =>
         double.TryParse(Arg(args, name), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : fallback;
 
-    internal static async Task<RunOutcome> RunAsync(HttpClient http, string question, string? profile, string? roles, string? model, string? effort)
+    internal static async Task<RunOutcome> RunAsync(HttpClient http, string question, string? profile, string? roles, string? model, string? effort,
+        string? playbook = null)
     {
         HttpResponseMessage res;
         for (var tries = 1; ; tries++)
         {
             using var start = new HttpRequestMessage(HttpMethod.Post, "/runs")
             {
-                Content = JsonContent.Create(new { prompt = question, profile, model, reasoningEffort = effort }),
+                Content = JsonContent.Create(new { prompt = question, profile, model, reasoningEffort = effort, playbook }),
             };
             if (roles is not null) start.Headers.Add("X-Dev-Roles", roles); // request headers win over the client's defaults
             res = await http.SendAsync(start);
@@ -311,7 +323,9 @@ public static class EvalCli
                     run.TryGetProperty("cost", out var cost) && cost.ValueKind == JsonValueKind.Number ? cost.GetDouble() : 0,
                     steps.Where(s => s.GetProperty("kind").GetString() == "ModelCall").Select(s => s.GetProperty("name").GetString()!).Distinct().ToList(),
                     steps.Where(s => s.GetProperty("kind").GetString() == "ToolCall")
-                        .Select(s => new ToolCallSeen(s.GetProperty("name").GetString()!, Str(s, "arguments"), Str(s, "decision"))).ToList());
+                        .Select(s => new ToolCallSeen(s.GetProperty("name").GetString()!, Str(s, "arguments"), Str(s, "decision"))).ToList(),
+                    run.TryGetProperty("playbook", out var pb) && pb.ValueKind == JsonValueKind.Object
+                        ? pb.GetProperty("completed").EnumerateArray().Select(x => x.GetString()!).ToList() : null);
             }
             await Task.Delay(1000);
         }

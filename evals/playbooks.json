@@ -1,0 +1,15 @@
+{
+  "dataset": "playbooks",
+  "version": 1,
+  "description": "Playbook runs (#161): the steps must complete in order. Needs the docker-ops profile, its MCP server and the playbook applied; approve the restart when asked.",
+  "profile": "docker-ops",
+  "cases": [
+    {
+      "id": "restart-after-logs",
+      "question": "The web service keeps dying. Fix it.",
+      "playbook": "restart-after-logs",
+      "expectSteps": ["inspect", "restart", "verify"],
+      "expectedTools": ["get_container_logs", "restart_container", "list_containers"]
+    }
+  ]
+}

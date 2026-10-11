@@ -1,6 +1,6 @@
 # 0022. Playbooks: step-by-step flows declared as config and enforced by the shell
 
-Status: accepted (2026-10-10). Decides #159.
+Status: accepted (2026-10-10). Decides #159; implemented in #161 (example: `examples/playbooks/restart-after-logs.yaml`).
 
 ## Context
 
@@ -28,4 +28,4 @@ procedures edited in the UI would conflict with config as code (principle 7).
 - Known operational flows become repeatable and reviewable in Git, and enforcement does not depend on the model's compliance.
 - Policy gains one more input, the current step, so the policy engine and its tests grow. A playbook's tool list is validated against
   the profile when the playbook is applied.
-- Implementation is tracked separately; until it lands, runbooks stay Knowledge documents.
+- Implemented in #161: `Principal.Playbook` (the step gate) in `PolicyEngine.Decide`, `complete_step` checked by the runner, a final answer before the last step is refused once and then fails the run, audit rows carry `playbook`, eval fields `playbook`/`expectSteps`.

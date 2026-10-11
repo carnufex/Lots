@@ -26,6 +26,6 @@ records themselves.
 | [0019](0019-telemetry-and-self-improvement.md) | Telemetry data model and the self-improvement loop | accepted (2026-10-10). Decides #137; shapes M14 (#138-#146). |
 | [0020](0020-model-choice-per-run.md) | A run may choose a configured model alias and reasoning effort, restricted by role | accepted (2026-10-10). Decides #119. |
 | [0021](0021-image-signing-key.md) | Image signing with a cosign key pair kept in the secret store | accepted (2026-10-10). Decides #148. |
-| [0022](0022-playbooks-as-config.md) | Playbooks: step-by-step flows declared as config and enforced by the shell | accepted (2026-10-10). Decides #159. |
+| [0022](0022-playbooks-as-config.md) | Playbooks: step-by-step flows declared as config and enforced by the shell | accepted (2026-10-10). Decides #159; implemented in #161 (example: `examples/playbooks/restart-after-logs.yaml`). |
 | [0023](0023-automatic-context-routing.md) | Automatic context routing: a router in front of the run | accepted (2026-10-11). Implements #150. |
 | [0024](0024-multi-context-supervisor.md) | Multi-context questions: a tool-less supervisor over read-only sub-runs | accepted (2026-10-11). Implements #151, builds on ADR 0023. |
