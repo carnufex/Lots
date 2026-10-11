@@ -1,6 +1,6 @@
 {
   "dataset": "routing",
-  "version": 1,
+  "version": 2,
   "description": "Question -> context for automatic routing (#150). Cases for contexts a stack does not offer are skipped.",
   "cases": [
     { "question": "Which containers are unhealthy?", "expect": "homelab" },
@@ -16,6 +16,7 @@
     { "question": "Summarise the latest issues on GitHub.", "expect": "git" },
     { "question": "Which alerts are firing right now?", "expect": "monitoring" },
     { "question": "What is the CPU usage metric for the last hour in Prometheus?", "expect": "monitoring" },
-    { "question": "Hello!", "expect": "ask", "note": "no domain: the user should choose" }
+    { "question": "Hello!", "expect": "ask", "note": "no domain: the user should choose" },
+    { "question": "Do the firing alerts relate to the pods that are crash looping?", "expect": "multi", "note": "monitoring and kubernetes (#151)" }
   ]
 }

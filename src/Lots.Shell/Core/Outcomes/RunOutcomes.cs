@@ -47,6 +47,8 @@ public sealed class RunOutcomeRecord
     public string? Routing { get; set; }
     /// <summary>The user had this turn answered again in another context: the router (or the user's choice) was wrong.</summary>
     public bool Rerouted { get; set; }
+    /// <summary>The contexts a multi-context run asked (#151), comma separated; null for a single context.</summary>
+    public string? Contexts { get; set; }
     /// <summary>The user ran the same prompt again, or retried this run: the answer did not do it.</summary>
     public bool UserRetried { get; set; }
     /// <summary>Another turn in the same conversation started within <see cref="OutcomeOptions.FollowUpMinutes"/>: often a correction.</summary>
@@ -154,6 +156,7 @@ public static class RunOutcomes
             o.Spoken = spoken.Contains(run.Id);
             o.IsRetry = run.RetryOf is not null;
             o.Routing = run.RoutingMode;
+            o.Contexts = run.SuperviseJson is null ? null : string.Join(',', JsonSerializer.Deserialize<List<string>>(run.SuperviseJson) ?? []);
             o.Rerouted = later.Any(l => l.RetryOf == run.Id && !string.Equals(l.Profile, run.Profile, StringComparison.OrdinalIgnoreCase));
             o.UserRetried = later.Any(l => l.Id != run.Id && l.UserId == run.UserId && l.CreatedAt > run.CreatedAt
                                             && (l.RetryOf == run.Id || string.Equals(l.Prompt.Trim(), run.Prompt.Trim(), StringComparison.OrdinalIgnoreCase)));

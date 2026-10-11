@@ -93,14 +93,21 @@ export default function ChatPage({ api, profiles, id, voice }: { api: Api; profi
   const last = turns.at(-1)
   const busy = live !== null
 
-  const send = async (picked?: string) => {
+  const send = async (picked?: string | string[]) => {
     const text = (picked ? ask?.text : prompt.trim()) ?? ''
     if (!text || busy) return
     setError(null)
     setAsk(null)
     const conversationId = id ?? crypto.randomUUID()
+    const several = Array.isArray(picked) ? picked : undefined
+    const one = typeof picked === 'string' ? picked : undefined
     try {
-      const started = await api.startRun(text, picked ?? (profile || null), { conversationId, attachments: files.map((f) => f.id), ...(picked ? { routing: 'chosen' as const } : {}) })
+      const started = await api.startRun(text, one ?? (several ? null : profile || null), {
+        conversationId,
+        attachments: files.map((f) => f.id),
+        ...(picked ? { routing: 'chosen' as const } : {}),
+        ...(several ? { contexts: several } : {}),
+      })
       if ('choose' in started) {
         setAsk({ text, choice: started.choose }) // one click, never a silent guess
         return
@@ -195,9 +202,11 @@ export default function ChatPage({ api, profiles, id, voice }: { api: Api; profi
                 <div className="turn-agent">
                   {turn.profile && profiles.length > 1 && (
                     <p className="turn-context small muted">
-                      <span className="chip" title={turn.routing ? t('Chosen: {how}', { how: t(turn.routing) }) : undefined}>
-                        {turn.profile}
-                      </span>
+                      {(turn.contexts ?? [turn.profile]).map((c) => (
+                        <span key={c} className="chip" title={turn.routing ? t('Chosen: {how}', { how: t(turn.routing) }) : undefined}>
+                          {c}
+                        </span>
+                      ))}
                       {isLast && !busy && !ACTIVE.includes(turn.status) &&
                         profiles
                           .filter((p) => p.name !== turn.profile)
@@ -257,6 +266,12 @@ export default function ChatPage({ api, profiles, id, voice }: { api: Api; profi
                   {!c.readOnly && <span className="muted small"> {t('(can change things)')}</span>}
                 </button>
               ))}
+              {ask.choice.candidates.filter((c) => c.readOnly).length >= 2 && (
+                <button type="button" className="btn" title={t('Each context answers on its own (read only); the answers are combined.')}
+                  onClick={() => void send(ask.choice.candidates.filter((c) => c.readOnly).slice(0, 3).map((c) => c.profile))}>
+                  {t('Ask them all')}
+                </button>
+              )}
               <button type="button" className="btn ghost" onClick={() => setAsk(null)}>
                 {t('Cancel')}
               </button>

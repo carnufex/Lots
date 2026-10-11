@@ -418,6 +418,10 @@ public sealed class RunRecord
     public string? RoutingMode { get; set; }
     /// <summary>The router's candidates, scores and margin when it decided; null when the user chose.</summary>
     public string? RoutingJson { get; set; }
+    /// <summary>A multi-context supervisor run (#151): the contexts it asks, one read-only sub-run each, as a JSON array.</summary>
+    public string? SuperviseJson { get; set; }
+    /// <summary>Only read-class tools, whatever the roles grant (#151 fan-out sub-runs).</summary>
+    public bool ReadOnly { get; set; }
     /// <summary>Started in a role preview (#156): the admin's real roles; the run's <see cref="Roles"/> are the previewed ones.</summary>
     public string? PreviewRealRoles { get; set; }
     public bool PreviewAllowWrites { get; set; }

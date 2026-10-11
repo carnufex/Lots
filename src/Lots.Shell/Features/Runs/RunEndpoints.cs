@@ -11,8 +11,9 @@ namespace Lots.Shell.Features.Runs;
 /// <param name="Model">A configured model alias to answer with instead of the profile's (comparisons, #119). Roles in <c>Models:ChooseRoles</c> only (default admin, evaluator).</param>
 /// <param name="ReasoningEffort">none, minimal, low, medium or high; same roles as <paramref name="Model"/>.</param>
 /// <param name="Routing">"chosen" when the user picked the context after the router asked (#150); recorded on the run.</param>
+/// <param name="Contexts">Ask these contexts together (#151): 2-3 contexts where the user may only read; one sub-run each, one combined answer.</param>
 public sealed record StartRunRequest(string Prompt, string? Profile = null, bool Voice = false, Guid? ConversationId = null,
-    List<Guid>? Attachments = null, string? Model = null, string? ReasoningEffort = null, string? Routing = null);
+    List<Guid>? Attachments = null, string? Model = null, string? ReasoningEffort = null, string? Routing = null, List<string>? Contexts = null);
 
 /// <param name="Profile">The context to answer in; null or "auto" lets the router choose (#150). Context is the UI name of a profile.</param>
 public sealed record StartRunResponse(Guid Id, string Status, string? Profile = null, string? Routing = null);
@@ -40,7 +41,25 @@ public sealed class StartRunEndpoint(LotsDbContext db, TimeProvider clock, Profi
 
         Core.Routing.RouteDecision? route = null;
         string? routing = "manual";
-        if (string.IsNullOrWhiteSpace(req.Profile) || req.Profile == "auto")
+        List<string>? supervise = null;
+        if (req.Contexts is { Count: > 0 } asked)
+        {
+            // Fan-out is for reading only (#151): every context must be one the user can use, and only read in.
+            var me = who.Get(HttpContext);
+            var usable = Core.Routing.ContextRouter.Usable(me, profiles);
+            var max = HttpContext.RequestServices.GetRequiredService<Microsoft.Extensions.Options.IOptions<Core.Routing.RoutingOptions>>().Value.MaxContexts;
+            var picked = asked.Select(c => usable.FirstOrDefault(p => string.Equals(p.Name, c, StringComparison.OrdinalIgnoreCase))).ToList();
+            if (asked.Count < 2 || asked.Count > max || picked.Any(p => p is null) || picked.Any(p => !Core.Routing.ContextRouter.ReadOnlyFor(me, p!)))
+            {
+                AddError(x => x.Contexts!, $"Give 2-{max} contexts you can use and can only read in.");
+                await Send.ErrorsAsync(cancellation: ct);
+                return;
+            }
+            supervise = picked.Select(p => p!.Name).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            route = new Core.Routing.RouteDecision(supervise[0], "multi", [], 0, "chosen by the user", "none", 0, supervise);
+            routing = req.Routing is "chosen" ? "chosen" : "manual";
+        }
+        else if (string.IsNullOrWhiteSpace(req.Profile) || req.Profile == "auto")
         {
             var router = HttpContext.RequestServices.GetRequiredService<Core.Routing.ContextRouter>();
             var current = req.ConversationId is { } conv
@@ -54,6 +73,7 @@ public sealed class StartRunEndpoint(LotsDbContext db, TimeProvider clock, Profi
                 return;
             }
             routing = route.Mode == "none" ? "default" : route.Mode;
+            if (route.Mode == "multi") supervise = route.Contexts?.ToList();
         }
         var profileName = route?.Profile ?? (string.IsNullOrWhiteSpace(req.Profile) || req.Profile == "auto" ? null : req.Profile)
             ?? config["Agent:DefaultProfile"] ?? profiles.All.First().Name;
@@ -104,6 +124,7 @@ public sealed class StartRunEndpoint(LotsDbContext db, TimeProvider clock, Profi
         run.ModelAlias = string.IsNullOrWhiteSpace(req.Model) ? null : req.Model.Trim();
         run.ReasoningEffort = string.IsNullOrWhiteSpace(req.ReasoningEffort) ? null : req.ReasoningEffort.Trim().ToLowerInvariant();
         run.RoutingMode = req.Routing is "chosen" && routing == "manual" ? "chosen" : routing;
+        run.SuperviseJson = supervise is { Count: >= 2 } ? System.Text.Json.JsonSerializer.Serialize(supervise) : null;
         run.RoutingJson = route is null || route.Mode == "only" ? null : System.Text.Json.JsonSerializer.Serialize(
             new { route.Method, route.Margin, route.LatencyMs, candidates = route.Candidates.Select(c => new { c.Profile, c.Score }) });
         db.Runs.Add(run);

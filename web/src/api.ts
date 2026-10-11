@@ -319,6 +319,8 @@ export interface ConversationTurn {
   /** The context that answered this turn and how it was chosen (#150). */
   profile?: string | null
   routing?: string | null
+  /** Contexts that answered together (#151). */
+  contexts?: string[] | null
 }
 
 /** A user's rating of an answer (#121). */
@@ -700,7 +702,7 @@ export function createApi(auth: Auth) {
     startRun: async (
       prompt: string,
       profile: string | null,
-      options: { voice?: boolean; conversationId?: string; attachments?: string[]; routing?: 'chosen' } = {},
+      options: { voice?: boolean; conversationId?: string; attachments?: string[]; routing?: 'chosen'; contexts?: string[] } = {},
     ): Promise<StartedRun | { choose: RouteChoice }> => {
       const r = await request<StartedRun | RouteChoice>('/runs', { method: 'POST', body: JSON.stringify({ prompt, profile: profile || 'auto', ...options }) }, [409])
       return 'candidates' in r ? { choose: r } : r

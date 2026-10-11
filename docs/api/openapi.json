@@ -6078,6 +6078,13 @@
           "routing": {
             "type": "string",
             "nullable": true
+          },
+          "contexts": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -6111,6 +6118,13 @@
           "latencyMs": {
             "type": "integer",
             "format": "int64"
+          },
+          "contexts": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -8507,6 +8521,13 @@
           "routing": {
             "type": "string",
             "nullable": true
+          },
+          "contexts": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
           }
         }
       },

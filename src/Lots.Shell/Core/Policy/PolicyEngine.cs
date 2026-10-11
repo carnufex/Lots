@@ -8,6 +8,9 @@ public sealed record Principal(string UserId, IReadOnlyList<string> Roles)
 {
     /// <summary>Set while an admin views Lots as other roles (#156): <see cref="Roles"/> are then the previewed ones.</summary>
     public PreviewInfo? Preview { get; init; }
+
+    /// <summary>Only read-class tools for this principal, whatever the roles grant: multi-context fan-out (#151) and its supervisor.</summary>
+    public bool ReadOnly { get; init; }
 }
 
 /// <summary>
@@ -29,6 +32,14 @@ public static class PolicyEngine
 {
     public static PolicyResult Decide(Principal principal, Profile profile, string toolName)
     {
+        if (principal.ReadOnly)
+        {
+            var d = Decide(principal with { ReadOnly = false }, profile, toolName);
+            var risk = profile.Tools.FirstOrDefault(t => string.Equals(t.Name, toolName, StringComparison.Ordinal))?.Risk;
+            return d.Decision != Decision.Deny && risk != ToolRisk.Read
+                ? new(Decision.Deny, $"denied: this run may only read ({risk} tool)", "read-only run (#151)")
+                : d;
+        }
         if (principal.Preview is { } preview)
         {
             // Both the previewed roles and the real ones must allow the call; the stricter decision wins (never an elevation).

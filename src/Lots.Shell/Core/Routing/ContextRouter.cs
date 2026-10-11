@@ -17,17 +17,21 @@ public sealed record RouteCandidate(string Profile, double Score, bool ReadOnly)
 /// <c>sticky</c> (the conversation keeps its context), <c>ask</c> (too close or low confidence: the user picks), <c>none</c>
 /// (no usable context; the caller falls back to the default profile, which policy then guards as always).
 /// </summary>
+/// <param name="Contexts">For <c>multi</c> (#151): the contexts that answer together, best first; <paramref name="Profile"/> is the first.</param>
 public sealed record RouteDecision(string? Profile, string Mode, IReadOnlyList<RouteCandidate> Candidates, double Margin, string Reason,
-    string Method, long LatencyMs);
+    string Method, long LatencyMs, IReadOnlyList<string>? Contexts = null);
 
 public sealed class RoutingOptions
 {
     public const string Section = "Routing";
     public bool Enabled { get; set; } = true;
     /// <summary>Thresholds for embedding scores (cosine similarity). Unrelated text scores about 0.45-0.5 with typical models, hence the floor.</summary>
-    public RoutingThresholds Embedding { get; set; } = new() { MinScore = 0.55, AskMargin = 0.04, WriteMargin = 0.08, StickMargin = 0.05 };
+    public RoutingThresholds Embedding { get; set; } = new() { MinScore = 0.55, AskMargin = 0.04, WriteMargin = 0.08, StickMargin = 0.05, MultiScore = 0.72, MultiMargin = 0.10 };
     /// <summary>Thresholds for the lexical fallback (share of the question's words found in the context).</summary>
-    public RoutingThresholds Lexical { get; set; } = new() { MinScore = 0.12, AskMargin = 0.08, WriteMargin = 0.15, StickMargin = 0.10 };
+    public RoutingThresholds Lexical { get; set; } = new() { MinScore = 0.12, AskMargin = 0.08, WriteMargin = 0.15, StickMargin = 0.10, MultiScore = 0.30, MultiMargin = 0.10 };
+    /// <summary>Close read-only contexts answer together through sub-runs (#151) instead of asking; at most this many.</summary>
+    public bool MultiContext { get; set; } = true;
+    public int MaxContexts { get; set; } = 3;
     /// <summary>The embedding call may take this long before routing falls back to words (latency budget).</summary>
     public int EmbeddingTimeoutMs { get; set; } = 1500;
 }
@@ -42,6 +46,9 @@ public sealed class RoutingThresholds
     public double WriteMargin { get; set; }
     /// <summary>A conversation keeps its context unless another one leads by this much.</summary>
     public double StickMargin { get; set; }
+    /// <summary>#151: a runner-up this strong, within <see cref="MultiMargin"/> of the winner, means the question spans both contexts.</summary>
+    public double MultiScore { get; set; } = 1;
+    public double MultiMargin { get; set; }
 }
 
 /// <summary>
@@ -81,18 +88,19 @@ public sealed partial class ContextRouter(ProfileRegistry profiles, IOptions<Rou
 
         var o = options.Value;
         var (scores, method) = await ScoreAsync(usable, question, ct);
-        var decision = Decide(me, usable, scores, method, method == "embedding" ? o.Embedding : o.Lexical, current);
+        var decision = Decide(me, usable, scores, method, method == "embedding" ? o.Embedding : o.Lexical, current, o);
         // A cheap second opinion when the embedding is unsure (e.g. a language the embedding model handles poorly): the words.
         if (decision.Mode == "ask" && method == "embedding")
         {
             var words = Words(question);
-            var lexical = Decide(me, usable, usable.Select(p => Documents(p).Max(d => Overlap(words, Words(d)))).ToArray(), "lexical", o.Lexical, current);
+            var lexical = Decide(me, usable, usable.Select(p => Documents(p).Max(d => Overlap(words, Words(d)))).ToArray(), "lexical", o.Lexical, current, o);
             if (lexical.Mode is "auto" or "sticky") decision = lexical with { Method = "embedding+lexical", Reason = lexical.Reason + " (words, the embedding was unsure)" };
         }
         return decision with { LatencyMs = watch.ElapsedMilliseconds };
     }
 
-    private static RouteDecision Decide(Principal me, IReadOnlyList<Profile> usable, double[] scores, string method, RoutingThresholds th, string? current)
+    private static RouteDecision Decide(Principal me, IReadOnlyList<Profile> usable, double[] scores, string method, RoutingThresholds th, string? current,
+        RoutingOptions o)
     {
         var ranked = usable.Select((p, i) => new RouteCandidate(p.Name, Math.Round(scores[i], 4), ReadOnlyFor(me, p)))
             .OrderByDescending(c => c.Score).ThenBy(c => c.Profile, StringComparer.OrdinalIgnoreCase).ToList();
@@ -109,6 +117,15 @@ public sealed partial class ContextRouter(ProfileRegistry profiles, IOptions<Rou
 
         if (best.Score < th.MinScore) return Done(null, "ask", $"low confidence ({best.Score:0.###} < {th.MinScore})");
         var needed = best.ReadOnly ? th.AskMargin : th.WriteMargin;
+        // Several contexts fit about equally and the user can only read in all of them: ask each one and combine (#151).
+        // Either too close to call, or more than one strongly relevant: both cases are about several contexts at once.
+        var close = ranked.Where(c => c.Score >= th.MinScore && (best.Score - c.Score < th.AskMargin || (c.Score >= th.MultiScore && best.Score - c.Score < th.MultiMargin)))
+            .Take(o.MaxContexts).ToList();
+        if ((margin < needed || close.Count >= 2) && o.MultiContext && close.Count >= 2 && close.All(c => c.ReadOnly))
+            return Done(close[0].Profile, "multi", $"{string.Join(" and ", close.Select(c => c.Profile))} fit about equally; both are asked") with
+            {
+                Contexts = close.Select(c => c.Profile).ToList(),
+            };
         if (margin < needed)
             return Done(null, "ask", best.ReadOnly
                 ? $"{best.Profile} and {ranked[1].Profile} are too close ({margin:0.###} < {needed})"

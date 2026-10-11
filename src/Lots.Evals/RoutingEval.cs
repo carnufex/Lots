@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace Lots.Evals;
 
-/// <param name="Expect">The context the question belongs to, or "ask" when the router should let the user choose.</param>
+/// <param name="Expect">The context the question belongs to, "ask" when the user should choose, or "multi" when several contexts answer together (#151).</param>
 public sealed record RoutingCase(string Question, string Expect, string? Note = null);
 
 public sealed record RoutingSet(string? Dataset, int Version, List<RoutingCase> Cases);
@@ -32,7 +32,7 @@ public static class RoutingEval
         var results = new List<RoutingResult>();
         foreach (var c in set.Cases)
         {
-            if (c.Expect != "ask" && !contexts.Contains(c.Expect))
+            if (c.Expect is not ("ask" or "multi") && !contexts.Contains(c.Expect))
             {
                 results.Add(new(c, "-", "-", 0, 0, false, true));
                 continue;
@@ -41,7 +41,7 @@ public static class RoutingEval
             res.EnsureSuccessStatusCode();
             var d = await res.Content.ReadFromJsonAsync<JsonElement>(Json);
             var mode = d.GetProperty("mode").GetString()!;
-            var got = mode == "ask" ? "ask" : d.GetProperty("profile").GetString() ?? "none";
+            var got = mode is "ask" or "multi" ? mode : d.GetProperty("profile").GetString() ?? "none";
             var r = new RoutingResult(c, got, mode, d.GetProperty("margin").GetDouble(), d.GetProperty("latencyMs").GetInt64(),
                 string.Equals(got, c.Expect, StringComparison.OrdinalIgnoreCase), false, d.GetProperty("method").GetString() ?? "-");
             results.Add(r);

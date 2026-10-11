@@ -83,14 +83,30 @@ public sealed class DelegateToolSource(IServiceScopeFactory scopes, ProfileRegis
         if (parent.Depth >= o.MaxDepth) return "Error: a sub-agent cannot delegate further.";
         if (task.Length == 0) return "Error: task is required.";
 
+        var child = await SubRuns.RunAsync(scopes, call.Principal, parent, target, task, o, clock, "delegate:" + parent.Profile, readOnly: false, ct);
+        if (child.Status != RunStatus.Completed)
+            return $"The {target.Name} assistant could not answer ({child.Status}: {child.Error}). Sub-run {child.Id}.";
+        return $"Answer from the {target.Name} assistant (sub-run {child.Id}):\n{child.FinalAnswer}";
+    }
+}
+
+/// <summary>
+/// Runs one sub-run to the end (#103, #151): same user and roles (identity follows the user), the parent's data class and taint, limited
+/// in steps and time, its own scope. Used by <c>delegate</c> and by the multi-context supervisor. Returns the finished record.
+/// </summary>
+public static class SubRuns
+{
+    public static async Task<RunRecord> RunAsync(IServiceScopeFactory scopes, Principal principal, RunScope parent, Profile target, string task,
+        DelegationOptions o, TimeProvider clock, string trigger, bool readOnly, CancellationToken ct)
+    {
         var now = clock.GetUtcNow();
         var child = new RunRecord
         {
-            Id = Guid.NewGuid(), Prompt = task, Profile = target.Name, UserId = call.Principal.UserId, Roles = string.Join(',', call.Principal.Roles),
+            Id = Guid.NewGuid(), Prompt = task, Profile = target.Name, UserId = principal.UserId, Roles = string.Join(',', principal.Roles),
             CreatedAt = now, UpdatedAt = now, ParentRunId = parent.RunId, Depth = parent.Depth + 1, StepLimit = o.MaxSteps,
-            Sensitivity = parent.Sensitivity, Tainted = parent.Tainted, Trigger = "delegate:" + parent.Profile,
+            Sensitivity = parent.Sensitivity, Tainted = parent.Tainted, Trigger = trigger, ReadOnly = readOnly,
             // Claimed by this call, not by a worker: the lease keeps the run workers away while it executes here.
-            LeaseOwner = "delegate:" + parent.RunId, LeaseUntilMs = now.AddSeconds(o.TimeoutSeconds + 30).ToUnixTimeMilliseconds(),
+            LeaseOwner = trigger + ":" + parent.RunId, LeaseUntilMs = now.AddSeconds(o.TimeoutSeconds + 30).ToUnixTimeMilliseconds(),
         };
         using var scope = scopes.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<LotsDbContext>();
@@ -108,16 +124,12 @@ public sealed class DelegateToolSource(IServiceScopeFactory scopes, ProfileRegis
         catch (OperationCanceledException) when (!ct.IsCancellationRequested) { }
 
         // The runner worked on the tracked entity of this scope, so `child` holds the outcome.
-        if (child.Status != RunStatus.Completed)
+        if (child.Status is not (RunStatus.Completed or RunStatus.Failed or RunStatus.Cancelled))
         {
-            if (child.Status is not (RunStatus.Failed or RunStatus.Cancelled))
-            {
-                child.Status = RunStatus.Failed;
-                child.Error ??= "Stopped: the sub-agent ran out of time.";
-                await db.SaveChangesAsync(CancellationToken.None);
-            }
-            return $"The {target.Name} assistant could not answer ({child.Status}: {child.Error}). Sub-run {child.Id}.";
+            child.Status = RunStatus.Failed;
+            child.Error ??= "Stopped: the sub-agent ran out of time.";
+            await db.SaveChangesAsync(CancellationToken.None);
         }
-        return $"Answer from the {target.Name} assistant (sub-run {child.Id}):\n{child.FinalAnswer}";
+        return child;
     }
 }

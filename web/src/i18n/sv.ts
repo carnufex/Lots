@@ -755,4 +755,7 @@ export const sv: Record<string, string> = {
   "only": "enda möjliga",
   "default": "standard",
   "I am not sure where this belongs: {list}. Pick a context in the chat and ask again.": "Jag är inte säker på var det här hör hemma: {list}. Välj en kontext i chatten och fråga igen.",
+  "Ask them all": "Fråga alla",
+  "Each context answers on its own (read only); the answers are combined.": "Varje kontext svarar för sig (bara läsning); svaren slås ihop.",
+  "multi": "flera kontexter",
 }
