@@ -644,6 +644,8 @@ export function createApi(auth: Auth) {
         reset: res.headers.get('X-Speak-Reset') === '1',
       }
     },
+    /** A one-minute ticket for the streaming dictation socket (a browser cannot authenticate a WebSocket with a header). */
+    streamTicket: () => request<{ ticket: string; expiresInSeconds: number }>('/voice/stream/ticket', { method: 'POST', body: '{}' }),
     speak: async (runId: string, language: VoiceLanguage): Promise<Blob> => {
       const res = await fetch(`/runs/${runId}/speak`, {
         method: 'POST',

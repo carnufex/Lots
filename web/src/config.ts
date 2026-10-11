@@ -17,6 +17,8 @@ export interface VoiceConfig {
   enabled: boolean
   languages: string[]
   defaultLanguage: 'auto' | 'sv' | 'en'
+  /** The microphone streams to the shell, which ends utterances (#37). */
+  streaming?: boolean
 }
 
 export interface ClientConfig {

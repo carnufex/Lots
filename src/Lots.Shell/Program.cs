@@ -65,7 +65,8 @@ builder.Services.AddScoped<ToolInvoker>();
 builder.Services.AddScoped<AgentRunner>();
 builder.Services.AddScoped<RunLeases>();
 builder.Services.AddScoped<RunControl>();
-builder.Services.AddSingleton<RunStreams>(); // streamed answers (#95)
+builder.Services.AddSingleton<RunStreams>();
+builder.Services.AddSingleton<Lots.Shell.Features.Voice.VoiceStreamTickets>(); // streamed answers (#95)
 // Channels (#107): Slack, mail to run, the OpenAI-compatible endpoint.
 builder.Services.Configure<Lots.Shell.Core.Channels.ChannelOptions>(builder.Configuration.GetSection(Lots.Shell.Core.Channels.ChannelOptions.Section));
 builder.Services.AddHttpClient(nameof(Lots.Shell.Core.Channels.SlackClient), h => h.Timeout = TimeSpan.FromSeconds(10))
@@ -207,11 +208,13 @@ app.UseStaticFiles(new StaticFileOptions // the browser app, built into wwwroot
     OnPrepareResponse = ctx => ctx.Context.Response.Headers.CacheControl =
         ctx.Context.Request.Path.StartsWithSegments("/assets") ? "public, max-age=31536000, immutable" : "no-cache",
 });
+app.UseWebSockets(); // streaming dictation (#37)
 app.UseAuthentication();
 app.UseMiddleware<Lots.Shell.Core.Security.ApiTokenScopeMiddleware>(); // API tokens only reach what their scopes allow (#88)
 app.UseAuthorization();
 app.UseMiddleware<Lots.Shell.Core.Notifications.UserDirectoryMiddleware>(); // e-mail and roles from the login, for approval routing (#136)
 app.UseFastEndpoints();
+Lots.Shell.Features.Voice.VoiceStreamRelay.MapVoiceStream(app);
 // Introspection for external agents (#142): signed-in callers only; the self-improve profile decides per tool.
 app.MapMcp("/mcp/introspect").RequireAuthorization();
 app.UseOpenApi(c => c.Path = "/openapi/{documentName}.json"); // anonymous: the contract is not a secret

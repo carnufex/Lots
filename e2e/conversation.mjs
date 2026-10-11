@@ -20,6 +20,12 @@ let failed = false
 const ok = (c, m) => { console.log(`${c ? 'ok  ' : 'FAIL'} ${m}`); if (!c) failed = true }
 
 const calls = { transcribe: 0, runs: 0, speak: 0, ack: 0, convIds: new Set(), voiceFlags: [] }
+// This check covers push-per-utterance (the recording is sent when the browser hears the end); streaming is conversation-real.mjs.
+await page.route('**/config', async (r) => {
+  const res = await r.fetch()
+  const json = await res.json()
+  r.fulfill({ response: res, json: { ...json, voice: json.voice && { ...json.voice, streaming: false } } })
+})
 await page.route('**/voice/transcribe', (r) => { calls.transcribe++; r.fulfill({ json: { text: `fråga ${calls.transcribe}`, language: 'sv', durationSeconds: 1.9 } }) })
 await page.route('**/voice/ack**', (r) => { calls.ack++; r.fulfill({ body: fs.readFileSync(fx('ack.wav')), contentType: 'audio/wav' }) })
 await page.route('**/runs', (r) => {

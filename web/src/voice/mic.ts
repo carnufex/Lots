@@ -42,6 +42,11 @@ export interface MicCallbacks {
   onUtterance(wav: Blob, durationMs: number): void
   /** The sound was too short to be speech (a click, a cough): nothing will be sent. */
   onAbort?(): void
+  /**
+   * Streaming (#37): every 20 ms frame at the context's sample rate. While the agent speaks only an interruption is passed on
+   * (with the audio from just before it), so the agent's own voice is never transcribed as the user's.
+   */
+  onFrame?(samples: Float32Array, sampleRate: number): void
 }
 
 export class MicSession {
@@ -142,6 +147,8 @@ export class MicSession {
     const threshold = this.threshold()
     const loud = rms >= threshold
 
+    if (this.cb.onFrame && !this.playback) this.cb.onFrame(samples, this.ctx.sampleRate)
+
     if (!this.speaking) {
       if (!loud) this.floor = Math.max(0.002, this.floor * 0.99 + rms * 0.01) // learn the room noise only between utterances
       this.preroll.push(samples)
@@ -153,11 +160,14 @@ export class MicSession {
         this.utterance = [...this.preroll]
         this.preroll = []
         this.cb.onSpeechStart(this.playback)
+        // An interruption: the frames held back while the agent spoke now go out, starting a little before the speech.
+        if (this.cb.onFrame && this.playback) for (const f of this.utterance) this.cb.onFrame(f, this.ctx.sampleRate)
       }
       return
     }
 
     this.utterance.push(samples)
+    if (this.cb.onFrame && this.playback) this.cb.onFrame(samples, this.ctx.sampleRate)
     this.silentMs = rms >= threshold * 0.6 ? 0 : this.silentMs + FRAME_MS
     const length = this.utterance.length * FRAME_MS
     if (this.silentMs >= END_SILENCE_MS || length >= MAX_UTTERANCE_MS) this.finish(length)

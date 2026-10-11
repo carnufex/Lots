@@ -25,6 +25,23 @@ const GIVE_UP_MS = 60_000 // a turn that has not answered by now is stuck: say s
 
 const newId = () => crypto.randomUUID()
 
+/** 20 ms frames at the audio context's rate to 16 kHz mono PCM16, what the streaming endpoint takes (#37). */
+function toPcm16k(samples: Float32Array, rate: number): ArrayBuffer {
+  const ratio = rate / 16000
+  const n = Math.floor(samples.length / ratio)
+  const out = new Int16Array(n)
+  for (let i = 0; i < n; i++) {
+    const from = Math.floor(i * ratio)
+    const to = Math.max(from + 1, Math.min(samples.length, Math.floor((i + 1) * ratio)))
+    let sum = 0
+    for (let j = from; j < to; j++) sum += samples[j]
+    out[i] = Math.max(-1, Math.min(1, sum / (to - from))) * 32767
+  }
+  return out.buffer
+}
+
+type Heard = { text: string; language?: string | null }
+
 /**
  * Hands-free conversation: start, talk, talk, the agent answers aloud, talk over it and it stops. Each spoken turn is an
  * ordinary run (so it is audited and visible in the run list) that remembers the earlier turns of the conversation.
@@ -39,6 +56,7 @@ export default function Conversation({
   onEnd,
   showTranscript = true,
   context,
+  streaming = false,
 }: {
   api: Api
   profiles: ProfileInfo[]
@@ -53,6 +71,8 @@ export default function Conversation({
   showTranscript?: boolean
   /** The chat's context choice; '' lets the shell choose (#150). Without it the conversation offers its own picker. */
   context?: string
+  /** Stream the microphone to the shell, which ends utterances and transcribes while you speak (#37). */
+  streaming?: boolean
 }) {
   const [state, setState] = useState<AvatarState>('off')
   const [messages, setMessages] = useState<Message[]>([])
@@ -76,6 +96,9 @@ export default function Conversation({
     profileRef.current = context ?? profile
   }, [language, profile, context])
   const log = useRef<HTMLOListElement>(null)
+  const socket = useRef<WebSocket | null>(null)
+  const noFinal = useRef<number | undefined>(undefined)
+  const [live, setLive] = useState('')
   const turns = useRef(0)
   const hooks = useRef({ onTurn, onEnd })
   useEffect(() => {
@@ -116,12 +139,14 @@ export default function Conversation({
   )
 
   const handleUtterance = useCallback(
-    async (wav: Blob) => {
+    async (input: Blob | Heard) => {
       const mine = ++turn.current
       player.current.stop()
       go('thinking')
+      setLive('')
       try {
-        const heard = await api.transcribe(wav, languageRef.current, conversationId.current)
+        // Push-per-utterance sends the recording; streaming already has the text (#37).
+        const heard: Heard = input instanceof Blob ? await api.transcribe(input, languageRef.current, conversationId.current) : input
         if (mine !== turn.current) return
         const text = heard.text.trim()
         if (!text) {
@@ -229,6 +254,39 @@ export default function Conversation({
     turns.current = 0
     setMessages([])
     player.current.prepare() // inside the click: lets the browser play audio later without another gesture
+    // Streaming (#37): the shell relays the microphone to the voice service, which transcribes while you speak and ends the
+    // utterance; push-per-utterance stays the fallback when the socket cannot be opened or drops.
+    socket.current = null
+    if (streaming) {
+      try {
+        const { ticket } = await api.streamTicket()
+        const lang = languageRef.current === 'auto' ? '' : `&language=${languageRef.current}`
+        const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/voice/stream?ticket=${encodeURIComponent(ticket)}${lang}&silence_ms=700`)
+        ws.binaryType = 'arraybuffer'
+        await new Promise<void>((ok, fail) => {
+          ws.onopen = () => ok()
+          ws.onerror = () => fail(new Error('socket'))
+          window.setTimeout(() => fail(new Error('timeout')), 4000)
+        })
+        ws.onmessage = (e) => {
+          const m = JSON.parse(String(e.data)) as { type: string; text?: string; language?: string; message?: string }
+          if (m.type === 'partial' && m.text) setLive(m.text)
+          if (m.type === 'final') {
+            window.clearTimeout(noFinal.current)
+            setLive('')
+            if (m.text?.trim()) void handleUtterance({ text: m.text, language: m.language })
+            else if (stateRef.current === 'hearing') go('listening')
+          }
+          if (m.type === 'error') setError(m.message ?? t('Voice is unavailable right now. You can still type your question.'))
+        }
+        ws.onclose = () => {
+          if (socket.current === ws) socket.current = null // falls back to sending each utterance
+        }
+        socket.current = ws
+      } catch {
+        socket.current = null
+      }
+    }
     try {
       mic.current = await MicSession.start(
         {
@@ -243,7 +301,23 @@ export default function Conversation({
             }
             go('hearing')
           },
-          onUtterance: (wav) => void handleUtterance(wav),
+          onUtterance: (wav) => {
+            if (!socket.current) {
+              void handleUtterance(wav)
+              return
+            }
+            // Streaming: the server decides where the utterance ends; if it heard nothing to say, go back to listening.
+            window.clearTimeout(noFinal.current)
+            noFinal.current = window.setTimeout(() => {
+              if (stateRef.current === 'hearing') go('listening')
+            }, 2500)
+          },
+          onFrame: streaming
+            ? (samples, rate) => {
+                const ws = socket.current
+                if (ws?.readyState === WebSocket.OPEN) ws.send(toPcm16k(samples, rate))
+              }
+            : undefined,
           onAbort: () => go('listening'),
         },
         SENSITIVITY[sensitivity],
@@ -257,6 +331,13 @@ export default function Conversation({
   /** Ends the conversation: stops listening and talking. The transcript stays on screen until you start the next one. */
   const end = useCallback(() => {
     turn.current++
+    if (socket.current?.readyState === WebSocket.OPEN) {
+      socket.current.send(JSON.stringify({ type: 'end' }))
+      socket.current.close()
+    }
+    socket.current = null
+    window.clearTimeout(noFinal.current)
+    setLive('')
     mic.current?.stop()
     mic.current = null
     player.current.stop()
@@ -302,6 +383,7 @@ export default function Conversation({
           <div className="talkstate" role="status" aria-live="polite" data-testid="conversation-state" data-state={state}>
             {statusText}
           </div>
+          {live && state === 'hearing' && <p className="small muted live-partial" data-testid="conversation-partial">{live}</p>}
           {on ? (
             <div className="row callbuttons">
               <button type="button" className={`btn mutetoggle ${muted ? 'muted' : ''}`} aria-pressed={muted} onClick={toggleMute}>

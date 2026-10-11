@@ -323,6 +323,34 @@
         ]
       }
     },
+    "/voice/stream/ticket": {
+      "post": {
+        "tags": [
+          "Voice"
+        ],
+        "operationId": "LotsShellFeaturesVoiceStreamTicketEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StreamTicketDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/me/quota": {
       "get": {
         "tags": [
@@ -6175,6 +6203,19 @@
           }
         }
       },
+      "StreamTicketDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ticket": {
+            "type": "string"
+          },
+          "expiresInSeconds": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "QuotaStatus": {
         "type": "object",
         "additionalProperties": false,
@@ -10382,6 +10423,9 @@
           },
           "defaultLanguage": {
             "type": "string"
+          },
+          "streaming": {
+            "type": "boolean"
           }
         }
       },

@@ -9,7 +9,8 @@ public sealed record OidcClientConfig(string Authority, string ClientId, string 
 /// <param name="TelemetryContent">What telemetry keeps of this profile's runs (#145), shown to users: off, metadata, redacted or full.</param>
 public sealed record ProfileInfo(string Name, string Description, string TelemetryContent = "metadata");
 
-public sealed record VoiceConfig(bool Enabled, IReadOnlyList<string> Languages, string DefaultLanguage);
+/// <param name="Streaming">Conversation mode streams the microphone to the shell, which ends utterances (#37); off = push-per-utterance.</param>
+public sealed record VoiceConfig(bool Enabled, IReadOnlyList<string> Languages, string DefaultLanguage, bool Streaming = false);
 
 /// <param name="TraceUrl">Link template for a run's trace in your tracing UI, with {traceId} (Telemetry:TraceUrlTemplate); null = no link.</param>
 public sealed record ClientConfig(string AuthMode, OidcClientConfig? Oidc, IReadOnlyList<ProfileInfo> Profiles, VoiceConfig Voice, string? TraceUrl = null,
@@ -39,7 +40,8 @@ public sealed class ClientConfigEndpoint(IConfiguration config, ProfileRegistry 
             oidc is null ? "dev" : "oidc", oidc,
             profiles.All.Select(p => new ProfileInfo(p.Name, p.Description, Core.Telemetry.Tracing.ContentFor(p).ToString().ToLowerInvariant())).OrderBy(p => p.Name).ToList(),
             new VoiceConfig(speech.Value.Enabled, Lots.Shell.Core.Speech.SpeechOptions.Languages,
-                Lots.Shell.Core.Speech.SpeechOptions.Languages.Contains(speech.Value.DefaultLanguage) ? speech.Value.DefaultLanguage : "auto"),
+                Lots.Shell.Core.Speech.SpeechOptions.Languages.Contains(speech.Value.DefaultLanguage) ? speech.Value.DefaultLanguage : "auto",
+                speech.Value.Enabled && config.GetValue("Speech:Streaming", true)),
             config["Telemetry:TraceUrlTemplate"],
             // The dev identity picker (#156); never sent with OIDC, where role names are not public.
             oidc is null ? Me.Capabilities.KnownRoles(config, profiles) : null), ct);

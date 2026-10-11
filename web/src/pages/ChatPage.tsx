@@ -162,6 +162,7 @@ export default function ChatPage({ api, profiles, id, voice }: { api: Api; profi
             profiles={profiles}
             context={profile}
             defaultLanguage={voice.defaultLanguage}
+            streaming={voice.streaming ?? false}
             conversationId={id}
             showTranscript={!id}
             onTurn={() => {
