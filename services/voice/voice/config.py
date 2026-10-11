@@ -55,6 +55,8 @@ class Settings:
     # Meetings (#41): whole recordings, much larger than a dictation.
     max_meeting_bytes: int = 300 * 1024 * 1024
     max_meeting_seconds: int = 4 * 3600
+    # Streaming transcription (#45): one session at most this long.
+    max_stream_seconds: int = 600
     max_text_chars: int = 2000
     max_prompt_chars: int = 600
     max_concurrency: int = 2
@@ -98,6 +100,7 @@ class Settings:
             max_audio_bytes=int(e.get("VOICE_MAX_AUDIO_BYTES", base.max_audio_bytes)),
             max_meeting_bytes=int(e.get("VOICE_MAX_MEETING_BYTES", base.max_meeting_bytes)),
             max_meeting_seconds=int(e.get("VOICE_MAX_MEETING_SECONDS", base.max_meeting_seconds)),
+            max_stream_seconds=int(e.get("VOICE_MAX_STREAM_SECONDS", base.max_stream_seconds)),
             max_text_chars=int(e.get("VOICE_MAX_TEXT_CHARS", base.max_text_chars)),
             max_prompt_chars=int(e.get("VOICE_MAX_PROMPT_CHARS", base.max_prompt_chars)),
             max_concurrency=int(e.get("VOICE_MAX_CONCURRENCY", base.max_concurrency)),

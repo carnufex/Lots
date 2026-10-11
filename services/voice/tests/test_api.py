@@ -336,3 +336,78 @@ def test_meetings_limits_and_absence():
     assert client.post("/v1/audio/meetings", files={"file": ("m.wav", b"x")}).status_code == 401
     bare = TestClient(create_app(settings, FakeStt(), FakeTts()))
     assert bare.post("/v1/audio/meetings", headers=auth, files={"file": ("m.wav", b"x")}).status_code == 503
+
+
+def _pcm(seconds, loud):
+    import numpy as np
+    n = int(16000 * seconds)
+    wave_ = (0.3 * np.sin(np.arange(n) * 2 * np.pi * 220 / 16000)) if loud else np.zeros(n)
+    return (wave_ * 32767).astype("<i2").tobytes()
+
+
+class CountingStt(FakeStt):
+    def transcribe(self, audio, language, prompt=None):
+        self.calls.append((len(audio), language))
+        return Transcription("öppna lots", "sv", 1.0, [Segment(0.0, 1.0, "öppna lots")])
+
+
+def test_streaming_gives_partials_while_speaking_and_a_final_at_the_endpoint():
+    stt = CountingStt()
+    client = TestClient(create_app(Settings(api_key="secret"), stt, FakeTts()))
+    with client.websocket_connect("/v1/audio/transcriptions/stream?language=sv&prompt=Lots", headers={"Authorization": "Bearer secret"}) as ws:
+        ws.send_bytes(_pcm(0.5, False))          # silence teaches the noise floor
+        for _ in range(10):                      # 2 s of speech in 200 ms chunks
+            ws.send_bytes(_pcm(0.2, True))
+        ws.send_bytes(_pcm(0.5, False))          # 500 ms silence: the utterance ends
+        events = []
+        while True:
+            e = ws.receive_json()
+            events.append(e)
+            if e["type"] == "final":
+                break
+        kinds = [e["type"] for e in events]
+        assert kinds[0] == "speech_start"
+        assert "partial" in kinds
+        final = events[-1]
+        assert final["text"] == "öppna Lots"     # vocabulary spelling applies to streaming too
+        assert final["language"] == "sv"
+        assert final["audio_ms"] >= 2000
+        ws.send_text('{"type": "end"}')
+        assert ws.receive_json()["type"] == "done"
+
+
+def test_streaming_flushes_on_end_and_refuses_without_the_key():
+    stt = CountingStt()
+    client = TestClient(create_app(Settings(api_key="secret"), stt, FakeTts()))
+    with client.websocket_connect("/v1/audio/transcriptions/stream", headers={"Authorization": "Bearer secret"}) as ws:
+        ws.send_bytes(_pcm(0.3, False))
+        ws.send_bytes(_pcm(1.0, True))
+        ws.send_text('{"type": "end"}')         # no silence: the end of the session ends the utterance
+        events = []
+        while not events or events[-1]["type"] != "done":
+            events.append(ws.receive_json())
+        assert [e["type"] for e in events][-2:] == ["final", "done"]
+    from starlette.websockets import WebSocketDisconnect as Disconnected
+    with pytest.raises(Disconnected):
+        with client.websocket_connect("/v1/audio/transcriptions/stream") as ws:
+            ws.receive_json()
+
+
+def test_noise_alone_is_not_an_utterance():
+    from voice.streaming import StreamSession
+    s = StreamSession()
+    assert s.feed(_pcm(2.0, False)) == []
+    blip = s.feed(_pcm(0.06, True) + _pcm(0.5, False))  # 60 ms click
+    assert [e.kind for e in blip] == ["start"]       # started, but too short to become an utterance
+
+
+def test_a_partial_early_in_the_pause_covers_the_whole_utterance():
+    from voice.streaming import StreamConfig, StreamSession
+    s = StreamSession(StreamConfig(silence_ms=700))
+    events = s.feed(_pcm(0.5, False) + _pcm(1.0, True) + _pcm(0.8, False))
+    kinds = [e.kind for e in events]
+    assert kinds[0] == "start" and kinds[-1] == "end"
+    last_partial = [e for e in events if e.kind == "partial_due"][-1]
+    end = events[-1]
+    # The partial taken 150 ms into the pause already holds all the speech: the endpoint can answer with it at once.
+    assert len(last_partial.audio) >= end.speech_end

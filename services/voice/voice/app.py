@@ -8,7 +8,7 @@ import time
 from dataclasses import replace
 from collections.abc import AsyncIterator
 
-from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel
@@ -18,6 +18,7 @@ from .config import LANGUAGES, Settings
 from .engines import SttEngine, SynthOptions, TtsEngine
 from .gpu import GpuMonitor
 from .meetings import MeetingEngine
+from .streaming import RATE, StreamConfig, StreamSession, wav_bytes
 from .vocabulary import apply_vocabulary, parse_vocabulary
 from .wav import streaming_header, to_pcm16
 
@@ -129,6 +130,99 @@ def create_app(settings: Settings, stt: SttEngine, tts: TtsEngine, gpu: GpuMonit
                              for i, s in enumerate(result.segments)],
             }
         return JSONResponse(body, headers=headers)
+
+    @app.websocket("/v1/audio/transcriptions/stream")
+    async def stream(ws: WebSocket):
+        """
+        Streaming transcription (#45). Binary frames: 16 kHz mono PCM16. Text frame {"type": "end"} finishes the session. Out:
+        {"type": "speech_start"}, {"type": "partial", "text"}, {"type": "final", "text", "language", "latency_ms", "audio_ms"},
+        {"type": "error", "message"}. Query: language (sv/en, default: detected on the first utterance), prompt (vocabulary),
+        silence_ms (200-2000, default 400: how long a pause ends an utterance).
+        """
+        supplied = (ws.headers.get("authorization") or "").removeprefix("Bearer ").strip()
+        if settings.api_key is not None and not hmac.compare_digest(supplied.encode(), settings.api_key.encode()):
+            await ws.close(code=4401)
+            return
+        language = ws.query_params.get("language") or None
+        if language == "auto":
+            language = None
+        prompt = ws.query_params.get("prompt") or None
+        if (language is not None and language not in LANGUAGES) or (prompt is not None and len(prompt) > settings.max_prompt_chars):
+            await ws.close(code=4400)
+            return
+        try:
+            silence = min(2000, max(200, int(ws.query_params.get("silence_ms") or 400)))
+        except ValueError:
+            silence = 400
+        await ws.accept()
+        session = StreamSession(StreamConfig(silence_ms=silence))
+        words = parse_vocabulary(prompt)
+        state = {"language": language, "text": "", "upto": 0}
+        running: list[asyncio.Task] = []
+
+        async def transcribe(audio):
+            async with gate:
+                result = await run_in_threadpool(stt.transcribe, wav_bytes(audio), state["language"], prompt)
+            if state["language"] is None:
+                state["language"] = result.language  # the first utterance decides the session's language
+            return apply_vocabulary(result.text, words) if words else result.text
+
+        async def partial(audio):
+            text = await transcribe(audio)
+            state["text"], state["upto"] = text, len(audio)
+            if text:
+                await ws.send_json({"type": "partial", "text": text})
+
+        async def final(audio, speech_end: int):
+            t0 = time.perf_counter()
+            for task in running:  # a partial in flight may already cover the whole utterance
+                await task
+            running.clear()
+            text = state["text"] if state["upto"] >= speech_end and state["text"] else await transcribe(audio)
+            await ws.send_json({"type": "final", "text": text, "language": state["language"],
+                                "latency_ms": round((time.perf_counter() - t0) * 1000), "audio_ms": round(len(audio) * 1000 / RATE)})
+            state["text"], state["upto"] = "", 0
+
+        try:
+            while True:
+                message = await ws.receive()
+                if message.get("type") == "websocket.disconnect":
+                    break
+                if message.get("bytes") is not None:
+                    for event in session.feed(message["bytes"]):
+                        if event.kind == "start":
+                            await ws.send_json({"type": "speech_start"})
+                        elif event.kind == "partial_due":
+                            running[:] = [t for t in running if not t.done()]
+                            # Backpressure: one partial at a time, the rest skipped; except the one early in a pause, which
+                            # covers the whole utterance and is worth waiting for.
+                            if not running or session.in_pause:
+                                running.append(asyncio.create_task(partial(event.audio)))
+                        elif event.kind == "end":
+                            await final(event.audio, event.speech_end)
+                    if session.total_samples > settings.max_stream_seconds * RATE:
+                        await ws.send_json({"type": "error", "message": f"The session is longer than {settings.max_stream_seconds} s."})
+                        break
+                elif message.get("text"):
+                    if '"end"' in message["text"]:
+                        if (event := session.flush()) is not None:
+                            await final(event.audio, event.speech_end)
+                        await ws.send_json({"type": "done"})
+                        break
+        except WebSocketDisconnect:
+            pass
+        except Exception as ex:  # an engine failure ends the session with a reason, not a dropped socket
+            try:
+                await ws.send_json({"type": "error", "message": f"Transcription failed: {type(ex).__name__}"})
+            except Exception:
+                pass
+        finally:
+            for task in running:
+                task.cancel()
+            try:
+                await ws.close()
+            except Exception:
+                pass
 
     @app.post("/v1/audio/meetings", dependencies=[Depends(authorize)])
     async def meeting(
