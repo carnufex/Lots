@@ -30,3 +30,4 @@ records themselves.
 | [0023](0023-automatic-context-routing.md) | Automatic context routing: a router in front of the run | accepted (2026-10-11). Implements #150. |
 | [0024](0024-multi-context-supervisor.md) | Multi-context questions: a tool-less supervisor over read-only sub-runs | accepted (2026-10-11). Implements #151, builds on ADR 0023. |
 | [0025](0025-speak-answers-while-they-stream.md) | Speak answers while they are written | accepted (2026-10-11). Extends ADR 0013 for #37. |
+| [0026](0026-keep-git-history-when-going-public.md) | Keep the git history when the repository goes public | accepted (2026-10-11). Decided in #160, part of #131. |
