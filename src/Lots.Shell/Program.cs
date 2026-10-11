@@ -74,6 +74,7 @@ builder.Services.AddSingleton<Lots.Shell.Core.Channels.SlackClient>();
 builder.Services.Configure<Lots.Shell.Core.Memory.MemoryOptions>(builder.Configuration.GetSection(Lots.Shell.Core.Memory.MemoryOptions.Section));
 builder.Services.AddSingleton<IToolSource, Lots.Shell.Core.Memory.MemoryToolSource>(); // remember (#99): only where a profile declares it
 builder.Services.AddSingleton<IToolSource, Lots.Shell.Core.Groups.GroupHistoryToolSource>(); // search_group_history (#153): likewise
+builder.Services.AddSingleton<IToolSource, Lots.Shell.Core.Meetings.MeetingToolSource>(); // list_meetings, read_meeting (#43): likewise
 builder.Services.Configure<DelegationOptions>(builder.Configuration.GetSection(DelegationOptions.Section));
 builder.Services.Configure<Lots.Shell.Core.Introspection.IntrospectionOptions>(builder.Configuration.GetSection(Lots.Shell.Core.Introspection.IntrospectionOptions.Section));
 builder.Services.AddHttpClient(Lots.Shell.Core.Introspection.IntrospectionToolSource.ServerName, h => h.Timeout = TimeSpan.FromSeconds(15));
