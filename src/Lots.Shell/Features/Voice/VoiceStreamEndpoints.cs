@@ -87,6 +87,8 @@ public static class VoiceStreamRelay
         using (var scope = scopes.CreateScope())
             vocabulary = [.. await Vocabulary.ForUserAsync(scope.ServiceProvider.GetRequiredService<LotsDbContext>(), me.UserId, o, http.RequestAborted)];
         var language = http.Request.Query["language"].ToString() is "sv" or "en" ? http.Request.Query["language"].ToString() : "auto";
+        // The conversation the utterances belong to, so History and the latency eval see speech to text for streamed turns too.
+        Guid? conversation = Guid.TryParse(http.Request.Query["conversation"], out var c) ? c : null;
         var silence = int.TryParse(http.Request.Query["silence_ms"], out var s) ? Math.Clamp(s, 200, 2000) : 700;
         var target = new UriBuilder(new Uri(new Uri(o.BaseUrl.TrimEnd('/') + "/"), "audio/transcriptions/stream"))
         {
@@ -117,6 +119,7 @@ public static class VoiceStreamRelay
             {
                 Id = Guid.NewGuid(), At = clock.GetUtcNow(), UserId = me.UserId, Direction = "Stt", AudioSeconds = seconds, LatencyMs = latency,
                 Language = doc.RootElement.TryGetProperty("language", out var lang) ? lang.GetString() : null, Provider = SpeechProviderName.Of(o), Outcome = "ok",
+                ConversationId = conversation,
             });
             await db.SaveChangesAsync(CancellationToken.None);
             Core.Telemetry.LotsMetrics.SpeechRequests.Add(1, new("direction", "stt"), new("outcome", "ok"));

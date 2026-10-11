@@ -375,13 +375,7 @@ public sealed class AcknowledgementEndpoint(
         var voice = UserSettings.VoiceOf(await UserSettings.OfAsync(db, who.Get(HttpContext).UserId, ct)); // same voice as the answer
         try
         {
-            var bytes = await cache.GetAsync((language, phrase, voice.VoiceId ?? "", voice.Expressiveness ?? 0, voice.Pace ?? 0), async () =>
-            {
-                using var audio = await tts.SynthesizeAsync(phrase, language, voice, ct);
-                using var ms = new MemoryStream();
-                await audio.Content.CopyToAsync(ms, ct);
-                return (ms.ToArray(), audio.ContentType);
-            });
+            var bytes = await cache.GetAsync(tts, language, phrase, voice, ct);
             await Send.BytesAsync(bytes.Audio, contentType: bytes.ContentType, cancellation: ct);
         }
         catch (SpeechUnavailableException)
@@ -396,11 +390,45 @@ public sealed class AcknowledgementCache
 {
     private readonly System.Collections.Concurrent.ConcurrentDictionary<(string, string, string, double, double), (byte[] Audio, string ContentType)> _items = new();
 
-    public async Task<(byte[] Audio, string ContentType)> GetAsync((string Language, string Phrase, string Voice, double Expressiveness, double Pace) key, Func<Task<(byte[], string)>> create)
+    public async Task<(byte[] Audio, string ContentType)> GetAsync(ITextToSpeech tts, string language, string phrase, SpeechVoice voice, CancellationToken ct)
     {
+        var key = (language, phrase, voice.VoiceId ?? "", voice.Expressiveness ?? 0, voice.Pace ?? 0);
         if (_items.TryGetValue(key, out var hit)) return hit;
-        var made = await create();
-        return _items.GetOrAdd(key, made);
+        using var audio = await tts.SynthesizeAsync(phrase, language, voice, ct);
+        using var ms = new MemoryStream();
+        await audio.Content.CopyToAsync(ms, ct);
+        // A fallback voice (the GPU was busy, #84) is fine once, but is not kept: the next request gets the real voice.
+        return audio.Fallback is null ? _items.GetOrAdd(key, (ms.ToArray(), audio.ContentType)) : (ms.ToArray(), audio.ContentType);
+    }
+}
+
+/// <summary>
+/// Synthesizes the configured acknowledgements in the default voice after startup (#37), so the first conversation's
+/// "Jag kollar." starts within the latency budget instead of waiting several seconds for synthesis.
+/// </summary>
+public sealed class AcknowledgementWarmup(IServiceScopeFactory scopes, AcknowledgementCache cache, IOptions<SpeechOptions> options,
+    ILogger<AcknowledgementWarmup> logger) : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stop)
+    {
+        var o = options.Value;
+        if (!o.Enabled) return;
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(10), stop);
+            using var scope = scopes.CreateScope();
+            var tts = scope.ServiceProvider.GetRequiredService<ITextToSpeech>();
+            var voice = UserSettings.VoiceOf(null);
+            foreach (var (language, phrases) in o.Acknowledgements)
+                foreach (var phrase in phrases)
+                    await cache.GetAsync(tts, language, phrase, voice, stop);
+            logger.LogInformation("Acknowledgements ready");
+        }
+        catch (Exception ex) when (!stop.IsCancellationRequested)
+        {
+            logger.LogInformation("Acknowledgement warm-up skipped: {Error}", ex.Message); // the first request synthesizes instead
+        }
+        catch (OperationCanceledException) { }
     }
 }
 

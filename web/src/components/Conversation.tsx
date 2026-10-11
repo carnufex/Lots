@@ -19,7 +19,8 @@ const STATUS: Record<AvatarState, string> = {
 }
 
 const SENSITIVITY: Record<string, number> = { low: 0.7, normal: 1, high: 1.5 }
-const ACK_AFTER_MS = 900
+// From the transcript: with the end-of-speech wait before it, the acknowledgement starts within about a second of the user stopping (#37).
+const ACK_AFTER_MS = 200
 const POLL_MS = 350
 const GIVE_UP_MS = 60_000 // a turn that has not answered by now is stuck: say so instead of staying silent
 
@@ -99,6 +100,13 @@ export default function Conversation({
   const socket = useRef<WebSocket | null>(null)
   const noFinal = useRef<number | undefined>(undefined)
   const [live, setLive] = useState('')
+  // An acknowledgement fetched ahead per language, so it plays without waiting for synthesis; refilled after each use.
+  const acks = useRef<Partial<Record<VoiceLanguage, Promise<Blob | null>>>>({})
+  const prefetchAck = useCallback((language: VoiceLanguage) => {
+    const next = api.ack(language).catch(() => null)
+    acks.current[language] = next
+    return next
+  }, [api])
   const turns = useRef(0)
   const hooks = useRef({ onTurn, onEnd })
   useEffect(() => {
@@ -156,22 +164,26 @@ export default function Conversation({
         add({ who: 'you', text })
         const spoken: VoiceLanguage = heard.language === 'en' ? 'en' : languageRef.current === 'en' ? 'en' : 'sv'
 
+        // A short fixed acknowledgement if the answer takes a moment, so it never feels like silence.
+        const ack = window.setTimeout(() => {
+          // The one fetched ahead (or still on its way); another phrase is fetched for the next turn once this one is here.
+          const ready = acks.current[spoken] ?? prefetchAck(spoken)
+          void ready.then((blob) => {
+            if (blob && mine === turn.current && stateRef.current === 'thinking') void player.current.play(blob)
+            void prefetchAck(spoken)
+          })
+        }, ACK_AFTER_MS)
+
         const started = await api.startRun(text, profileRef.current || null, { voice: true, conversationId: conversationId.current })
         if (mine !== turn.current) return
         if ('choose' in started) {
+          window.clearTimeout(ack)
           // Never a silent guess (#150): say so, and let the user pick the context in the chat.
           add({ who: 'agent', text: t('I am not sure where this belongs: {list}. Pick a context in the chat and ask again.', { list: started.choose.candidates.map((c) => c.profile).join(', ') }), failed: true })
           go('listening')
           return
         }
         const run = started
-
-        // A short fixed acknowledgement if the answer takes a moment, so it never feels like silence.
-        const ack = window.setTimeout(() => {
-          void api.ack(spoken).then((blob) => {
-            if (blob && mine === turn.current && stateRef.current === 'thinking') void player.current.play(blob)
-          })
-        }, ACK_AFTER_MS)
 
         // Speak the answer sentence by sentence while it is written (#37): the first sentence plays while the rest is generated.
         const speaker = (async () => {
@@ -243,7 +255,7 @@ export default function Conversation({
         go('listening')
       }
     },
-    [api, go, speakNow],
+    [api, go, speakNow, prefetchAck],
   )
 
   const start = async () => {
@@ -254,6 +266,7 @@ export default function Conversation({
     turns.current = 0
     setMessages([])
     player.current.prepare() // inside the click: lets the browser play audio later without another gesture
+    void prefetchAck(languageRef.current === 'en' ? 'en' : 'sv')
     // Streaming (#37): the shell relays the microphone to the voice service, which transcribes while you speak and ends the
     // utterance; push-per-utterance stays the fallback when the socket cannot be opened or drops.
     socket.current = null
@@ -261,7 +274,7 @@ export default function Conversation({
       try {
         const { ticket } = await api.streamTicket()
         const lang = languageRef.current === 'auto' ? '' : `&language=${languageRef.current}`
-        const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/voice/stream?ticket=${encodeURIComponent(ticket)}${lang}&silence_ms=700`)
+        const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/voice/stream?ticket=${encodeURIComponent(ticket)}${lang}&silence_ms=700&conversation=${conversationId.current}`)
         ws.binaryType = 'arraybuffer'
         await new Promise<void>((ok, fail) => {
           ws.onopen = () => ok()

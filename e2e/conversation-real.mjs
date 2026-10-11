@@ -12,6 +12,13 @@ const sockets = []
 page.on('websocket', (ws) => { sockets.push(ws.url()); ws.on('framereceived', (f) => typeof f.payload === 'string' && f.payload.includes('"final"') && console.log('stream final:', f.payload)) })
 await page.addInitScript(() => {
   window.__log = []; const t0 = performance.now()
+  // First audio of each turn (the acknowledgement or the answer) and when the streamed final arrived, on the page's clock.
+  const play = HTMLMediaElement.prototype.play
+  HTMLMediaElement.prototype.play = function () { window.__log.push({ s: 'audio', t: Math.round(performance.now() - t0) }); return play.call(this) }
+  const WS = window.WebSocket
+  window.WebSocket = class extends WS {
+    constructor(...a) { super(...a); this.addEventListener('message', (e) => { if (String(e.data).includes('"final"')) window.__log.push({ s: 'final', t: Math.round(performance.now() - t0) }) }) }
+  }
   new MutationObserver(() => { const s = document.querySelector('[data-testid="conversation-state"]')?.getAttribute('data-state'); if (s && window.__log.at(-1)?.s !== s) window.__log.push({ s, t: Math.round(performance.now() - t0) }) }).observe(document, { subtree: true, attributes: true, childList: true })
 })
 await page.goto(`${base}/#/chat`)
@@ -22,6 +29,12 @@ await page.waitForTimeout(1500)
 const log = await page.evaluate(() => window.__log)
 const at = (s) => log.find((e) => e.s === s)?.t
 console.log('states:', log.map((e) => `${e.s}@${e.t}`).join(' → '))
+const final = at('final'), audio = log.find((e) => e.s === 'audio' && e.t >= (final ?? at('thinking')))?.t
+// The final arrives when the voice service has heard 700 ms of silence, so end of speech is 700 ms before it.
+// Budget (#36/#37): the acknowledgement starts within 1 s of the end of speech (p95 1.5 s; one run is checked against p95).
+const ackMs = final !== undefined && audio !== undefined ? audio - final + 700 : undefined
+console.log(`end of speech -> first audio (acknowledgement): ${ackMs ?? '?'} ms ${ackMs === undefined ? '(no streamed final)' : ackMs <= 1000 ? '(within 1 s)' : ackMs <= 1500 ? '(over 1 s, within the p95 1.5 s)' : '(OVER BUDGET)'}`)
+if (ackMs !== undefined && ackMs > 1500) process.exitCode = 1
 console.log(`speech ended -> speaking: ${at('speaking') - at('thinking')} ms (thinking started when the utterance ended, incl. the 700 ms end-of-speech wait is before that)`)
 console.log('streaming sockets:', sockets.map((u) => u.replace(/ticket=[^&]+/, 'ticket=…')).join(', ') || 'none')
 console.log((await page.locator('.transcript .line').allInnerTexts()).map((l) => l.replace(/\s+/g, ' ')).join('\n'))
