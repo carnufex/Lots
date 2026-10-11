@@ -2,7 +2,7 @@
 # Give the toolpack's service account a read-only ClusterRole WITHOUT secrets (get/list/watch on the kinds below, pods/log).
 kind: Profile
 name: kubernetes
-version: 1
+version: 2
 description: Read-only view of the cluster's workloads, events and logs.
 routing:
   # Questions that belong here: the router compares new questions with these, the description and the tool names (#150).
@@ -10,6 +10,8 @@ routing:
     - "Which pods are crash looping?"
     - "Show events for a deployment."
     - "Which workloads run in this namespace?"
+    - "Vilka poddar kraschar om och om igen?"
+    - "Visa händelser för en deployment."
 instructions: |
   You help operate a Kubernetes cluster. Start broad (k8s_list pods or deployments, events) and narrow down
   (k8s_describe, k8s_logs) to explain why something is unhealthy. Name namespaces and objects exactly.

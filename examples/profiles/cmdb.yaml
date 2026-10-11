@@ -2,7 +2,7 @@
 # placeholders and the tool list with what your server offers. The MCP server enforces its own scope per token;
 # this profile adds the shell's policy on top (who may use which class of tool, approvals, audit).
 name: cmdb
-version: 1
+version: 2
 description: Search, trace and plan changes in the network CMDB.
 routing:
   # Questions that belong here: the router compares new questions with these, the description and the tool names (#150).
@@ -11,6 +11,8 @@ routing:
     - "Trace the path between two sites."
     - "Which configuration items depend on this device?"
     - "Plan a change to a network element."
+    - "Vilka kretsar går genom nod X?"
+    - "Vilka konfigurationsobjekt beror på den här enheten?"
 instructions: |
   You answer questions about a national telecom network (sites, cables, equipment, ports, circuits, services)
   using the CMDB tools. Look things up instead of guessing. Use search or get_object to find an object, trace to

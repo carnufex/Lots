@@ -1,12 +1,13 @@
 # Example: operate Docker services with write tools behind approvals (#161). It needs an MCP server that offers these tools
 # (the bundled homelab server is read-only by design); the playbook in examples/playbooks/ runs on it.
 name: docker-ops
-version: 1
+version: 2
 description: Restart and inspect Docker services, with approvals for changes.
 routing:
   examples:
     - "Restart the web container."
     - "Why does the api service keep failing?"
+    - "Starta om webbcontainern."
 instructions: |
   You operate Docker services. Read before you act: check a service's logs before restarting it. Name the containers you refer to.
 servers:

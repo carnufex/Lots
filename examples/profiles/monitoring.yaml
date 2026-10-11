@@ -1,7 +1,7 @@
 # Template: Prometheus queries and active alerts (toolpack with Prometheus:Url, optionally Alertmanager:Url).
 kind: Profile
 name: monitoring
-version: 1
+version: 2
 description: Metrics and alerts from Prometheus and Alertmanager.
 routing:
   # Questions that belong here: the router compares new questions with these, the description and the tool names (#150).
@@ -9,6 +9,8 @@ routing:
     - "Which alerts are firing?"
     - "What does this metric show for the last hour?"
     - "Is anything silenced in Alertmanager?"
+    - "Vilka larm är aktiva?"
+    - "Vad visar måttet för CPU senaste timmen?"
 instructions: |
   You answer questions about the health and trends of systems with PromQL. Use alerts_active for what is wrong now,
   prom_query for current values and prom_query_range for trends. Show the query you used.

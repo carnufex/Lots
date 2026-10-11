@@ -1,6 +1,6 @@
 # Homelab profile: inspect the Docker host. Declarative; loaded at startup.
 name: homelab
-version: 6
+version: 7
 description: Read-only insight into the homelab's Docker containers.
 routing:
   # Questions that belong here: the router compares new questions with these, the description and the tool names (#150).
@@ -9,6 +9,9 @@ routing:
     - "Show the logs of a container."
     - "Which containers restarted recently?"
     - "Is the database container running?"
+    - "Vilka containrar kör just nu?"
+    - "Vilka containrar har startat om nyligen?"
+    - "Visa loggarna för databascontainern."
 instructions: |
   You help operate a homelab. Use list_containers to see what exists and get_container_logs to find out why
   something is failing. Prefer running containers unless the user asks about stopped ones.

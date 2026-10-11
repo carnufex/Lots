@@ -89,12 +89,26 @@ public sealed partial class ContextRouter(ProfileRegistry profiles, IOptions<Rou
         var o = options.Value;
         var (scores, method) = await ScoreAsync(usable, question, ct);
         var decision = Decide(me, usable, scores, method, method == "embedding" ? o.Embedding : o.Lexical, current, o);
-        // A cheap second opinion when the embedding is unsure (e.g. a language the embedding model handles poorly): the words.
-        if (decision.Mode == "ask" && method == "embedding")
+        if (method == "embedding")
         {
+            // A cheap second opinion from the words. The embedding model can be swayed by the language of a question more than by its
+            // subject (a Swedish question looks like any Swedish example), so the words break a tie and veto a confident disagreement.
             var words = Words(question);
-            var lexical = Decide(me, usable, usable.Select(p => Documents(p).Max(d => Overlap(words, Words(d)))).ToArray(), "lexical", o.Lexical, current, o);
-            if (lexical.Mode is "auto" or "sticky") decision = lexical with { Method = "embedding+lexical", Reason = lexical.Reason + " (words, the embedding was unsure)" };
+            var wordScores = usable.Select(p => Documents(p).Max(d => Overlap(words, Words(d)))).ToArray();
+            var lexical = Decide(me, usable, wordScores, "lexical", o.Lexical, current, o);
+            if (decision.Mode == "ask" && lexical.Mode is "auto" or "sticky")
+                decision = lexical with { Method = "embedding+lexical", Reason = lexical.Reason + " (words, the embedding was unsure)" };
+            else if (decision.Mode == "multi" && lexical.Mode == "auto" && decision.Contexts!.Contains(lexical.Profile!) &&
+                     decision.Contexts.Where(c => c != lexical.Profile).All(c => wordScores[usable.ToList().FindIndex(p => p.Name == c)] < o.Lexical.MinScore))
+                // Several contexts look alike to the embedding (often just because they share the question's language), but the words
+                // support only one of them: no fan-out. A question whose words reach into several contexts stays multi.
+                decision = lexical with { Method = "embedding+lexical", Reason = lexical.Reason + " (words; the embedding saw several close contexts)" };
+            else if (decision.Mode == "auto" && lexical.Mode == "auto" && lexical.Profile != decision.Profile)
+                decision = decision with
+                {
+                    Profile = null, Mode = "ask", Method = "embedding+lexical",
+                    Reason = $"the meaning points to {decision.Profile}, the words to {lexical.Profile}",
+                };
         }
         return decision with { LatencyMs = watch.ElapsedMilliseconds };
     }

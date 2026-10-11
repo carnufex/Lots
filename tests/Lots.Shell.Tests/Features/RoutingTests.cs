@@ -143,6 +143,35 @@ public class ContextRouterTests
         Assert.Equal(calls + 1, model.Calls); // only the question is embedded again
     }
 
+    /// <summary>An embedding that only sees the language: every Swedish text looks alike (what a mostly English model does).</summary>
+    private sealed class LanguageOnlyEmbeddings : IEmbeddingModel
+    {
+        public bool Configured => true;
+        public string Model => "language-only";
+
+        public Task<EmbeddingResult> EmbedAsync(IReadOnlyList<string> texts, CancellationToken ct) =>
+            Task.FromResult(new EmbeddingResult(texts.Select(t => t.Any(c => "åäöÅÄÖ".Contains(c)) ? new[] { 1f, 0.1f } : new[] { 0.1f, 1f }).ToList(),
+                Model, 2, 1, TimeSpan.Zero));
+    }
+
+    [Fact]
+    public async Task When_meaning_and_words_disagree_confidently_the_router_asks()
+    {
+        var meetings = ProfileParser.Parse("""
+            name: meetings
+            version: 1
+            description: Your recorded meetings.
+            routing:
+              examples: ["Vad bestämdes på mötet?"]
+            tools: [{ name: read_meeting, risk: read }]
+            roles: [{ name: operator, allow: [read] }]
+            """);
+        var router = Router(new LanguageOnlyEmbeddings(), Homelab, meetings);
+        var d = await router.RouteAsync(Operator, "Vilka containrar kör vi just nu?", null, default);
+        Assert.Equal("ask", d.Mode); // the embedding says meetings (Swedish), the words say homelab (containers): never a silent guess
+        Assert.Contains("the words to homelab", d.Reason);
+    }
+
     [Fact]
     public async Task A_failing_embedding_model_falls_back_to_words()
     {
