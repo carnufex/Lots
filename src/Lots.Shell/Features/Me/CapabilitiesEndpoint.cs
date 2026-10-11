@@ -9,7 +9,8 @@ namespace Lots.Shell.Features.Me;
 /// <param name="Preview">Set while viewing as other roles (#156): the previewed roles, the real ones and when it ends.</param>
 /// <param name="CanPreview">The caller is an admin by their real roles and may start a role preview.</param>
 public sealed record CapabilitiesDto(IReadOnlyList<string> Pages, IReadOnlyList<string> Contexts, bool Admin, bool Audit, bool Reviewer, bool Insights, bool Approve,
-    PreviewState? Preview = null, bool CanPreview = false, IReadOnlyList<string>? Roles = null, IReadOnlyList<string>? KnownRoles = null);
+    PreviewState? Preview = null, bool CanPreview = false, IReadOnlyList<string>? Roles = null, IReadOnlyList<string>? KnownRoles = null,
+    bool KnowledgeInspect = false);
 
 public sealed record PreviewState(IReadOnlyList<string> Roles, IReadOnlyList<string> RealRoles, DateTimeOffset Expires, bool AllowWrites);
 
@@ -43,7 +44,8 @@ public static class Capabilities
         var real = me.Preview is { } p ? new Principal(me.UserId, p.RealRoles) : me;
         return new CapabilitiesDto(pages, contexts, admin, audit, reviewer, insights, approve,
             me.Preview is { } pv ? new PreviewState(me.Roles, pv.RealRoles, pv.Expires, pv.AllowWrites) : null,
-            PreviewTokens.IsAdmin(real, config), me.Roles, PreviewTokens.IsAdmin(real, config) ? KnownRoles(config, profiles) : null);
+            PreviewTokens.IsAdmin(real, config), me.Roles, PreviewTokens.IsAdmin(real, config) ? KnownRoles(config, profiles) : null,
+            Knowledge.KnowledgeInspector.Allowed(me, config));
     }
 
     /// <summary>Every role something in this deployment checks: profile roles and the configured shell roles. For pickers, not for policy.</summary>

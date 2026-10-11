@@ -293,7 +293,12 @@ public sealed class PostgresKnowledgeStore(NpgsqlDataSource data, TimeProvider c
         JOIN knowledge_sources s ON s.id = c.source_id
         """;
 
-    public async Task<List<KnowledgeHit>> SearchAsync(string query, float[]? vector, string? model, string[] readers, int k, string? sourceId, CancellationToken ct)
+    /// <summary>Production retrieval: the last stage of the traced search (#158), so the inspector shows exactly this.</summary>
+    public async Task<List<KnowledgeHit>> SearchAsync(string query, float[]? vector, string? model, string[] readerTokens, int k, string? sourceId, CancellationToken ct) =>
+        [.. (await SearchTracedAsync(query, vector, model, readerTokens, k, sourceId, explain: false, ct)).Final];
+
+    public async Task<RetrievalTrace> SearchTracedAsync(string query, float[]? vector, string? model, string[] readers, int k, string? sourceId, bool explain,
+        CancellationToken ct)
     {
         const int Candidates = 40;
         await using var conn = await data.OpenConnectionAsync(ct);
@@ -308,7 +313,35 @@ public sealed class PostgresKnowledgeStore(NpgsqlDataSource data, TimeProvider c
             await using var r = await cmd.ExecuteReaderAsync(ct);
             while (await r.ReadAsync(ct)) readable.Add(r.GetString(0));
         }
-        if (readable.Count == 0) return [];
+        var terms = KnowledgeText.Terms(query);
+        var tsquery = string.Join(" | ", terms.Select(t => "'" + t.Replace("'", "''") + "'"));
+        var hidden = new List<HiddenSource>();
+        var otherModel = 0;
+        if (explain)
+        {
+            // Counts only: how many chunks of sources the reader may not read match the words, and which of the readable ones were
+            // embedded with another model. Never their content.
+            if (terms.Count > 0)
+            {
+                await using var cmd = new NpgsqlCommand("""
+                    SELECT s.id, s.name, count(*) FROM knowledge_chunks c JOIN knowledge_sources s ON s.id = c.source_id, to_tsquery('simple', $1) q
+                    WHERE c.tsv @@ q AND NOT (s.readers && $2) AND ($3::text IS NULL OR s.id = $3) GROUP BY s.id, s.name ORDER BY count(*) DESC
+                    """, conn);
+                cmd.Parameters.AddWithValue(tsquery);
+                cmd.Parameters.AddWithValue(readers);
+                cmd.Parameters.Add(new NpgsqlParameter { Value = (object?)sourceId ?? DBNull.Value, NpgsqlDbType = NpgsqlDbType.Text });
+                await using var r = await cmd.ExecuteReaderAsync(ct);
+                while (await r.ReadAsync(ct)) hidden.Add(new HiddenSource(r.GetString(0), r.GetString(1), (int)r.GetInt64(2)));
+            }
+            if (readable.Count > 0)
+            {
+                await using var cmd = new NpgsqlCommand("SELECT count(*) FROM knowledge_chunks WHERE source_id = ANY($1) AND model IS DISTINCT FROM $2", conn);
+                cmd.Parameters.AddWithValue(readable.ToArray());
+                cmd.Parameters.Add(new NpgsqlParameter { Value = (object?)model ?? DBNull.Value, NpgsqlDbType = NpgsqlDbType.Text });
+                otherModel = (int)(long)(await cmd.ExecuteScalarAsync(ct) ?? 0L);
+            }
+        }
+        if (readable.Count == 0) return new RetrievalTrace(model, vector?.Length ?? 0, [], [], [], [], terms, otherModel, hidden);
         var ids = readable.ToArray();
 
         var byVector = new List<KnowledgeHit>();
@@ -324,11 +357,12 @@ public sealed class PostgresKnowledgeStore(NpgsqlDataSource data, TimeProvider c
                     WITH nn AS (SELECT c.id, c.vec::vector({dims}) <=> $1::real[]::vector({dims}) AS dist FROM knowledge_chunks c
                                 WHERE c.dims = {dims} AND c.model = $2 AND c.source_id = ANY($3)
                                 ORDER BY c.vec::vector({dims}) <=> $1::real[]::vector({dims}) LIMIT {Candidates})
-                    {HitSelect} JOIN nn ON nn.id = c.id ORDER BY nn.dist
+                    {HitSelect.Replace("d.content_hash", "d.content_hash, 1 - nn.dist")} JOIN nn ON nn.id = c.id ORDER BY nn.dist
                     """;
             }
             else
-                sql = HitSelect + $" WHERE c.dims = {dims} AND c.model = $2 AND c.source_id = ANY($3) ORDER BY lots_dot(c.embedding, $1) DESC LIMIT {Candidates}";
+                sql = HitSelect.Replace("d.content_hash", "d.content_hash, lots_dot(c.embedding, $1)")
+                      + $" WHERE c.dims = {dims} AND c.model = $2 AND c.source_id = ANY($3) ORDER BY lots_dot(c.embedding, $1) DESC LIMIT {Candidates}";
             await using var cmd = new NpgsqlCommand(sql, conn);
             cmd.Parameters.Add(new NpgsqlParameter { Value = vector, NpgsqlDbType = NpgsqlDbType.Array | NpgsqlDbType.Real });
             cmd.Parameters.AddWithValue(model);
@@ -337,21 +371,81 @@ public sealed class PostgresKnowledgeStore(NpgsqlDataSource data, TimeProvider c
         }
 
         var byText = new List<KnowledgeHit>();
-        var terms = KnowledgeText.Terms(query);
         if (terms.Count > 0)
         {
             // Any of the words (OR), ranked by how many and how close: a question's filler words must not make it match nothing.
-            await using var cmd = new NpgsqlCommand(HitSelect + $"""
+            await using var cmd = new NpgsqlCommand(HitSelect.Replace("d.content_hash", "d.content_hash, ts_rank_cd(c.tsv, q)") + $"""
                 , to_tsquery('simple', $1) q
                 WHERE c.tsv @@ q AND c.source_id = ANY($2)
                 ORDER BY ts_rank_cd(c.tsv, q) DESC LIMIT {Candidates}
                 """, conn);
-            cmd.Parameters.AddWithValue(string.Join(" | ", terms.Select(t => "'" + t.Replace("'", "''") + "'")));
+            cmd.Parameters.AddWithValue(tsquery);
             cmd.Parameters.AddWithValue(ids);
             byText = await ReadHits(cmd, ct);
         }
 
-        return KnowledgeText.Fuse(byVector, byText, k);
+        static RankedHit Ranked(KnowledgeHit h, int i) => new(h.ChunkId, h.SourceId, h.Title, h.Heading, i + 1, Math.Round(h.Score, 5));
+        return new RetrievalTrace(model, vector?.Length ?? 0, [.. readable.Order()], byVector.Select(Ranked).ToList(), byText.Select(Ranked).ToList(),
+            KnowledgeText.Fuse(byVector.Select(h => h with { Score = 0 }).ToList(), byText.Select(h => h with { Score = 0 }).ToList(), k), terms, otherModel, hidden);
+    }
+
+    public async Task<List<ChunkInfo>> ChunksAsync(Guid documentId, CancellationToken ct)
+    {
+        await using var cmd = data.CreateCommand("""
+            SELECT id, seq, heading, text, model, dims, sqrt(coalesce(lots_dot(embedding, embedding), 0)), 'NaN'::real = ANY(embedding)
+            FROM knowledge_chunks WHERE document_id = $1 ORDER BY seq
+            """);
+        cmd.Parameters.AddWithValue(documentId);
+        await using var r = await cmd.ExecuteReaderAsync(ct);
+        var list = new List<ChunkInfo>();
+        string? previous = null;
+        while (await r.ReadAsync(ct))
+        {
+            var text = r.GetString(3);
+            var norm = r.IsDBNull(6) ? 0 : r.GetDouble(6);
+            var nan = !r.IsDBNull(7) && r.GetBoolean(7);
+            list.Add(new ChunkInfo(r.GetString(0), r.GetInt32(1), r.GetString(2), text, text.Length, KnowledgeInspection.Tokens(text), r.GetString(4), r.GetInt32(5),
+                Math.Round(norm, 5), KnowledgeInspection.Flags(text, norm, nan, previous)));
+            previous = text;
+        }
+        return list;
+    }
+
+    public async Task<List<ChunkMeta>> ChunkMetaAsync(int limit, CancellationToken ct)
+    {
+        await using var cmd = data.CreateCommand("""
+            SELECT c.id, c.source_id, d.id, d.title, d.updated_at, c.seq, c.model, c.dims, sqrt(coalesce(lots_dot(c.embedding, c.embedding), 0)),
+                   'NaN'::real = ANY(c.embedding), length(c.text), md5(c.text)
+            FROM knowledge_chunks c JOIN knowledge_documents d ON d.id = c.document_id LIMIT $1
+            """);
+        cmd.Parameters.AddWithValue(limit);
+        await using var r = await cmd.ExecuteReaderAsync(ct);
+        var list = new List<ChunkMeta>();
+        while (await r.ReadAsync(ct))
+            list.Add(new ChunkMeta(r.GetString(0), r.GetString(1), r.GetGuid(2), r.GetString(3), r.GetFieldValue<DateTimeOffset>(4), r.GetInt32(5), r.GetString(6),
+                r.GetInt32(7), r.IsDBNull(8) ? 0 : r.GetDouble(8), !r.IsDBNull(9) && r.GetBoolean(9), r.GetInt32(10), r.GetString(11)));
+        return list;
+    }
+
+    public async Task<List<VectorSample>> SampleVectorsAsync(string model, int limit, CancellationToken ct)
+    {
+        await using var cmd = data.CreateCommand("""
+            SELECT c.id, c.source_id, d.title, c.heading, c.embedding FROM knowledge_chunks c JOIN knowledge_documents d ON d.id = c.document_id
+            WHERE c.model = $1 ORDER BY c.id LIMIT $2
+            """);
+        cmd.Parameters.AddWithValue(model);
+        cmd.Parameters.AddWithValue(limit);
+        await using var r = await cmd.ExecuteReaderAsync(ct);
+        var list = new List<VectorSample>();
+        while (await r.ReadAsync(ct)) list.Add(new VectorSample(r.GetString(0), r.GetString(1), r.GetString(2), r.GetString(3), r.GetFieldValue<float[]>(4)));
+        return list;
+    }
+
+    public async Task<float[]?> ChunkVectorAsync(string chunkId, CancellationToken ct)
+    {
+        await using var cmd = data.CreateCommand("SELECT embedding FROM knowledge_chunks WHERE id = $1");
+        cmd.Parameters.AddWithValue(chunkId);
+        return await cmd.ExecuteScalarAsync(ct) as float[];
     }
 
     public async Task<KnowledgeHit?> ChunkAsync(string chunkId, string[] readers, CancellationToken ct)
@@ -368,7 +462,8 @@ public sealed class PostgresKnowledgeStore(NpgsqlDataSource data, TimeProvider c
         var list = new List<KnowledgeHit>();
         while (await r.ReadAsync(ct))
             list.Add(new KnowledgeHit(r.GetString(0), r.GetString(1), r.GetString(2), r.GetGuid(3), r.GetString(4), r.IsDBNull(5) ? null : r.GetString(5),
-                r.GetFieldValue<DateTimeOffset>(6), r.GetString(7), r.GetString(8), r.GetString(9), 0, null, null));
+                r.GetFieldValue<DateTimeOffset>(6), r.GetString(7), r.GetString(8), r.GetString(9),
+                r.FieldCount > 10 && !r.IsDBNull(10) ? Convert.ToDouble(r.GetValue(10)) : 0, null, null)); // the ranking's raw score (#158)
         return list;
     }
 

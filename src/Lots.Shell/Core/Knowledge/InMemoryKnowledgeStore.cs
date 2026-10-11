@@ -142,7 +142,12 @@ public sealed class InMemoryKnowledgeStore(TimeProvider clock) : IKnowledgeStore
         return Task.CompletedTask;
     }
 
-    public Task<List<KnowledgeHit>> SearchAsync(string query, float[]? vector, string? model, string[] readerTokens, int k, string? sourceId, CancellationToken ct)
+    /// <summary>Production retrieval: the last stage of the traced search (#158), so the inspector shows exactly this.</summary>
+    public async Task<List<KnowledgeHit>> SearchAsync(string query, float[]? vector, string? model, string[] readerTokens, int k, string? sourceId, CancellationToken ct) =>
+        [.. (await SearchTracedAsync(query, vector, model, readerTokens, k, sourceId, explain: false, ct)).Final];
+
+    public Task<RetrievalTrace> SearchTracedAsync(string query, float[]? vector, string? model, string[] readerTokens, int k, string? sourceId, bool explain,
+        CancellationToken ct)
     {
         lock (_gate)
         {
@@ -152,19 +157,67 @@ public sealed class InMemoryKnowledgeStore(TimeProvider clock) : IKnowledgeStore
             var candidates = _docs.Where(d => readable.ContainsKey(d.Document.SourceId))
                 .SelectMany(d => d.Chunks.Select(c => (Doc: d, Chunk: c))).ToList();
 
-            var byVector = vector is null ? [] : candidates
+            var vectorRanked = vector is null ? [] : candidates
                 .Where(x => x.Doc.Model == model && x.Chunk.Embedding.Length == vector.Length)
-                .Select(x => (x, Score: Dot(x.Chunk.Embedding, vector))).OrderByDescending(x => x.Score).Take(40)
-                .Select(x => Hit(readable, x.x.Doc, x.x.Chunk, x.Score)).ToList();
+                .Select(x => (x, Score: Dot(x.Chunk.Embedding, vector))).OrderByDescending(x => x.Score).Take(40).ToList();
+            var byVector = vectorRanked.Select(x => Hit(readable, x.x.Doc, x.x.Chunk, x.Score)).ToList();
 
             var terms = KnowledgeText.Terms(query);
-            var byText = candidates
-                .Select(x => (x, Score: terms.Count(t => (x.Chunk.Heading + " " + x.Chunk.Text).Contains(t, StringComparison.OrdinalIgnoreCase))))
-                .Where(x => x.Score > 0).OrderByDescending(x => x.Score).Take(40)
-                .Select(x => Hit(readable, x.x.Doc, x.x.Chunk, x.Score)).ToList();
+            int Matches((Doc Doc, StoredChunk Chunk) x) => terms.Count(t => (x.Chunk.Heading + " " + x.Chunk.Text).Contains(t, StringComparison.OrdinalIgnoreCase));
+            var textRanked = candidates.Select(x => (x, Score: Matches(x))).Where(x => x.Score > 0).OrderByDescending(x => x.Score).Take(40).ToList();
+            var byText = textRanked.Select(x => Hit(readable, x.x.Doc, x.x.Chunk, x.Score)).ToList();
 
-            return Task.FromResult(KnowledgeText.Fuse(byVector, byText, k));
+            var hidden = new List<HiddenSource>();
+            var otherModel = 0;
+            if (explain)
+            {
+                foreach (var g in _docs.Where(d => !readable.ContainsKey(d.Document.SourceId) && (sourceId is null || d.Document.SourceId == sourceId))
+                             .SelectMany(d => d.Chunks.Select(c => (Doc: d, Chunk: c))).Where(x => terms.Count > 0 && Matches(x) > 0)
+                             .GroupBy(x => x.Doc.Document.SourceId))
+                    hidden.Add(new HiddenSource(g.Key, _sources.TryGetValue(g.Key, out var hs) ? hs.Name : g.Key, g.Count()));
+                otherModel = candidates.Count(x => x.Doc.Model != model);
+            }
+            static RankedHit Ranked(KnowledgeHit h, int i, double raw) => new(h.ChunkId, h.SourceId, h.Title, h.Heading, i + 1, Math.Round(raw, 5));
+            return Task.FromResult(new RetrievalTrace(model, vector?.Length ?? 0, [.. readable.Keys.Order()],
+                byVector.Select((h, i) => Ranked(h, i, vectorRanked[i].Score)).ToList(), byText.Select((h, i) => Ranked(h, i, textRanked[i].Score)).ToList(),
+                KnowledgeText.Fuse(byVector, byText, k), terms, otherModel, hidden));
         }
+    }
+
+    public Task<List<ChunkInfo>> ChunksAsync(Guid documentId, CancellationToken ct)
+    {
+        lock (_gate)
+        {
+            var doc = _docs.FirstOrDefault(d => d.Document.Id == documentId);
+            if (doc is null) return Task.FromResult(new List<ChunkInfo>());
+            var ordered = doc.Chunks.OrderBy(c => c.Seq).ToList();
+            return Task.FromResult(ordered.Select((c, i) =>
+            {
+                var norm = KnowledgeInspection.Norm(c.Embedding);
+                return new ChunkInfo(c.Id, c.Seq, c.Heading, c.Text, c.Text.Length, KnowledgeInspection.Tokens(c.Text), doc.Model ?? "", c.Embedding.Length,
+                    Math.Round(norm, 5), KnowledgeInspection.Flags(c.Text, norm, c.Embedding.Any(float.IsNaN), i > 0 ? ordered[i - 1].Text : null));
+            }).ToList());
+        }
+    }
+
+    public Task<List<ChunkMeta>> ChunkMetaAsync(int limit, CancellationToken ct)
+    {
+        lock (_gate)
+            return Task.FromResult(_docs.SelectMany(d => d.Chunks.Select(c => new ChunkMeta(c.Id, d.Document.SourceId, d.Document.Id, d.Document.Title,
+                d.Document.UpdatedAt, c.Seq, d.Model ?? "", c.Embedding.Length, KnowledgeInspection.Norm(c.Embedding), c.Embedding.Any(float.IsNaN),
+                c.Text.Length, KnowledgeText.Hash(c.Text)))).Take(limit).ToList());
+    }
+
+    public Task<List<VectorSample>> SampleVectorsAsync(string model, int limit, CancellationToken ct)
+    {
+        lock (_gate)
+            return Task.FromResult(_docs.Where(d => d.Model == model).SelectMany(d => d.Chunks.Select(c =>
+                new VectorSample(c.Id, d.Document.SourceId, d.Document.Title, c.Heading, c.Embedding))).Take(limit).ToList());
+    }
+
+    public Task<float[]?> ChunkVectorAsync(string chunkId, CancellationToken ct)
+    {
+        lock (_gate) return Task.FromResult(_docs.SelectMany(d => d.Chunks).FirstOrDefault(c => c.Id == chunkId)?.Embedding);
     }
 
     public Task<KnowledgeHit?> ChunkAsync(string chunkId, string[] readerTokens, CancellationToken ct)

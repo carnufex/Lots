@@ -1938,3 +1938,32 @@ p.summary {
   width: auto;
   margin: 0;
 }
+
+/* knowledge inspector (#158) */
+.inspect-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+.inspect-grid h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+.chunks li {
+  margin: 0 0 10px;
+  padding: 6px 8px;
+  border-left: 3px solid var(--border);
+}
+.chunks li.flagged {
+  border-left-color: var(--danger);
+}
+.embedmap {
+  width: 100%;
+  max-width: 720px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.embedmap circle {
+  cursor: pointer;
+}

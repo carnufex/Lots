@@ -27,7 +27,7 @@ import { Icon, type IconName } from './components/Icon'
 import { language, setLanguage, t, type UiLanguage } from './i18n'
 import { saveLanguage } from './voice/language'
 
-type Route = { name: 'chat'; id?: string } | { name: 'run'; id: string } | { name: 'approvals' } | { name: 'audit' } | { name: 'voice'; tab: VoiceTab } | { name: 'knowledge' } | { name: 'profiles' } | { name: 'policy' } | { name: 'models' } | { name: 'identity' } | { name: 'usage' } | { name: 'feedback' } | { name: 'insights' } | { name: 'history'; id?: string; tab: HistoryTab } | { name: 'integrations'; tab: IntegrationTab } | { name: 'account'; tab: AccountTab } | { name: 'planned'; slug: string }
+type Route = { name: 'chat'; id?: string } | { name: 'run'; id: string } | { name: 'approvals' } | { name: 'audit' } | { name: 'voice'; tab: VoiceTab } | { name: 'knowledge'; tab: string } | { name: 'profiles' } | { name: 'policy' } | { name: 'models' } | { name: 'identity' } | { name: 'usage' } | { name: 'feedback' } | { name: 'insights' } | { name: 'history'; id?: string; tab: HistoryTab } | { name: 'integrations'; tab: IntegrationTab } | { name: 'account'; tab: AccountTab } | { name: 'planned'; slug: string }
 
 type NavItem = { href: string; label: string; icon: IconName; active: (r: Route) => boolean }
 
@@ -74,7 +74,7 @@ const NAV: { title: string; items: NavItem[] }[] = [
 function useHashRoute(): Route {
   const read = (): Route => {
     const r = window.location.hash.replace(/^#\/?/, '').split('?')[0] // a page may carry its own query (e.g. ?connected=)
-    if (r === 'approvals' || r === 'audit' || r === 'knowledge' || r === 'profiles' || r === 'policy' || r === 'models' || r === 'identity' || r === 'usage' || r === 'feedback' || r === 'insights')
+    if (r === 'approvals' || r === 'audit' || r === 'profiles' || r === 'policy' || r === 'models' || r === 'identity' || r === 'usage' || r === 'feedback' || r === 'insights')
       return { name: r }
     if (r === 'history') return { name: 'history', tab: 'conversations' }
     // Old bookmarks of the runs list land on History > Runs.
@@ -88,6 +88,8 @@ function useHashRoute(): Route {
     if (it) return { name: 'integrations', tab: INTEGRATION_TABS.find((tab) => tab.slug === it[1])?.slug ?? 'tool-calls' }
     const vo = /^voice(?:\/([a-z-]+))?$/.exec(r)
     if (vo) return { name: 'voice', tab: VOICE_TABS.find((tab) => tab.slug === vo[1])?.slug ?? 'voice' }
+    const kn = /^knowledge(?:\/([a-z]+))?$/.exec(r)
+    if (kn) return { name: 'knowledge', tab: kn[1] ?? 'sources' }
     const ac = /^account(?:\/([a-z-]+))?$/.exec(r)
     if (ac) return { name: 'account', tab: ACCOUNT_TABS.find((tab) => tab.slug === ac[1])?.slug ?? 'overview' }
     const h = /^history\/([0-9a-f-]{36})$/i.exec(r)
@@ -220,7 +222,7 @@ function Shell({ config, auth, session }: { config: ClientConfig; auth: Auth; se
           {route.name === 'history' && <HistoryPage api={api} id={route.id} tab={route.tab} />}
           {route.name === 'integrations' && <IntegrationsPage api={api} tab={route.tab} />}
           {route.name === 'voice' && <VoicePage api={api} voice={config.voice} tab={route.tab} admin={caps?.admin ?? false} />}
-          {route.name === 'knowledge' && <KnowledgePage api={api} />}
+          {route.name === 'knowledge' && <KnowledgePage api={api} tab={route.tab} inspect={caps?.knowledgeInspect ?? false} />}
           {route.name === 'profiles' && <ProfilesPage api={api} />}
           {route.name === 'policy' && <PolicyPage api={api} />}
           {route.name === 'models' && <ModelsPage api={api} />}

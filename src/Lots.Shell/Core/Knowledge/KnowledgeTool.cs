@@ -66,7 +66,15 @@ public sealed class KnowledgeToolSource(IKnowledgeStore store, IEmbeddingModel e
         return Format(hits, conflict);
     }
 
-    public static async Task<List<KnowledgeHit>> SearchAsync(IKnowledgeStore store, IEmbeddingModel embeddings, string query, string[] readers, int k, string? source, CancellationToken ct)
+    public static async Task<List<KnowledgeHit>> SearchAsync(IKnowledgeStore store, IEmbeddingModel embeddings, string query, string[] readers, int k, string? source, CancellationToken ct) =>
+        [.. (await TraceAsync(store, embeddings, query, readers, k, source, explain: false, ct)).Final];
+
+    /// <summary>
+    /// The one retrieval path (#158): the agent's tool, the Knowledge page and the inspector's playground all call this, so the
+    /// playground shows exactly what the agent gets.
+    /// </summary>
+    public static async Task<RetrievalTrace> TraceAsync(IKnowledgeStore store, IEmbeddingModel embeddings, string query, string[] readers, int k, string? source,
+        bool explain, CancellationToken ct)
     {
         using var span = Telemetry.Tracing.Source.StartActivity("retrieve knowledge", System.Diagnostics.ActivityKind.Internal);
         span?.SetTag("gen_ai.operation.name", "retrieve");
@@ -75,11 +83,11 @@ public sealed class KnowledgeToolSource(IKnowledgeStore store, IEmbeddingModel e
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var vector = (await embeddings.EmbedAsync([query], ct)).Vectors[0];
         span?.AddEvent(new System.Diagnostics.ActivityEvent("embedded"));
-        var hits = await store.SearchAsync(query, vector, embeddings.Model, readers, k, source, ct);
-        span?.SetTag("lots.knowledge.hits", hits.Count);
-        Telemetry.LotsMetrics.KnowledgeSearches.Add(1, new KeyValuePair<string, object?>("found", hits.Count > 0));
+        var trace = await store.SearchTracedAsync(query, vector, embeddings.Model, readers, k, source, explain, ct);
+        span?.SetTag("lots.knowledge.hits", trace.Final.Count);
+        Telemetry.LotsMetrics.KnowledgeSearches.Add(1, new KeyValuePair<string, object?>("found", trace.Final.Count > 0));
         Telemetry.LotsMetrics.KnowledgeLatency.Record(sw.Elapsed.TotalSeconds);
-        return hits;
+        return trace;
     }
 
     /// <summary>The tool result: numbered passages with everything needed to cite them. Labelled as untrusted data.</summary>

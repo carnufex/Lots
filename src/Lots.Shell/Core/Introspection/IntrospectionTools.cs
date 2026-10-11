@@ -55,6 +55,11 @@ public sealed class IntrospectionToolSource(IServiceScopeFactory scopes, Microso
             Schema("{ \"type\": \"object\", \"properties\": {" + Days + ", \"profile\": { \"type\": \"string\" } }, \"required\": [\"profile\"] }")),
         new("retrieval_misses", "Knowledge searches that found nothing, with their runs (the query text only for runs you may read).",
             Schema("{ \"type\": \"object\", \"properties\": {" + Days + "} }")),
+        new("knowledge_retrieval_debug", "Runs a knowledge search as the caller and shows every stage (#158): sources searched, vector and word rankings with " +
+            "scores, the fused result, matches hidden by access rights (counts only) and why nothing was found. Same code as search_knowledge.",
+            Schema("""{ "type": "object", "properties": { "query": { "type": "string" }, "k": { "type": "integer", "description": "1-20, default 4" }, "source": { "type": "string" } }, "required": ["query"] }""")),
+        new("knowledge_health", "Health of the knowledge index (#158): vectors from another embedding model, broken vectors, empty/oversized and duplicate " +
+            "chunks, documents without chunks, stale documents and failed sources.", Schema("{ \"type\": \"object\", \"properties\": {} }")),
         new("search_logs", "Log lines of the shell from Loki that contain a text, newest first (needs Introspection:LokiUrl).",
             Schema("""{ "type": "object", "properties": { "contains": { "type": "string" }, "level": { "type": "string", "description": "error, warn, info" }, "minutes": { "type": "integer", "description": "1-1440, default 60" } } }""")),
         new("propose_change", "Proposes a change to a profile's instructions, description, model alias or conflict detection, with the evidence. " +
@@ -88,12 +93,52 @@ public sealed class IntrospectionToolSource(IServiceScopeFactory scopes, Microso
             "slow_stages" => Slow(await OutcomesAsync(db, a, ct)),
             "compare_profile_versions" => Versions(await OutcomesAsync(db, a, ct), Str(a, "profile") ?? ""),
             "retrieval_misses" => await RetrievalMissesAsync(db, a, context, ct),
+            "knowledge_retrieval_debug" => await RetrievalDebugAsync(a, context, scope.ServiceProvider, ct),
+            "knowledge_health" => await KnowledgeHealthAsync(scope.ServiceProvider, ct),
             "search_logs" => await LogsAsync(a, ct),
             "promql_query" => await PromAsync(a, ct),
             "propose_change" => await ProposeAsync(db, a, context, scope.ServiceProvider, ct),
             _ => throw new InvalidOperationException($"Unknown tool '{name}'."),
         };
         return text;
+    }
+
+    // ---- knowledge (#158) ----
+
+    private static async Task<string> RetrievalDebugAsync(JsonElement a, ToolCallContext context, IServiceProvider sp, CancellationToken ct)
+    {
+        var store = sp.GetRequiredService<Knowledge.IKnowledgeStore>();
+        var embeddings = sp.GetRequiredService<Knowledge.IEmbeddingModel>();
+        var query = Str(a, "query") ?? "";
+        if (query.Length == 0) return "Error: query is required.";
+        // As the caller: an agent debugging retrieval sees what its user would see, never more.
+        var trace = await Knowledge.KnowledgeToolSource.TraceAsync(store, embeddings, query, Knowledge.KnowledgeAccess.TokensOf(context.Principal),
+            Int(a, "k", 4, 1, 20), Str(a, "source"), explain: true, ct);
+        var readable = (await store.ListSourcesAsync(ct)).Where(s => trace.SearchedSources.Contains(s.Id)).ToList();
+        var sb = new StringBuilder($"Model {trace.Model ?? "none"} ({trace.Dims} dims); searched sources: {string.Join(", ", trace.SearchedSources)}; terms: {string.Join(" ", trace.Terms)}\n");
+        sb.AppendLine("By vector: " + string.Join("; ", trace.ByVector.Take(8).Select(h => $"#{h.Rank} {h.ChunkId} {h.Title} ({h.Raw})")));
+        sb.AppendLine("By words: " + string.Join("; ", trace.ByText.Take(8).Select(h => $"#{h.Rank} {h.ChunkId} {h.Title} ({h.Raw})")));
+        sb.AppendLine("Final: " + string.Join("; ", trace.Final.Select((h, i) => $"k{i + 1} {h.ChunkId} {h.Title} (rrf {h.Score}, v{h.VectorRank?.ToString() ?? "-"}/t{h.TextRank?.ToString() ?? "-"})")));
+        if (trace.Hidden.Count > 0) sb.AppendLine("Hidden by access rights: " + string.Join(", ", trace.Hidden.Select(h => $"{h.Name} {h.Matches}")));
+        if (Knowledge.KnowledgeInspection.Explain(trace, readable) is { } why) sb.AppendLine("Why: " + why);
+        return sb.ToString().TrimEnd();
+    }
+
+    private static async Task<string> KnowledgeHealthAsync(IServiceProvider sp, CancellationToken ct)
+    {
+        var store = sp.GetRequiredService<Knowledge.IKnowledgeStore>();
+        var embeddings = sp.GetRequiredService<Knowledge.IEmbeddingModel>();
+        var sources = await store.ListSourcesAsync(ct);
+        var docs = new Dictionary<string, List<Knowledge.DocumentState>>();
+        foreach (var s in sources) docs[s.Id] = await store.DocumentsAsync(s.Id, ct);
+        var h = Knowledge.KnowledgeInspection.Check(sources, await store.ChunkMetaAsync(50_000, ct), docs, embeddings.Configured ? embeddings.Model : null, null,
+            DateTimeOffset.UtcNow);
+        var sb = new StringBuilder($"{h.Documents} documents, {h.Chunks} chunks; query model {h.CurrentModel ?? "none"}.\n");
+        foreach (var s in h.Sources)
+            sb.AppendLine($"{s.Name} ({s.Status}): {s.Documents} docs, {s.Chunks} chunks, on current model {s.OnCurrentModel}, models {string.Join(", ", s.Models.Select(m => $"{m.Key}={m.Value}"))}");
+        foreach (var g in h.Issues.GroupBy(i => i.Kind))
+            sb.AppendLine($"{g.Key}: {g.Count()} (e.g. {g.First().Detail})");
+        return sb.ToString().TrimEnd();
     }
 
     // ---- data ----

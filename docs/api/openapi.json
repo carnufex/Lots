@@ -1992,6 +1992,164 @@
         ]
       }
     },
+    "/knowledge/inspect/search": {
+      "post": {
+        "tags": [
+          "Knowledge"
+        ],
+        "operationId": "LotsShellFeaturesKnowledgeInspectSearchEndpoint",
+        "requestBody": {
+          "x-name": "InspectSearchRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InspectSearchRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InspectSearchResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/knowledge/inspect/documents/{documentId}/chunks": {
+      "get": {
+        "tags": [
+          "Knowledge"
+        ],
+        "operationId": "LotsShellFeaturesKnowledgeInspectChunksEndpoint",
+        "parameters": [
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ChunkInfo"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/knowledge/inspect/health": {
+      "get": {
+        "tags": [
+          "Knowledge"
+        ],
+        "operationId": "LotsShellFeaturesKnowledgeInspectHealthEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeHealth"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/knowledge/inspect/map": {
+      "get": {
+        "tags": [
+          "Knowledge"
+        ],
+        "operationId": "LotsShellFeaturesKnowledgeInspectMapEndpoint",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingMap"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/knowledge": {
       "get": {
         "tags": [
@@ -6805,6 +6963,9 @@
             "items": {
               "type": "string"
             }
+          },
+          "knowledgeInspect": {
+            "type": "boolean"
           }
         }
       },
@@ -7068,6 +7229,471 @@
             "type": "string"
           }
         }
+      },
+      "InspectSearchResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "trace": {
+            "$ref": "#/components/schemas/RetrievalTrace"
+          },
+          "explanation": {
+            "type": "string",
+            "nullable": true
+          },
+          "readers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "probe": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ProbeResult"
+              }
+            ]
+          }
+        }
+      },
+      "RetrievalTrace": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "model": {
+            "type": "string",
+            "nullable": true
+          },
+          "dims": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "searchedSources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "byVector": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RankedHit"
+            }
+          },
+          "byText": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RankedHit"
+            }
+          },
+          "final": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeHit"
+            }
+          },
+          "terms": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "otherModelChunks": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "hidden": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HiddenSource"
+            }
+          }
+        }
+      },
+      "RankedHit": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "chunkId": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "heading": {
+            "type": "string"
+          },
+          "rank": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "raw": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "KnowledgeHit": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "chunkId": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": "string"
+          },
+          "sourceName": {
+            "type": "string"
+          },
+          "documentId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "nullable": true
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "heading": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "contentHash": {
+            "type": "string"
+          },
+          "score": {
+            "type": "number",
+            "format": "double"
+          },
+          "vectorRank": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "textRank": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        }
+      },
+      "HiddenSource": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sourceId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "matches": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ProbeResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "chunkId": {
+            "type": "string"
+          },
+          "readable": {
+            "type": "boolean"
+          },
+          "similarity": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "vectorRank": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "textRank": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "termMatches": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "finalRank": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "rankedAbove": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "verdict": {
+            "type": "string"
+          }
+        }
+      },
+      "InspectSearchRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "query": {
+            "type": "string"
+          },
+          "k": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "source": {
+            "type": "string",
+            "nullable": true
+          },
+          "asUser": {
+            "type": "string",
+            "nullable": true
+          },
+          "asRoles": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "probe": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ChunkInfo": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "seq": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "heading": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "chars": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "tokens": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "model": {
+            "type": "string"
+          },
+          "dims": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "norm": {
+            "type": "number",
+            "format": "double"
+          },
+          "flags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "DocumentChunksRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "KnowledgeHealth": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "currentModel": {
+            "type": "string",
+            "nullable": true
+          },
+          "currentDims": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SourceHealth"
+            }
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthIssue"
+            }
+          },
+          "chunks": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "documents": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "SourceHealth": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "documents": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "chunks": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "models": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "onCurrentModel": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "notIndexed": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "HealthIssue": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": "string"
+          },
+          "documentId": {
+            "type": "string",
+            "nullable": true
+          },
+          "chunkId": {
+            "type": "string",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string"
+          }
+        }
+      },
+      "EmbeddingMap": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "sampled": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MapPoint"
+            }
+          },
+          "query": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MapPoint"
+              }
+            ]
+          },
+          "neighbours": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "MapPoint": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "chunkId": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "heading": {
+            "type": "string"
+          },
+          "x": {
+            "type": "number",
+            "format": "double"
+          },
+          "y": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "MapRequest": {
+        "type": "object",
+        "additionalProperties": false
       },
       "KnowledgeOverview": {
         "type": "object",

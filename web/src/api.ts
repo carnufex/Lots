@@ -394,6 +394,8 @@ export interface Capabilities {
   /** Set while viewing as other roles (#156). */
   preview: { roles: string[]; realRoles: string[]; expires: string; allowWrites: boolean } | null
   canPreview: boolean
+  /** The knowledge inspector (#158). */
+  knowledgeInspect: boolean
   roles: string[]
   knownRoles: string[] | null
 }

@@ -2,13 +2,44 @@ import { useCallback, useEffect, useState } from 'react'
 import { ConflictList } from '../components/ConflictVote'
 import { ApiError, type Api, type KnowledgeDoc, type KnowledgeHit, type KnowledgeOverview, type KnowledgeSource } from '../api'
 import { fmt, t } from '../i18n'
+import { ChunkList, HealthTab, MapTab, Playground } from './KnowledgeInspector'
 
 const statusClass: Record<string, string> = { ready: 'Allowed', failed: 'Denied', queued: 'ApprovalRequested', indexing: 'ApprovalRequested' }
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 /** Knowledge sources the user may read, their indexing status, documents, and a search to try retrieval with the user's own access. */
-export default function KnowledgePage({ api }: { api: Api }) {
+const INSPECT_TABS = [
+  { slug: 'sources', label: t('Sources') },
+  { slug: 'playground', label: t('Search playground') },
+  { slug: 'health', label: t('Health') },
+  { slug: 'map', label: t('Embedding map') },
+]
+
+export default function KnowledgePage({ api, tab = 'sources', inspect = false }: { api: Api; tab?: string; inspect?: boolean }) {
+  // The inspector (#158) is for Knowledge:InspectRoles; everyone else sees the sources they may read.
+  const current = inspect ? (INSPECT_TABS.find((x) => x.slug === tab)?.slug ?? 'sources') : 'sources'
+  return (
+    <section>
+      <h1>{t('Knowledge')}</h1>
+      {inspect && (
+        <div className="tabs" role="tablist" aria-label={t('Knowledge')}>
+          {INSPECT_TABS.map((x) => (
+            <a key={x.slug} href={`#/knowledge/${x.slug}`} role="tab" aria-selected={x.slug === current} className={x.slug === current ? 'tab active' : 'tab'}>
+              {x.label}
+            </a>
+          ))}
+        </div>
+      )}
+      {current === 'sources' && <Sources api={api} inspect={inspect} />}
+      {current === 'playground' && <Playground api={api} />}
+      {current === 'health' && <HealthTab api={api} />}
+      {current === 'map' && <MapTab api={api} />}
+    </section>
+  )
+}
+
+function Sources({ api, inspect }: { api: Api; inspect: boolean }) {
   const [overview, setOverview] = useState<KnowledgeOverview | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [open, setOpen] = useState<string | null>(null)
@@ -33,8 +64,7 @@ export default function KnowledgePage({ api }: { api: Api }) {
   }, [reload, overview])
 
   return (
-    <section>
-      <h1>{t('Knowledge')}</h1>
+    <>
       {error && (
         <p role="alert" className="error">
           {t('Could not load knowledge:')} {error}
@@ -78,7 +108,7 @@ export default function KnowledgePage({ api }: { api: Api }) {
               </thead>
               <tbody>
                 {overview.sources.map((s) => (
-                  <SourceRow key={s.id} api={api} source={s} open={open === s.id} onToggle={() => setOpen(open === s.id ? null : s.id)} onChange={reload} />
+                  <SourceRow key={s.id} api={api} source={s} inspect={inspect} open={open === s.id} onToggle={() => setOpen(open === s.id ? null : s.id)} onChange={reload} />
                 ))}
               </tbody>
             </table>
@@ -88,11 +118,11 @@ export default function KnowledgePage({ api }: { api: Api }) {
           <ConflictList api={api} />
         </>
       )}
-    </section>
+    </>
   )
 }
 
-function SourceRow({ api, source: s, open, onToggle, onChange }: { api: Api; source: KnowledgeSource; open: boolean; onToggle: () => void; onChange: () => void }) {
+function SourceRow({ api, source: s, inspect, open, onToggle, onChange }: { api: Api; source: KnowledgeSource; inspect: boolean; open: boolean; onToggle: () => void; onChange: () => void }) {
   const [busy, setBusy] = useState(false)
   const act = async (f: () => Promise<unknown>) => {
     setBusy(true)
@@ -152,7 +182,7 @@ function SourceRow({ api, source: s, open, onToggle, onChange }: { api: Api; sou
       {open && (
         <tr>
           <td colSpan={9}>
-            <Documents api={api} source={s} onChange={onChange} />
+            <Documents api={api} source={s} inspect={inspect} onChange={onChange} />
           </td>
         </tr>
       )}
@@ -160,8 +190,9 @@ function SourceRow({ api, source: s, open, onToggle, onChange }: { api: Api; sou
   )
 }
 
-function Documents({ api, source, onChange }: { api: Api; source: KnowledgeSource; onChange: () => void }) {
+function Documents({ api, source, inspect, onChange }: { api: Api; source: KnowledgeSource; inspect: boolean; onChange: () => void }) {
   const [docs, setDocs] = useState<KnowledgeDoc[] | null>(null)
+  const [chunksOf, setChunksOf] = useState<string | null>(null)
   const [title, setTitle] = useState('')
   const [text, setText] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -201,6 +232,12 @@ function Documents({ api, source, onChange }: { api: Api; source: KnowledgeSourc
               <span className="muted small mono">
                 {d.externalId} · {d.chars} chars
               </span>
+              {inspect && (
+                <button type="button" className="btn ghost small" aria-expanded={chunksOf === d.id} onClick={() => setChunksOf(chunksOf === d.id ? null : d.id)}>
+                  {t('chunks')}
+                </button>
+              )}
+              {chunksOf === d.id && <ChunkList api={api} documentId={d.id} />}
               {source.canManage && source.kind === 'upload' && (
                 <button
                   type="button"

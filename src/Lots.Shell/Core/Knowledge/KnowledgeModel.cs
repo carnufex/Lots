@@ -134,6 +134,19 @@ public interface IKnowledgeStore
     Task DeleteDocumentsExceptAsync(string sourceId, IReadOnlyCollection<string> keepExternalIds, CancellationToken ct);
     Task DeleteDocumentAsync(string sourceId, Guid documentId, CancellationToken ct);
 
+    /// <summary>Production retrieval: the last stage of <see cref="SearchTracedAsync"/>, so the inspector cannot drift from it (#158).</summary>
     Task<List<KnowledgeHit>> SearchAsync(string query, float[]? vector, string? model, string[] readerTokens, int k, string? sourceId, CancellationToken ct);
+
+    /// <summary>
+    /// The same retrieval with every stage (#158). <paramref name="explain"/> additionally counts word matches in sources the reader may not
+    /// read and chunks embedded with another model (never their content).
+    /// </summary>
+    Task<RetrievalTrace> SearchTracedAsync(string query, float[]? vector, string? model, string[] readerTokens, int k, string? sourceId, bool explain, CancellationToken ct);
     Task<KnowledgeHit?> ChunkAsync(string chunkId, string[] readerTokens, CancellationToken ct);
+
+    /// <summary>Inspector (#158): every chunk of a document with its embedding facts. Not reader-filtered: callers check the inspector role.</summary>
+    Task<List<ChunkInfo>> ChunksAsync(Guid documentId, CancellationToken ct);
+    Task<List<ChunkMeta>> ChunkMetaAsync(int limit, CancellationToken ct);
+    Task<List<VectorSample>> SampleVectorsAsync(string model, int limit, CancellationToken ct);
+    Task<float[]?> ChunkVectorAsync(string chunkId, CancellationToken ct);
 }
