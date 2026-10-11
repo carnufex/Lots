@@ -207,6 +207,7 @@ public static class EvalCli
             case "proposal": return await ProposalEval.RunAsync(http, name => Arg(args, name), Arg(args, "--dev-user") is not null, Arg(args, "--dev-roles") ?? "operator");
             case "voice-stt": return await VoiceCli.SttAsync(http, name => Arg(args, name), historyRoot, !args.Contains("--no-history"));
             case "voice-latency": return await VoiceCli.LatencyAsync(http, name => Arg(args, name), historyRoot, !args.Contains("--no-history"));
+            case "voice-meeting": return await VoiceCli.MeetingAsync(http, name => Arg(args, name), historyRoot, !args.Contains("--no-history"), args.Contains("--keep"));
             case "voice-tts": return await VoiceCli.TtsAsync(name => Arg(args, name));
             case "voice-tts-score": return await VoiceCli.TtsScoreAsync(name => Arg(args, name));
         }

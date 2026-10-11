@@ -53,6 +53,24 @@ started, so upload time counts against speech to text. An admin identity sees ev
 code is 1 when a stage is over budget. Runs are stored as `voice-latency` history, so `--mode history --dataset voice-latency` shows the
 trend.
 
+## Meetings (speaker error)
+
+`dotnet run --project src/Lots.Evals -- --mode voice-meeting --dev-user claude-test-voice-evals [--meetings evals/voice/meetings] [--max-speaker-error 0.1] [--max-wer 0.25] [--keep]`
+uploads every `*.wav` that has a `*-truth.json` next to it (`[{start, end, speaker, text}]`) as a meeting through the shell, waits until it
+is processed and scores it: speaker error (share of the true speech time attributed to the wrong person after the best one-to-one mapping
+of labels; speech nobody was found saying counts as wrong), word error rate of the whole transcript and processing time. Exit code 1 when a
+meeting is over either gate. The meetings are deleted afterwards. Results are stored as `voice-meeting` history.
+
+Synthetic two-speaker meetings come from the voice service's own voices (git-ignored, regenerate them):
+
+```bash
+python e2e/make-meeting.py evals/voice/meetings http://localhost:8700/v1 "$LOTS_VOICE_KEY" 0.6 driftmote
+python e2e/make-meeting.py evals/voice/meetings http://localhost:8700/v1 "$LOTS_VOICE_KEY" 0.15 driftmote-tight
+```
+
+Baseline 2026-10-11 (local GPU): speaker error 3.6 % / 4.6 % (0.6 s / 0.15 s pauses), WER 11.1 % / 8.3 %, about 8 s for 30 s of audio.
+Real meetings with a hand-made truth file belong in the same folder; synthetic voices are easier to tell apart than people in a room.
+
 ## Listening test (speech output)
 
 `dotnet run --project src/Lots.Evals -- --mode voice-tts [--voices-sv sv-nst,cb-default,<own voice id>] [--voices-en en-ljspeech,cb-default]`

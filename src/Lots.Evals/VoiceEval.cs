@@ -325,6 +325,145 @@ public static class VoiceCli
         return corpus <= maxWer ? 0 : 1;
     }
 
+    /// <summary>
+    /// <c>--mode voice-meeting</c> (#36): every <c>*.wav</c> with a <c>*-truth.json</c> (start, end, speaker, text; see e2e/make-meeting.py)
+    /// in <c>--meetings</c> is uploaded as a meeting through the shell, as a user would, and scored when it is done: speaker error (the
+    /// share of the true speech time attributed to the wrong person after the best one-to-one mapping of labels), word error rate of
+    /// the whole transcript and the processing time. Fails above <c>--max-speaker-error</c> (0.10) or <c>--max-wer</c> (0.25).
+    /// The meetings are deleted afterwards unless <c>--keep</c>.
+    /// </summary>
+    public static async Task<int> MeetingAsync(HttpClient http, Func<string, string?> arg, string historyRoot, bool saveHistory, bool keep)
+    {
+        var dir = arg("--meetings") ?? "evals/voice/meetings";
+        var files = Directory.Exists(dir)
+            ? Directory.GetFiles(dir, "*.wav").Order().Where(f => File.Exists(Path.ChangeExtension(f, null) + "-truth.json")).ToList()
+            : [];
+        if (files.Count == 0)
+        {
+            Console.Error.WriteLine($"No meeting recordings with a -truth.json in {dir}: see evals/voice/README.md");
+            return 2;
+        }
+        var maxSpeakerError = Number(arg("--max-speaker-error"), 0.10);
+        var maxWer = Number(arg("--max-wer"), 0.25);
+        var timeout = TimeSpan.FromMinutes(Number(arg("--timeout-minutes"), 15));
+        var attempts = new List<EvalResult>();
+        var sb = new StringBuilder("# Meetings: transcript and speakers\n\n| File | Speakers (true/found) | Speaker error | WER | Audio (s) | Processing (s) |\n|---|---|---|---|---|---|\n");
+        double errorTime = 0, speechTime = 0;
+        int edits = 0, words = 0;
+        foreach (var wav in files)
+        {
+            var truth = JsonSerializer.Deserialize<List<TruthTurn>>(await File.ReadAllTextAsync(Path.ChangeExtension(wav, null) + "-truth.json"), Json) ?? [];
+            var speakers = truth.Select(t => t.Speaker).Distinct().Count();
+            var name = Path.GetFileName(wav);
+            var failures = new List<string>();
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            MeetingDetail? detail = null;
+            Guid? id = null;
+            try
+            {
+                using var form = new MultipartFormDataContent();
+                var audio = new ByteArrayContent(await File.ReadAllBytesAsync(wav));
+                audio.Headers.ContentType = new MediaTypeHeaderValue("audio/wav");
+                form.Add(audio, "File", name);
+                form.Add(new StringContent("eval: " + name), "Title");
+                form.Add(new StringContent(speakers.ToString(CultureInfo.InvariantCulture)), "Speakers");
+                if (arg("--language") is { Length: > 0 } language) form.Add(new StringContent(language), "Language");
+                using var upload = await http.PostAsync("meetings", form);
+                if (!upload.IsSuccessStatusCode) throw new InvalidOperationException($"upload: {(int)upload.StatusCode} {await upload.Content.ReadAsStringAsync()}");
+                id = (await upload.Content.ReadFromJsonAsync<MeetingSummary>(Json))!.Id;
+                while (sw.Elapsed < timeout)
+                {
+                    detail = await http.GetFromJsonAsync<MeetingDetail>($"meetings/{id}", Json);
+                    if (detail!.Meeting.Status is "done" or "failed" or "cancelled") break;
+                    await Task.Delay(TimeSpan.FromSeconds(2));
+                }
+                if (detail?.Meeting.Status != "done")
+                    failures.Add(detail?.Meeting.Status is "failed" ? $"failed: {detail.Meeting.Error}" : $"not done after {timeout.TotalMinutes} min");
+            }
+            catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or JsonException or TaskCanceledException)
+            {
+                failures.Add(ex.Message);
+            }
+            var seconds = sw.Elapsed.TotalSeconds;
+            if (id is { } created && !keep) await http.DeleteAsync($"meetings/{created}");
+
+            var lines = detail?.Lines ?? [];
+            var speakerError = SpeakerError(lines.Select(l => (l.Start, l.End, l.Speaker)).ToList(), truth.Select(t => (t.Start, t.End, t.Speaker)).ToList());
+            var reference = Wer.Words(string.Join(' ', truth.Select(t => t.Text)));
+            var e = Wer.Edits(reference, Wer.Words(string.Join(' ', lines.Select(l => l.Text))));
+            var wer = reference.Length == 0 ? 0 : (double)e / reference.Length;
+            if (failures.Count == 0)
+            {
+                var spoken = truth.Sum(t => t.End - t.Start);
+                errorTime += speakerError * spoken;
+                speechTime += spoken;
+                edits += e;
+                words += reference.Length;
+                if (speakerError > maxSpeakerError) failures.Add($"speaker error {speakerError:P1} above {maxSpeakerError:P0}");
+                if (wer > maxWer) failures.Add($"WER {wer:P1} above {maxWer:P0}");
+            }
+            var found = lines.Select(l => l.Speaker).Distinct().Count();
+            Console.WriteLine($"{name}: speakers {speakers}/{found}, speaker error {speakerError:P1}, WER {wer:P1}, {seconds:0.0} s" +
+                              (failures.Count > 0 ? " FAIL " + string.Join("; ", failures) : ""));
+            sb.AppendLine($"| {name} | {speakers}/{found} | {speakerError:P1} | {wer:P1} | {detail?.Meeting.DurationSeconds ?? 0:0.0} | {seconds:0.0} |");
+            var ms = (long)(seconds * 1000);
+            attempts.Add(new EvalResult(new EvalCase(name, string.Join(' ', truth.Select(t => t.Text))), failures.Count == 0, failures,
+                new RunOutcome(failures.Count == 0 ? "Completed" : "Failed", string.Join(' ', lines.Select(l => l.Text)), failures.FirstOrDefault(), [], ms, 0, ms),
+                new Dictionary<string, bool> { ["speakerError"] = speakerError <= maxSpeakerError, ["wer"] = wer <= maxWer }));
+        }
+
+        var set = new EvalDataset("voice-meeting", 1, null, attempts.Select(a => a.Case).ToList());
+        var record = EvalHistory.Build(set, attempts, DateTimeOffset.UtcNow, http.BaseAddress?.ToString() ?? "", 1, 1.0, arg("--label"));
+        var metrics = new Dictionary<string, double>(record.Summary.Metrics ?? new Dictionary<string, double>())
+        {
+            ["speaker_error"] = speechTime <= 0 ? 1 : Math.Round(errorTime / speechTime, 4),
+            ["wer"] = words == 0 ? 1 : Math.Round((double)edits / words, 4),
+        };
+        record = record with { Summary = record.Summary with { Metrics = metrics } };
+        var previous = EvalHistory.Load(historyRoot, set.Name).LastOrDefault();
+        if (saveHistory) Console.WriteLine($"stored {EvalHistory.Save(historyRoot, record)}");
+        sb.AppendLine().AppendLine($"Over all meetings: speaker error {metrics["speaker_error"]:P1} (gate {maxSpeakerError:P0} each), WER {metrics["wer"]:P1} (gate {maxWer:P0} each).");
+        if (previous?.Summary.Metrics is { } before)
+            foreach (var k in new[] { "speaker_error", "wer" }.Where(before.ContainsKey))
+                sb.AppendLine($"- {k}: {before[k]:P1} → {metrics[k]:P1} since {previous.StartedAt:u}");
+        var report = sb.ToString();
+        await File.WriteAllTextAsync(arg("--report") ?? "evals/report-voice-meeting.md", report);
+        Console.WriteLine();
+        Console.WriteLine(report);
+        var failed = attempts.Where(a => !a.Passed).ToList();
+        foreach (var f in failed) Console.Error.WriteLine($"GATE: {f.Case.Id}: {string.Join("; ", f.Failures)}");
+        return failed.Count == 0 ? 0 : 1;
+    }
+
+    /// <summary>The share of the true speech time attributed to the wrong speaker, after mapping labels one-to-one by most overlap
+    /// (the same measure as the shell's MeetingMerge.SpeakerError). Speech nobody was found saying counts as wrong.</summary>
+    public static double SpeakerError(IReadOnlyList<(double Start, double End, string Speaker)> found, IReadOnlyList<(double Start, double End, string Speaker)> truth)
+    {
+        var overlap = new Dictionary<(string Truth, string Found), double>();
+        foreach (var t in truth)
+        foreach (var l in found)
+        {
+            var o = Math.Min(t.End, l.End) - Math.Max(t.Start, l.Start);
+            if (o > 0) overlap[(t.Speaker, l.Speaker)] = overlap.GetValueOrDefault((t.Speaker, l.Speaker)) + o;
+        }
+        var total = truth.Sum(t => t.End - t.Start);
+        HashSet<string> usedTruth = [], usedFound = [];
+        var right = 0.0;
+        foreach (var (key, value) in overlap.OrderByDescending(kv => kv.Value))
+            if (!usedTruth.Contains(key.Truth) && !usedFound.Contains(key.Found))
+            {
+                usedTruth.Add(key.Truth);
+                usedFound.Add(key.Found);
+                right += value;
+            }
+        return total <= 0 ? 0 : Math.Round(Math.Max(0, 1 - right / total), 4);
+    }
+
+    private sealed record TruthTurn(double Start, double End, string Speaker, string Text);
+    private sealed record MeetingSummary(Guid Id, string Status, string? Error, double? DurationSeconds);
+    private sealed record MeetingLine(double Start, double End, string Speaker, string Text);
+    private sealed record MeetingDetail(MeetingSummary Meeting, List<MeetingLine> Lines);
+
     private sealed record Heard(string Text, string? Language, long Ms, string? Error);
 
     private static async Task<Heard> TranscribeAsync(HttpClient http, string path, string? language)

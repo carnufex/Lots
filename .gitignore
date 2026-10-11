@@ -12,3 +12,6 @@ profiles.local/
 # supply-chain output (SBOMs, scan inputs)
 /out/
 .public-patterns
+
+# Generated meeting fixtures for --mode voice-meeting (e2e/make-meeting.py)
+evals/voice/meetings/
