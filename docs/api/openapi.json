@@ -3314,6 +3314,210 @@
         }
       }
     },
+    "/groups": {
+      "get": {
+        "tags": [
+          "Groups"
+        ],
+        "operationId": "LotsShellFeaturesGroupsListGroupsEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GroupDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Groups"
+        ],
+        "operationId": "LotsShellFeaturesGroupsCreateGroupEndpoint",
+        "requestBody": {
+          "x-name": "GroupRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/groups/{id}": {
+      "put": {
+        "tags": [
+          "Groups"
+        ],
+        "operationId": "LotsShellFeaturesGroupsUpdateGroupEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "GroupRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Groups"
+        ],
+        "operationId": "LotsShellFeaturesGroupsDeleteGroupEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/conversations/{id}/organise": {
+      "put": {
+        "tags": [
+          "Conversations"
+        ],
+        "operationId": "LotsShellFeaturesGroupsOrganiseConversationEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "OrganiseRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrganiseRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganisedDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/runs/{id}/feedback": {
       "put": {
         "tags": [
@@ -3997,6 +4201,30 @@
             "schema": {
               "type": "integer",
               "format": "int32",
+              "nullable": true
+            }
+          },
+          {
+            "name": "group",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "archived",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "nullable": true
+            }
+          },
+          {
+            "name": "mine",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
               "nullable": true
             }
           }
@@ -6085,6 +6313,11 @@
             "items": {
               "type": "string"
             }
+          },
+          "groupId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
           }
         }
       },
@@ -7928,6 +8161,150 @@
           }
         }
       },
+      "GroupDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string",
+            "nullable": true
+          },
+          "icon": {
+            "type": "string",
+            "nullable": true
+          },
+          "sortOrder": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pinned": {
+            "type": "boolean"
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "instructions": {
+            "type": "string",
+            "nullable": true
+          },
+          "defaultContext": {
+            "type": "string",
+            "nullable": true
+          },
+          "shareContext": {
+            "type": "boolean"
+          },
+          "chats": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "GroupRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "color": {
+            "type": "string",
+            "nullable": true
+          },
+          "icon": {
+            "type": "string",
+            "nullable": true
+          },
+          "sortOrder": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "pinned": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "archived": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "instructions": {
+            "type": "string",
+            "nullable": true
+          },
+          "defaultContext": {
+            "type": "string",
+            "nullable": true
+          },
+          "shareContext": {
+            "type": "boolean",
+            "nullable": true
+          }
+        }
+      },
+      "GroupIdRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "OrganisedDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "groupId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "isolated": {
+            "type": "boolean"
+          },
+          "pinned": {
+            "type": "boolean"
+          },
+          "archived": {
+            "type": "boolean"
+          }
+        }
+      },
+      "OrganiseRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "groupId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "ungroup": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "isolated": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "pinned": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "archived": {
+            "type": "boolean",
+            "nullable": true
+          }
+        }
+      },
       "FeedbackDto": {
         "type": "object",
         "additionalProperties": false,
@@ -8279,6 +8656,20 @@
             "type": "string",
             "format": "date-time",
             "nullable": true
+          },
+          "groupId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "isolated": {
+            "type": "boolean"
+          },
+          "pinned": {
+            "type": "boolean"
+          },
+          "archived": {
+            "type": "boolean"
           }
         }
       },
@@ -8403,6 +8794,20 @@
           },
           "stages": {
             "$ref": "#/components/schemas/StageTotals"
+          },
+          "groupId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "isolated": {
+            "type": "boolean"
+          },
+          "pinned": {
+            "type": "boolean"
+          },
+          "archived": {
+            "type": "boolean"
           }
         }
       },

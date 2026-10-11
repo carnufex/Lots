@@ -23,6 +23,11 @@ In the web UI this is one model:
   with every run you may see, scheduled and API runs included.
 - A run's own page (`#/runs/<id>`) shows its steps, policy decisions and trace, and links back to its conversation.
 
+**Chat groups** organise a user's chats (a project, an incident, a topic). A group can carry instructions for every chat in it and a
+default context for routing. Chats in a group share context by default: the agent may use the summaries and recent turns of the
+sibling chats (same user only, as untrusted data, cited as "from: <chat title>"); "Isolate this chat" or the group's own switch turns
+that off. Which sibling chats were read is recorded on the run. Export and delete of your data include groups.
+
 ## Profiles
 
 In the UI a profile is called a **context**. Users do not have to choose one: the shell routes every question to the context it

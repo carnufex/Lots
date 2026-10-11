@@ -20,7 +20,8 @@ public sealed record StageTotals(long SttMs, long LlmMs, long ToolMs, long TtsMs
 
 public sealed record ConversationSummary(
     Guid Id, string UserId, string Profile, string Title, string? Summary, bool Voice, DateTimeOffset StartedAt, DateTimeOffset EndedAt,
-    long DurationMs, int Turns, int Messages, string Status, int PromptTokens, int CompletionTokens, StageTotals Stages);
+    long DurationMs, int Turns, int Messages, string Status, int PromptTokens, int CompletionTokens, StageTotals Stages,
+    Guid? GroupId = null, bool Isolated = false, bool Pinned = false, bool Archived = false);
 
 public sealed record ConversationDetail(ConversationSummary Conversation, IReadOnlyList<TurnDto> Turns);
 
@@ -52,9 +53,10 @@ public static class ConversationViews
             {
                 var detail = Build(g.Key, g.OrderBy(r => r.CreatedAt).ToList(), speech.Where(u => u.ConversationId == g.Key).ToList(), feedback);
                 // A generated title and summary (#80) replace the first prompt as the title once they exist.
-                return summaries.TryGetValue(g.Key, out var s) && !string.IsNullOrEmpty(s.Title)
-                    ? detail with { Conversation = detail.Conversation with { Title = s.Title, Summary = s.Summary } }
-                    : detail;
+                if (!summaries.TryGetValue(g.Key, out var s)) return detail;
+                var c = detail.Conversation with { GroupId = s.GroupId, Isolated = s.Isolated, Pinned = s.Pinned, Archived = s.Archived };
+                if (!string.IsNullOrEmpty(s.Title)) c = c with { Title = s.Title, Summary = s.Summary };
+                return detail with { Conversation = c };
             })
             .OrderByDescending(c => c.Conversation.StartedAt).ToList();
     }
@@ -131,6 +133,12 @@ public sealed class ListConversationsRequest
     [QueryParam] public DateTimeOffset? To { get; set; }
     [QueryParam] public string? Profile { get; set; }
     [QueryParam] public int? Limit { get; set; }
+    /// <summary>Only this chat group's conversations (#153); "none" for ungrouped ones.</summary>
+    [QueryParam] public string? Group { get; set; }
+    /// <summary>Include archived conversations (default: not).</summary>
+    [QueryParam] public bool? Archived { get; set; }
+    /// <summary>Only the caller's own conversations, also for admins (the chat sidebar).</summary>
+    [QueryParam] public bool? Mine { get; set; }
 }
 
 /// <summary>Conversation history. Everyone sees their own conversations; admins see everyone's.</summary>
@@ -143,7 +151,7 @@ public sealed class ListConversationsEndpoint(LotsDbContext db, ICurrentPrincipa
     {
         var me = who.Get(HttpContext);
         var runs = db.Runs.Where(r => r.ConversationId != null);
-        if (!ConversationViews.IsAdmin(me, config)) runs = runs.Where(r => r.UserId == me.UserId);
+        if (!ConversationViews.IsAdmin(me, config) || req.Mine == true) runs = runs.Where(r => r.UserId == me.UserId);
         else if (!string.IsNullOrWhiteSpace(req.User)) runs = runs.Where(r => r.UserId == req.User);
         if (req.From is { } from) runs = runs.Where(r => r.CreatedAt >= from);
         if (req.To is { } to) runs = runs.Where(r => r.CreatedAt <= to);
@@ -158,6 +166,10 @@ public sealed class ListConversationsEndpoint(LotsDbContext db, ICurrentPrincipa
                                                    || (t.Answer?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)));
         }
         if (!string.IsNullOrWhiteSpace(req.Status)) view = view.Where(c => string.Equals(c.Conversation.Status, req.Status, StringComparison.OrdinalIgnoreCase));
+        if (req.Group == "none") view = view.Where(c => c.Conversation.GroupId is null);
+        else if (Guid.TryParse(req.Group, out var group)) view = view.Where(c => c.Conversation.GroupId == group);
+        if (req.Archived != true) view = view.Where(c => !c.Conversation.Archived);
+        view = view.OrderByDescending(c => c.Conversation.Pinned).ThenByDescending(c => c.Conversation.StartedAt);
 
         var list = view.Select(c => c.Conversation).Take(Math.Clamp(req.Limit ?? 100, 1, 500)).ToList();
         await Send.OkAsync(new ConversationList(list, ConversationViews.Sum(list), list.Count), ct);

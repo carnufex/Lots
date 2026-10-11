@@ -283,6 +283,26 @@ export interface ConversationSummary {
   promptTokens: number
   completionTokens: number
   stages: StageTotals
+  /** Chat groups (#153). */
+  groupId?: string | null
+  isolated: boolean
+  pinned: boolean
+  archived: boolean
+}
+
+/** A folder of the user's chats (#153). */
+export interface ChatGroup {
+  id: string
+  name: string
+  color: string | null
+  icon: string | null
+  sortOrder: number
+  pinned: boolean
+  archived: boolean
+  instructions: string | null
+  defaultContext: string | null
+  shareContext: boolean
+  chats: number
 }
 
 /** The router could not choose with confidence (#150): the user picks one of these. */
@@ -541,8 +561,11 @@ export function createApi(auth: Auth) {
       if (conversationId) form.append('ConversationId', conversationId)
       return request<Transcription>('/voice/transcribe', { method: 'POST', body: form })
     },
-    listConversations: (f: { q?: string; status?: string; profile?: string; from?: string } = {}) => {
+    listConversations: (f: { q?: string; status?: string; profile?: string; from?: string; group?: string; archived?: boolean; mine?: boolean } = {}) => {
       const q = new URLSearchParams()
+      if (f.mine) q.set('mine', 'true')
+      if (f.group) q.set('group', f.group)
+      if (f.archived) q.set('archived', 'true')
       if (f.q) q.set('q', f.q)
       if (f.status) q.set('status', f.status)
       if (f.profile) q.set('profile', f.profile)
@@ -616,6 +639,12 @@ export function createApi(auth: Auth) {
     rejectProposal: (id: string, note?: string) => request<Proposal>(`/insights/proposals/${id}/reject`, { method: 'POST', body: JSON.stringify({ note: note || null }) }),
     followUp: (id: string) => request<FollowUp>(`/insights/proposals/${id}/follow-up`),
     capabilities: () => request<Capabilities>('/me/capabilities'),
+    groups: () => request<ChatGroup[]>('/groups'),
+    createGroup: (g: Partial<ChatGroup>) => request<ChatGroup>('/groups', { method: 'POST', body: JSON.stringify(g) }),
+    updateGroup: (id: string, g: Partial<ChatGroup>) => request<ChatGroup>(`/groups/${id}`, { method: 'PUT', body: JSON.stringify(g) }),
+    deleteGroup: (id: string) => request<void>(`/groups/${id}`, { method: 'DELETE' }),
+    organise: (id: string, o: { groupId?: string; ungroup?: boolean; isolated?: boolean; pinned?: boolean; archived?: boolean }) =>
+      request<unknown>(`/conversations/${id}/organise`, { method: 'PUT', body: JSON.stringify(o) }),
     startPreview: (roles: string[], minutes: number, allowWrites: boolean) =>
       request<StartedPreview>('/me/preview', { method: 'POST', body: JSON.stringify({ roles, minutes, allowWrites }) }),
     listApprovals: () => request<Approval[]>('/approvals'),
@@ -702,7 +731,7 @@ export function createApi(auth: Auth) {
     startRun: async (
       prompt: string,
       profile: string | null,
-      options: { voice?: boolean; conversationId?: string; attachments?: string[]; routing?: 'chosen'; contexts?: string[] } = {},
+      options: { voice?: boolean; conversationId?: string; attachments?: string[]; routing?: 'chosen'; contexts?: string[]; groupId?: string } = {},
     ): Promise<StartedRun | { choose: RouteChoice }> => {
       const r = await request<StartedRun | RouteChoice>('/runs', { method: 'POST', body: JSON.stringify({ prompt, profile: profile || 'auto', ...options }) }, [409])
       return 'candidates' in r ? { choose: r } : r

@@ -127,6 +127,7 @@ public sealed class ExportMyDataEndpoint(LotsDbContext db, IAudioStore audio, IK
             personalKnowledge = personal,
             speechUsage = await db.VoiceUsage.AsNoTracking().Where(v => v.UserId == me).ToListAsync(ct),
             memories = await db.Memories.AsNoTracking().Where(m => m.UserId == me).ToListAsync(ct),
+            groups = await db.ConversationGroups.AsNoTracking().Where(g => g.UserId == me).ToListAsync(ct),
             feedback = await db.Feedback.AsNoTracking().Where(f => f.UserId == me).ToListAsync(ct),
         };
 
@@ -232,6 +233,9 @@ public static class DataDeletion
         if (await db.UserProfiles.SingleOrDefaultAsync(p => p.UserId == user, ct) is { } profile) { db.UserProfiles.Remove(profile); d["login profile"] = 1; }
         if (await db.QuotaOverrides.SingleOrDefaultAsync(q => q.UserId == user, ct) is { } quota) db.QuotaOverrides.Remove(quota);
         db.VoiceUsage.RemoveRange(await db.VoiceUsage.Where(v => v.UserId == user).ToListAsync(ct));
+        var groups = await db.ConversationGroups.Where(g => g.UserId == user).ToListAsync(ct);
+        db.ConversationGroups.RemoveRange(groups);
+        d["chat groups"] = groups.Count;
         var memories = await db.Memories.Where(m => m.UserId == user).ToListAsync(ct);
         db.Memories.RemoveRange(memories);
         d["memories"] = memories.Count;

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import AudioClip from '../components/AudioClip'
-import { ApiError, type Api, type ConversationDetail, type ConversationList, type ConversationSummary, type StageTotals, type TimelineEvent } from '../api'
+import { ApiError, type Api, type ChatGroup, type ConversationDetail, type ConversationList, type ConversationSummary, type StageTotals, type TimelineEvent } from '../api'
 import { t } from '../i18n'
 import { RunsList } from './RunsPage'
 
@@ -117,7 +117,10 @@ function List({ api }: { api: Api }) {
   const [status, setStatus] = useState('')
   const [profile, setProfile] = useState('')
   const [from, setFrom] = useState('')
-  const [applied, setApplied] = useState({ q: '', status: '', profile: '', from: '' })
+  const [group, setGroup] = useState('')
+  const [groups, setGroups] = useState<ChatGroup[]>([])
+  useEffect(() => void api.groups().then(setGroups, () => setGroups([])), [api])
+  const [applied, setApplied] = useState({ q: '', status: '', profile: '', from: '', group: '' })
   const [data, setData] = useState<ConversationList | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -139,7 +142,7 @@ function List({ api }: { api: Api }) {
         className="filters"
         onSubmit={(e) => {
           e.preventDefault()
-          setApplied({ q, status, profile, from })
+          setApplied({ q, status, profile, from, group })
         }}
       >
         <label>
@@ -159,6 +162,20 @@ function List({ api }: { api: Api }) {
           {t('Context')}
           <input value={profile} onChange={(e) => setProfile(e.target.value)} />
         </label>
+        {groups.length > 0 && (
+          <label>
+            {t('Group')}
+            <select value={group} onChange={(e) => setGroup(e.target.value)}>
+              <option value="">{t('All')}</option>
+              <option value="none">{t('No group')}</option>
+              {groups.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label>
           {t('From')}
           <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />

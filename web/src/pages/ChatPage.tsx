@@ -3,12 +3,13 @@ import Feedback from '../components/Feedback'
 import { type Api, type ConversationDetail, type ConversationSummary, type ConversationTurn, type RouteChoice } from '../api'
 import type { ProfileInfo, VoiceConfig } from '../config'
 import Conversation from '../components/Conversation'
+import ChatList from '../components/ChatList'
 import MicButton from '../components/MicButton'
 import { initialLanguage, saveLanguage } from '../voice/language'
 import type { VoiceLanguage } from '../api'
 import Markdown from '../components/Markdown'
 import { AttachmentList, AttachPicker, type UploadedAttachment } from '../components/Attachments'
-import { fmt, t } from '../i18n'
+import { t } from '../i18n'
 import { preferredContext } from '../preferences'
 
 const ACTIVE = ['Pending', 'Running', 'WaitingForApproval']
@@ -29,6 +30,7 @@ export default function ChatPage({ api, profiles, id, voice }: { api: Api; profi
   // '' = Automatic (#150): the shell picks the context per message; a choice here overrides it.
   const [profile, setProfile] = useState(() => preferredContext(profiles))
   const [ask, setAsk] = useState<{ text: string; choice: RouteChoice } | null>(null)
+  const newInGroup = new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('group')
   const [editing, setEditing] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [note, setNote] = useState<string | null>(null)
@@ -36,7 +38,7 @@ export default function ChatPage({ api, profiles, id, voice }: { api: Api; profi
   const endRef = useRef<HTMLDivElement | null>(null)
 
   const loadList = useCallback(() => {
-    void api.listConversations().then((l) => setList(l.conversations), () => setList([]))
+    void api.listConversations({ mine: true }).then((l) => setList(l.conversations), () => setList([])) // own chats only, also for admins
   }, [api])
 
   const loadDetail = useCallback(async (): Promise<ConversationDetail | null> => {
@@ -107,6 +109,8 @@ export default function ChatPage({ api, profiles, id, voice }: { api: Api; profi
         attachments: files.map((f) => f.id),
         ...(picked ? { routing: 'chosen' as const } : {}),
         ...(several ? { contexts: several } : {}),
+        // A new chat started from a group's "+" joins that group (#153).
+        ...(!id && newInGroup ? { groupId: newInGroup } : {}),
       })
       if ('choose' in started) {
         setAsk({ text, choice: started.choose }) // one click, never a silent guess
@@ -141,22 +145,7 @@ export default function ChatPage({ api, profiles, id, voice }: { api: Api; profi
 
   return (
     <section className="chat">
-      <aside className="chat-list" aria-label={t('Conversations')}>
-        <a className="btn primary small" href="#/chat">
-          {t('New chat')}
-        </a>
-        <ul>
-          {list.map((c) => (
-            <li key={c.id} className={c.id === id ? 'active' : undefined}>
-              <a href={`#/chat/${c.id}`} title={c.summary ?? c.title}>
-                {c.voice && <span className="muted small">🎙 </span>}
-                {c.title}
-              </a>
-              <span className="muted small">{fmt.date(c.endedAt)}</span>
-            </li>
-          ))}
-        </ul>
-      </aside>
+      <ChatList api={api} list={list} activeId={id} profiles={profiles} onChanged={loadList} />
 
       <div className="chat-main">
         {talking && voice?.enabled && (

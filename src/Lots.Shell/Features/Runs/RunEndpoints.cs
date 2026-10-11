@@ -13,7 +13,8 @@ namespace Lots.Shell.Features.Runs;
 /// <param name="Routing">"chosen" when the user picked the context after the router asked (#150); recorded on the run.</param>
 /// <param name="Contexts">Ask these contexts together (#151): 2-3 contexts where the user may only read; one sub-run each, one combined answer.</param>
 public sealed record StartRunRequest(string Prompt, string? Profile = null, bool Voice = false, Guid? ConversationId = null,
-    List<Guid>? Attachments = null, string? Model = null, string? ReasoningEffort = null, string? Routing = null, List<string>? Contexts = null);
+    List<Guid>? Attachments = null, string? Model = null, string? ReasoningEffort = null, string? Routing = null, List<string>? Contexts = null,
+    Guid? GroupId = null);
 
 /// <param name="Profile">The context to answer in; null or "auto" lets the router choose (#150). Context is the UI name of a profile.</param>
 public sealed record StartRunResponse(Guid Id, string Status, string? Profile = null, string? Routing = null);
@@ -37,6 +38,23 @@ public sealed class StartRunEndpoint(LotsDbContext db, TimeProvider clock, Profi
             AddError(x => x.Prompt, "Prompt is required.");
             await Send.ErrorsAsync(cancellation: ct);
             return;
+        }
+
+        // A new chat started inside a chat group (#153): it joins the group before routing, so the group's default context applies.
+        if (req.GroupId is { } groupId && req.ConversationId is { } newChat)
+        {
+            var me = who.Get(HttpContext).UserId;
+            if (!await db.ConversationGroups.AnyAsync(g => g.Id == groupId && g.UserId == me, ct)
+                || await db.Runs.AnyAsync(r => r.ConversationId == newChat && r.UserId != me, ct))
+            {
+                AddError(x => x.GroupId!, "No such group.");
+                await Send.ErrorsAsync(cancellation: ct);
+                return;
+            }
+            var record = await db.Conversations.SingleOrDefaultAsync(c => c.Id == newChat, ct);
+            if (record is null) db.Conversations.Add(record = new ConversationRecord { Id = newChat, UserId = me });
+            if (record.UserId == me) record.GroupId ??= groupId;
+            await db.SaveChangesAsync(ct);
         }
 
         Core.Routing.RouteDecision? route = null;
@@ -64,6 +82,8 @@ public sealed class StartRunEndpoint(LotsDbContext db, TimeProvider clock, Profi
             var router = HttpContext.RequestServices.GetRequiredService<Core.Routing.ContextRouter>();
             var current = req.ConversationId is { } conv
                 ? await db.Runs.AsNoTracking().Where(r => r.ConversationId == conv).OrderByDescending(r => r.CreatedAt).Select(r => r.Profile).FirstOrDefaultAsync(ct)
+                  // A new chat in a group starts where the group says (#153), and keeps it unless another context clearly leads.
+                  ?? (await Core.Groups.ChatGroups.GroupOfAsync(db, conv, who.Get(HttpContext).UserId, ct))?.DefaultContext
                 : null;
             route = await router.RouteAsync(who.Get(HttpContext), req.Prompt, current, ct);
             if (route.Mode == "ask")

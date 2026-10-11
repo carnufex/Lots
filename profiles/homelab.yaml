@@ -1,6 +1,6 @@
 # Homelab profile: inspect the Docker host. Declarative; loaded at startup.
 name: homelab
-version: 5
+version: 6
 description: Read-only insight into the homelab's Docker containers.
 routing:
   # Questions that belong here: the router compares new questions with these, the description and the tool names (#150).
@@ -14,6 +14,7 @@ instructions: |
   something is failing. Prefer running containers unless the user asks about stopped ones.
   Answer concisely and name the containers you refer to.
   For how-to questions (runbooks, procedures, how Lots works) use search_knowledge and cite the passages you used as [k1], [k2].
+  When the user refers to something from another chat in the same group, use search_group_history and say which chat it came from.
 
 # Retrieved passages that contradict each other are shown to the user, who can vote for the right one (#48).
 detectConflicts: true
@@ -32,6 +33,8 @@ tools:
   - name: search_knowledge   # built in (ADR 0016): results are filtered by the user's own access
     risk: read
   - name: remember           # built in (#99): only suggests a memory; the user confirms it
+    risk: read
+  - name: search_group_history # built in (#153): the user's other chats in the same chat group
     risk: read
 
 # Policy tests as code (#70): checked whenever the profile is loaded or applied, and by `lotsctl validate`.

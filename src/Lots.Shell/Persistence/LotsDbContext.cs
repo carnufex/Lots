@@ -18,6 +18,7 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
     public DbSet<QuotaOverrideRecord> QuotaOverrides => Set<QuotaOverrideRecord>();
     public DbSet<ConversationAudioRecord> ConversationAudio => Set<ConversationAudioRecord>();
     public DbSet<ConversationRecord> Conversations => Set<ConversationRecord>();
+    public DbSet<ConversationGroupRecord> ConversationGroups => Set<ConversationGroupRecord>();
     public DbSet<AuditForwardStateRecord> AuditForwardState => Set<AuditForwardStateRecord>();
     public DbSet<ConfigVersionRecord> ConfigVersions => Set<ConfigVersionRecord>();
     public DbSet<ConflictVoteRecord> ConflictVotes => Set<ConflictVoteRecord>();
@@ -95,6 +96,19 @@ public class LotsDbContext(DbContextOptions<LotsDbContext> options) : DbContext(
             e.HasKey(x => x.Id);
             e.Property(x => x.UserId).HasMaxLength(256).IsRequired();
             e.Property(x => x.Title).HasMaxLength(200);
+            e.HasIndex(x => new { x.UserId, x.GroupId });
+        });
+
+        modelBuilder.Entity<ConversationGroupRecord>(e =>
+        {
+            e.ToTable("conversation_groups");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.UserId).HasMaxLength(256).IsRequired();
+            e.Property(x => x.Name).HasMaxLength(100).IsRequired();
+            e.Property(x => x.Color).HasMaxLength(20);
+            e.Property(x => x.Icon).HasMaxLength(40);
+            e.Property(x => x.DefaultContext).HasMaxLength(128);
+            e.HasIndex(x => x.UserId);
         });
 
         modelBuilder.Entity<QuotaOverrideRecord>(e =>
@@ -420,6 +434,8 @@ public sealed class RunRecord
     public string? RoutingJson { get; set; }
     /// <summary>A multi-context supervisor run (#151): the contexts it asks, one read-only sub-run each, as a JSON array.</summary>
     public string? SuperviseJson { get; set; }
+    /// <summary>The sibling chats (#153) whose context this run was given, as a JSON array of conversation ids.</summary>
+    public string? GroupContextJson { get; set; }
     /// <summary>Only read-class tools, whatever the roles grant (#151 fan-out sub-runs).</summary>
     public bool ReadOnly { get; set; }
     /// <summary>Started in a role preview (#156): the admin's real roles; the run's <see cref="Roles"/> are the previewed ones.</summary>
@@ -525,6 +541,33 @@ public sealed class ConversationRecord
     public string? Title { get; set; }
     public string? Summary { get; set; }
     public DateTimeOffset? SummarizedAt { get; set; }
+    /// <summary>The chat group it is in (#153); a chat is in at most one.</summary>
+    public Guid? GroupId { get; set; }
+    /// <summary>"Isolate this chat": it neither reads nor shares group context.</summary>
+    public bool Isolated { get; set; }
+    public bool Pinned { get; set; }
+    public bool Archived { get; set; }
+}
+
+/// <summary>A folder of one user's chats (#153), with optional instructions, default context and shared context.</summary>
+public sealed class ConversationGroupRecord
+{
+    public Guid Id { get; set; }
+    public required string UserId { get; set; }
+    public required string Name { get; set; }
+    public string? Color { get; set; }
+    public string? Icon { get; set; }
+    public int SortOrder { get; set; }
+    public bool Pinned { get; set; }
+    public bool Archived { get; set; }
+    /// <summary>Applied to every chat in the group, as the user's own style and context notes (never above the rules).</summary>
+    public string? Instructions { get; set; }
+    /// <summary>The context new chats in the group start in; feeds routing (#150).</summary>
+    public string? DefaultContext { get; set; }
+    /// <summary>Chats in the group may use each other's summaries and recent turns (default on).</summary>
+    public bool ShareContext { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
 }
 
 /// <summary>An admin's per-user quota override (#78); fields left empty keep the role/profile limits.</summary>

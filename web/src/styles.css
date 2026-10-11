@@ -1869,3 +1869,72 @@ p.summary {
 .route-choice {
   margin: 0 0 8px;
 }
+
+/* chat groups (#153) */
+.chat-filter {
+  width: 100%;
+  margin: 10px 0 4px;
+}
+.chat-group {
+  margin-top: 8px;
+}
+.chat-group > summary {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-left: 3px solid var(--border);
+  border-radius: var(--radius);
+}
+.chat-group > summary:hover,
+.chat-ungrouped:hover {
+  background: var(--surface-2);
+}
+.chat-group ul {
+  margin-top: 4px;
+}
+.chat-list li {
+  position: relative;
+}
+.chat-menu {
+  position: absolute;
+  right: 0;
+  top: 4px;
+}
+.chat-menu > summary {
+  list-style: none;
+  cursor: pointer;
+}
+.chat-menu > summary::-webkit-details-marker {
+  display: none;
+}
+.chat-menu .viewas-panel {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 20;
+  width: 220px;
+  display: grid;
+  gap: 6px;
+}
+.group-settings {
+  display: grid;
+  gap: 8px;
+  margin: 6px 0;
+}
+.group-settings label {
+  display: grid;
+  gap: 4px;
+}
+.group-settings label.check,
+.chat-menu label.check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.group-settings input[type='checkbox'],
+.chat-menu input[type='checkbox'] {
+  width: auto;
+  margin: 0;
+}
