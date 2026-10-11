@@ -63,14 +63,19 @@ public class KnowledgeUnitTests
     }
 
     [Fact]
-    public void Reciprocal_rank_fusion_rewards_chunks_found_both_ways()
+    public void Fusion_keeps_each_rankings_best_hit_and_rewards_chunks_found_both_ways()
     {
         KnowledgeHit H(string id) => new(id, "s", "S", Guid.Empty, "t", null, DateTimeOffset.UnixEpoch, "", "", "", 0, null, null);
 
         var fused = KnowledgeText.Fuse([H("a"), H("b"), H("c")], [H("c"), H("d")], 3);
+        Assert.Equal(["a", "c", "b"], fused.Select(f => f.ChunkId)); // a and c lead their rankings; then reciprocal rank
+        Assert.Equal((3, 1), (fused[1].VectorRank!.Value, fused[1].TextRank!.Value));
 
-        Assert.Equal(["c", "a", "b"], fused.Select(f => f.ChunkId));
-        Assert.Equal((3, 1), (fused[0].VectorRank!.Value, fused[0].TextRank!.Value));
+        // The regression: the clearly best vector hit has no matching words (a Swedish question, English docs), while five
+        // mediocre chunks appear in both rankings. Plain RRF ranked those five above it and dropped it from the top 5.
+        var x = Enumerable.Range(1, 5).Select(i => H("x" + i)).ToList();
+        var top = KnowledgeText.Fuse([H("best"), .. x], x, 5);
+        Assert.Equal("best", top[0].ChunkId);
     }
 
     [Fact]

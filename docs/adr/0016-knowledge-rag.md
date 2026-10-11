@@ -21,7 +21,7 @@ endpoint (Ollama, which serves `nomic-embed-text` today).
    - without it: `real[]` and similarity computed in SQL, logged as a warning and shown on the Knowledge page. Fine up to tens of
      thousands of chunks; install the extension (`CREATE EXTENSION vector`, CNPG `Database` resource) beyond that.
 3. **Hybrid search**: Postgres full-text (`simple` configuration, so Swedish and English both work without stemming surprises) plus
-   vector similarity, fused with reciprocal-rank fusion (k = 60). A reranker is an optional later step behind the same interface.
+   vector similarity, fused with reciprocal-rank fusion (k = 60). Amended 2026-10-11: each ranking's top hit is kept first (vector, then text) and RRF orders the rest, because plain RRF let chunks that were mediocre in both rankings push out the clearly best vector hit (retrieval eval recall@5 85 % -> 95 %, MRR 0.68 -> 0.93). A reranker is an optional later step behind the same interface.
 4. **Retrieval is a tool.** `search_knowledge` is offered by a built-in tool source and must be declared in a profile with a risk
    class like any other tool, so policy, approvals, audit and trace apply unchanged (principles 1, 2, 5). Results carry source,
    title, URL, date and a stable chunk id; the model is told to cite them; the UI shows the sources.

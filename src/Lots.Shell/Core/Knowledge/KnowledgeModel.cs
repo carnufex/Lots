@@ -90,7 +90,11 @@ public static partial class KnowledgeText
 
     [GeneratedRegex(@"[\p{L}\p{N}]+")] private static partial Regex Word();
 
-    /// <summary>Reciprocal-rank fusion (k = 60) of the vector and text rankings.</summary>
+    /// <summary>
+    /// The top hit of each ranking (vector first), then reciprocal-rank fusion (k = 60) of the rest. Plain RRF let chunks that are
+    /// mediocre in both rankings push out the clearly best vector hit when the question's words miss the document (a Swedish
+    /// question over English docs): pinning the leaders took the retrieval eval from recall@5 85 % / MRR 0.68 to 95 % / 0.93.
+    /// </summary>
     public static List<KnowledgeHit> Fuse(IReadOnlyList<KnowledgeHit> byVector, IReadOnlyList<KnowledgeHit> byText, int k)
     {
         const double K = 60;
@@ -104,7 +108,8 @@ public static partial class KnowledgeText
                 ? (e.Hit, e.Score + 1 / (K + i + 1), e.V, i + 1)
                 : (h, 1 / (K + i + 1), null, i + 1);
         }
-        return all.Values.OrderByDescending(e => e.Score).Take(k)
+        string?[] leaders = [byVector.FirstOrDefault()?.ChunkId, byText.FirstOrDefault()?.ChunkId];
+        return all.Values.OrderBy(e => Array.IndexOf(leaders, e.Hit.ChunkId) is >= 0 and var i ? i : int.MaxValue).ThenByDescending(e => e.Score).Take(k)
             .Select(e => e.Hit with { Score = Math.Round(e.Score, 5), VectorRank = e.V, TextRank = e.T }).ToList();
     }
 }
