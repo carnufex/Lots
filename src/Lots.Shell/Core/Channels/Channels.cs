@@ -45,17 +45,20 @@ public sealed class ChannelOptions
     public SlackOptions Slack { get; set; } = new();
     public EmailChannelOptions Email { get; set; } = new();
     public OpenAiApiOptions OpenAi { get; set; } = new();
+    public TeamsOptions Teams { get; set; } = new();
     /// <summary>A channel user is mapped to the Lots user who logged in with the same e-mail within this many days (#107).</summary>
     public int IdentityMaxAgeDays { get; set; } = 90;
 }
 
 /// <summary>Where a channel run's answer goes (#107).</summary>
-public sealed record ChannelReply(string Kind, string? Channel = null, string? Thread = null, string? To = null, string? Subject = null);
+/// <param name="ServiceUrl">Teams (#149): the Bot Connector that delivered the question, where the answer goes back.</param>
+public sealed record ChannelReply(string Kind, string? Channel = null, string? Thread = null, string? To = null, string? Subject = null, string? ServiceUrl = null);
 
 public static class ChannelKinds
 {
     public const string Slack = "slack";
     public const string Email = "email";
+    public const string Teams = "teams";
 }
 
 /// <summary>

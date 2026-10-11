@@ -608,12 +608,13 @@ public sealed class AgentRunner(
                     }, now);
                     run.Status = RunStatus.WaitingForApproval;
                     Audit(run, principal, call, AuditDecision.ApprovalRequested, policy.Reason, null, null);
-                    // Asked in Slack: the request also goes to the thread, with Approve/Deny buttons (#107).
-                    if (run.ReplyJson is not null && JsonSerializer.Deserialize<Channels.ChannelReply>(run.ReplyJson, ReplyJson) is { Kind: Channels.ChannelKinds.Slack } slack)
+                    // Asked in Slack or Teams: the request also goes to the conversation, with Approve/Deny buttons (#107, #149).
+                    if (run.ReplyJson is not null && JsonSerializer.Deserialize<Channels.ChannelReply>(run.ReplyJson, ReplyJson) is
+                            { Kind: Channels.ChannelKinds.Slack or Channels.ChannelKinds.Teams } asked)
                         Notifications.Outbox.Add(db, Notifications.NotificationEvents.ChannelApproval, new
                         {
-                            approvalId = request.Id, runId = run.Id, kind = slack.Kind, channel = slack.Channel, thread = slack.Thread,
-                            tool = call.Name, risk = request.Risk, requestedBy = principal.UserId,
+                            approvalId = request.Id, runId = run.Id, kind = asked.Kind, channel = asked.Channel, thread = asked.Thread,
+                            serviceUrl = asked.ServiceUrl, tool = call.Name, risk = request.Risk, requestedBy = principal.UserId,
                         }, now);
                     await SaveAsync(run);
                     return true;
@@ -765,7 +766,7 @@ public sealed class AgentRunner(
         var answer = run.Status == RunStatus.Completed ? run.FinalAnswer ?? "" : $"I could not finish: {run.Error}";
         Notifications.Outbox.Add(db, Notifications.NotificationEvents.ChannelReply, new
         {
-            runId = run.Id, kind = reply.Kind, channel = reply.Channel, thread = reply.Thread, to = reply.To, subject = reply.Subject,
+            runId = run.Id, kind = reply.Kind, channel = reply.Channel, thread = reply.Thread, to = reply.To, subject = reply.Subject, serviceUrl = reply.ServiceUrl,
             answer = answer.Length <= 3500 ? answer : answer[..3500] + "…",
         }, clock.GetUtcNow());
     }

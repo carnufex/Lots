@@ -73,6 +73,13 @@ builder.Services.Configure<Lots.Shell.Core.Channels.ChannelOptions>(builder.Conf
 builder.Services.AddHttpClient(nameof(Lots.Shell.Core.Channels.SlackClient), h => h.Timeout = TimeSpan.FromSeconds(10))
     .ConfigurePrimaryHttpMessageHandler(sp => sp.GetRequiredService<Lots.Shell.Core.Net.ShellEgress>().Handler(Lots.Shell.Core.Net.EgressPurpose.Webhook));
 builder.Services.AddSingleton<Lots.Shell.Core.Channels.SlackClient>();
+// Teams (#149): the Bot Connector (replies, rosters) and the Bot Framework's signing keys.
+builder.Services.AddHttpClient(nameof(Lots.Shell.Core.Channels.TeamsClient), h => h.Timeout = TimeSpan.FromSeconds(10))
+    .ConfigurePrimaryHttpMessageHandler(sp => sp.GetRequiredService<Lots.Shell.Core.Net.ShellEgress>().Handler(Lots.Shell.Core.Net.EgressPurpose.Webhook));
+builder.Services.AddHttpClient(nameof(Lots.Shell.Core.Channels.TeamsTokenValidator), h => h.Timeout = TimeSpan.FromSeconds(10))
+    .ConfigurePrimaryHttpMessageHandler(sp => sp.GetRequiredService<Lots.Shell.Core.Net.ShellEgress>().Handler(Lots.Shell.Core.Net.EgressPurpose.Identity));
+builder.Services.AddSingleton<Lots.Shell.Core.Channels.TeamsClient>();
+builder.Services.AddSingleton<Lots.Shell.Core.Channels.TeamsTokenValidator>();
 builder.Services.Configure<Lots.Shell.Core.Memory.MemoryOptions>(builder.Configuration.GetSection(Lots.Shell.Core.Memory.MemoryOptions.Section));
 builder.Services.AddSingleton<IToolSource, Lots.Shell.Core.Memory.MemoryToolSource>(); // remember (#99): only where a profile declares it
 builder.Services.AddSingleton<IToolSource, Lots.Shell.Core.Groups.GroupHistoryToolSource>(); // search_group_history (#153): likewise

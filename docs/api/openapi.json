@@ -4950,6 +4950,19 @@
         ]
       }
     },
+    "/channels/teams/messages": {
+      "post": {
+        "tags": [
+          "Channels"
+        ],
+        "operationId": "LotsShellFeaturesChannelsTeamsMessagesEndpoint",
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
     "/audit": {
       "get": {
         "tags": [

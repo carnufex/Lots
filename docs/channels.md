@@ -1,4 +1,4 @@
-# Channels: Slack, e-mail and the OpenAI-compatible API
+# Channels: Slack, Teams, e-mail and the OpenAI-compatible API
 
 People can ask Lots where they already work (#107). Every channel run is the asking person's own Lots identity, with the roles of
 their latest login through the identity provider: policy, approvals, quotas and audit are the same as in the web UI.
@@ -66,4 +66,34 @@ curl -s https://lots.example.org/v1/chat/completions -H "Authorization: Bearer $
   -d '{"model":"homelab","messages":[{"role":"user","content":"Which containers are unhealthy?"}]}'
 ```
 
-Microsoft Teams needs a Bot Framework bot (#149).
+## Microsoft Teams
+
+Teams talks to bots through the Bot Framework (#149); outgoing webhooks cannot answer later, so Lots is a bot:
+
+1. Create an **Azure Bot** resource (free tier is enough) with a Microsoft app id and a client secret, single-tenant in your Entra
+   tenant or multi-tenant. Set its messaging endpoint to `https://<lots>/channels/teams/messages` and enable the Teams channel.
+2. Put the client secret in your secret store and configure Lots:
+
+```yaml
+Channels:
+  Teams:
+    Enabled: true
+    AppId: 00000000-0000-0000-0000-000000000000
+    AppPasswordRef: env:TEAMS_BOT_SECRET   # or file:/run/secrets/teams-bot
+    TenantId: <tenant id>                  # single-tenant bots; leave out for multi-tenant
+    Profile: homelab
+    MatchObjectId: false                   # true only when Entra is the IdP and Auth:Oidc:UserClaim is oid
+```
+
+3. Add the bot to Teams with an app manifest (Developer Portal) that names the bot id, then mention it in a channel or chat with it.
+
+Every activity carries a JWT from the Bot Framework. Lots checks the signature against the Bot Framework's published keys (and the
+key's channel endorsements), the issuer, that the audience is this bot, the expiry, and that the token's `serviceurl` is the one the
+activity names. Replies go only to `Channels:Teams:ServiceUrls` (default `https://smba.trafficmanager.net/`): an activity naming
+any other host is refused, so the bot's token never leaves for a host Microsoft did not vouch for.
+
+People are mapped by the e-mail or user principal name in the conversation roster, exactly like Slack users (log in to Lots once with
+the same address). With Entra as the identity provider and `oid` as the user claim, `MatchObjectId: true` maps `from.aadObjectId`
+directly. When a run needs an approval the conversation gets an Adaptive Card with **Approve**, **Deny** (`Action.Execute`) and a link
+to Lots; a click is decided as the clicking person through the same rules as the web UI. Typing "yes" never approves anything.
+Each message is handled once (redeliveries are dropped).

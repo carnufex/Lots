@@ -188,6 +188,19 @@ public sealed class NotificationWorker(IServiceScopeFactory scopes, IHttpClientF
             await slack.PostAsync(S("channel"), S("thread"), text, blocks, ct);
             return;
         }
+        if (S("kind") == Channels.ChannelKinds.Teams)
+        {
+            var teams = scopes.CreateScope().ServiceProvider.GetRequiredService<Channels.TeamsClient>();
+            if (@event == NotificationEvents.ChannelReply)
+            {
+                await teams.ReplyAsync(S("serviceUrl"), S("channel"), S("thread"), S("answer"), null, ct);
+                return;
+            }
+            // Explicit buttons only (Action.Execute, decided as the clicking person): typing "yes" never approves anything.
+            var text = $"Approval needed: {S("tool")} ({S("risk")}) for {S("requestedBy")}. Decide here or in Lots.";
+            await teams.ReplyAsync(S("serviceUrl"), S("channel"), S("thread"), text, Channels.TeamsClient.ApprovalCard(text, S("approvalId"), link), ct);
+            return;
+        }
         if (S("kind") == Channels.ChannelKinds.Email && @event == NotificationEvents.ChannelReply)
         {
             var mail = options.Value.Email;
