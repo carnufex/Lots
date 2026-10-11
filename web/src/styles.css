@@ -1991,3 +1991,34 @@ p.summary {
   color: var(--text);
   border-color: var(--accent);
 }
+
+/* meetings (#42) */
+.meeting-lines {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.meeting-lines li {
+  display: grid;
+  grid-template-columns: max-content max-content 1fr;
+  gap: 8px;
+  align-items: baseline;
+}
+.meeting-lines .speaker.s0 { color: var(--accent); }
+.meeting-lines .speaker.s1 { color: var(--info); }
+.meeting-lines .speaker.s2 { color: var(--warn); }
+.meeting-lines .speaker.s3 { color: var(--ok); }
+.meeting-lines .speaker.s4 { color: var(--danger); }
+.meeting-player {
+  width: 100%;
+  margin: 8px 0;
+}
+@media (max-width: 480px) {
+  .meeting-lines li {
+    grid-template-columns: max-content 1fr;
+  }
+  .meeting-lines li span {
+    grid-column: 1 / -1;
+  }
+}

@@ -19,6 +19,7 @@ import IdentityPage from './pages/IdentityPage'
 import UsagePage from './pages/UsagePage'
 import FeedbackPage from './pages/FeedbackPage'
 import InsightsPage from './pages/InsightsPage'
+import MeetingsPage from './pages/MeetingsPage'
 import AccountPage, { ACCOUNT_TABS, type AccountTab } from './pages/AccountPage'
 import { current as currentPrefs, save as savePrefs, sync as syncPreferences } from './preferences'
 import { setTheme, theme, type Theme } from './theme'
@@ -27,7 +28,7 @@ import { Icon, type IconName } from './components/Icon'
 import { language, setLanguage, t, type UiLanguage } from './i18n'
 import { saveLanguage } from './voice/language'
 
-type Route = { name: 'chat'; id?: string } | { name: 'run'; id: string } | { name: 'approvals' } | { name: 'audit' } | { name: 'voice'; tab: VoiceTab } | { name: 'knowledge'; tab: string } | { name: 'profiles' } | { name: 'policy' } | { name: 'models' } | { name: 'identity' } | { name: 'usage' } | { name: 'feedback' } | { name: 'insights' } | { name: 'history'; id?: string; tab: HistoryTab } | { name: 'integrations'; tab: IntegrationTab } | { name: 'account'; tab: AccountTab } | { name: 'planned'; slug: string }
+type Route = { name: 'chat'; id?: string } | { name: 'run'; id: string } | { name: 'approvals' } | { name: 'audit' } | { name: 'voice'; tab: VoiceTab } | { name: 'knowledge'; tab: string } | { name: 'profiles' } | { name: 'policy' } | { name: 'models' } | { name: 'identity' } | { name: 'usage' } | { name: 'feedback' } | { name: 'insights' } | { name: 'history'; id?: string; tab: HistoryTab } | { name: 'integrations'; tab: IntegrationTab } | { name: 'account'; tab: AccountTab } | { name: 'meetings'; id?: string } | { name: 'planned'; slug: string }
 
 type NavItem = { href: string; label: string; icon: IconName; active: (r: Route) => boolean }
 
@@ -46,15 +47,12 @@ const nav = (name: 'approvals' | 'audit', label: string, icon: IconName): NavIte
   icon,
   active: (r) => r.name === name,
 })
-const planned = (slug: string): NavItem => {
-  const p = PLANNED.find((x) => x.slug === slug)!
-  return { href: `#/${slug}`, label: p.label, icon: p.icon, active: (r) => r.name === 'planned' && r.slug === slug }
-}
 
 const chatNav: NavItem = { href: '#/chat', label: 'Chat', icon: 'chat', active: (r) => r.name === 'chat' }
 const historyNav: NavItem = { href: '#/history', label: 'History', icon: 'transcribe', active: (r) => r.name === 'history' || r.name === 'run' }
 const integrationsNav: NavItem = { href: '#/integrations', label: 'Integrations', icon: 'tools', active: (r) => r.name === 'integrations' }
 const voiceNav: NavItem = { href: '#/voice', label: 'Voice', icon: 'voice', active: (r) => r.name === 'voice' }
+const meetingsNav: NavItem = { href: '#/meetings', label: 'Meetings', icon: 'transcribe', active: (r) => r.name === 'meetings' }
 const knowledgeNav: NavItem = { href: '#/knowledge', label: 'Knowledge', icon: 'rag', active: (r) => r.name === 'knowledge' }
 const page = (name: 'profiles' | 'policy' | 'models' | 'identity' | 'usage' | 'feedback' | 'insights', label: string, icon: IconName): NavItem => ({
   href: `#/${name}`,
@@ -67,7 +65,7 @@ const NAV: { title: string; items: NavItem[] }[] = [
   // #152: Chat is home; runs are a tab of History. Audit and Usage are oversight, not daily work.
   { title: 'Work', items: [chatNav, historyNav, nav('approvals', 'Approvals', 'approvals')] },
   { title: 'Oversight', items: [nav('audit', 'Audit', 'audit'), page('usage', 'Usage', 'models')] },
-  { title: 'Capabilities', items: [knowledgeNav, integrationsNav, voiceNav, planned('transcription'), page('models', 'Models', 'models')] },
+  { title: 'Capabilities', items: [knowledgeNav, integrationsNav, voiceNav, meetingsNav, page('models', 'Models', 'models')] },
   { title: 'Administration', items: [page('profiles', 'Contexts', 'profiles'), page('policy', 'Policy', 'policy'), page('identity', 'Identity', 'identity'), page('feedback', 'Feedback', 'approvals'), page('insights', 'Insights', 'insights')] },
 ]
 
@@ -88,6 +86,8 @@ function useHashRoute(): Route {
     if (it) return { name: 'integrations', tab: INTEGRATION_TABS.find((tab) => tab.slug === it[1])?.slug ?? 'tool-calls' }
     const vo = /^voice(?:\/([a-z-]+))?$/.exec(r)
     if (vo) return { name: 'voice', tab: VOICE_TABS.find((tab) => tab.slug === vo[1])?.slug ?? 'voice' }
+    const mt = /^meetings(?:\/([0-9a-f-]{36}))?$/i.exec(r)
+    if (mt) return { name: 'meetings', id: mt[1] }
     const kn = /^knowledge(?:\/([a-z]+))?$/.exec(r)
     if (kn) return { name: 'knowledge', tab: kn[1] ?? 'sources' }
     const ac = /^account(?:\/([a-z-]+))?$/.exec(r)
@@ -231,6 +231,7 @@ function Shell({ config, auth, session }: { config: ClientConfig; auth: Auth; se
           {route.name === 'feedback' && <FeedbackPage api={api} />}
           {route.name === 'insights' && <InsightsPage api={api} traceUrl={config.traceUrl} />}
           {route.name === 'account' && <AccountPage api={api} tab={route.tab} user={session.user} caps={caps} profiles={config.profiles} />}
+          {route.name === 'meetings' && <MeetingsPage api={api} id={route.id} />}
           {route.name === 'planned' && <PlaceholderPage item={PLANNED.find((p) => p.slug === route.slug)!} />}
           </>}
         </main>
@@ -312,7 +313,7 @@ function Centered({ children }: { children: React.ReactNode }) {
 }
 
 /** Pages everyone has, shown while capabilities are loading so the menu does not flash admin entries. */
-const Capabilities_EVERYONE = ['account', 'chat', 'history', 'runs', 'usage', 'voice', 'knowledge', 'integrations', 'transcription']
+const Capabilities_EVERYONE = ['account', 'meetings', 'chat', 'history', 'runs', 'usage', 'voice', 'knowledge', 'integrations']
 
 /** A page the caller may not use (#157): explained, not a broken page or a raw 403. */
 function NoAccess() {

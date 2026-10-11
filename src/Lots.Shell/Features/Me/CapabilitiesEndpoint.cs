@@ -21,7 +21,7 @@ public sealed record PreviewState(IReadOnlyList<string> Roles, IReadOnlyList<str
 public static class Capabilities
 {
     /// <summary>Pages for every signed-in user; inside them, admin-only tabs check their own rights (e.g. Integrations: servers).</summary>
-    public static readonly IReadOnlyList<string> Everyone = ["account", "meetings", "chat", "history", "runs", "usage", "voice", "knowledge", "integrations", "transcription"];
+    public static readonly IReadOnlyList<string> Everyone = ["account", "meetings", "chat", "history", "runs", "usage", "voice", "knowledge", "integrations"];
 
     public static CapabilitiesDto For(Principal me, IConfiguration config, ProfileRegistry profiles)
     {
