@@ -7,10 +7,9 @@ WORKDIR /app
 COPY pyproject.toml constraints.txt ./
 # CHATTERBOX=1 adds the expressive voice (PyTorch + Chatterbox, several GB). Piper alone is much smaller.
 ARG CHATTERBOX=0
-RUN mkdir voice && touch voice/__init__.py  && if [ "$CHATTERBOX" = "1" ]; then pip install --no-cache-dir -c constraints.txt ".[engines,chatterbox]"; else pip install --no-cache-dir -c constraints.txt ".[engines]"; fi  && pip uninstall -y lots-voice && rm -rf voice
-# License hygiene (#131): chatterbox-tts pulls in pykakasi (GPL-3.0, only for Japanese text, imported lazily with a fallback) and
-# gradio (its demo UI). The service uses neither, so they are not shipped.
-RUN pip uninstall -y pykakasi gradio gradio_client
+# chatterbox-tts itself goes in with --no-deps (#147): its exact pins are vulnerable, and it would pull in gradio (demo UI) and
+# pykakasi (GPL-3.0, Japanese only, imported lazily with a fallback, #131). Its real dependencies are the `chatterbox` extra.
+RUN mkdir voice && touch voice/__init__.py  && if [ "$CHATTERBOX" = "1" ]; then pip install --no-cache-dir -c constraints.txt ".[engines,chatterbox]" && pip install --no-cache-dir --no-deps -c constraints.txt chatterbox-tts;     else pip install --no-cache-dir -c constraints.txt ".[engines]"; fi  && pip uninstall -y lots-voice && rm -rf voice  && ! pip show gradio pykakasi 2>/dev/null | grep -q Name
 # Trace export (#139), its own small layer next to the big one.
 RUN pip install --no-cache-dir -c constraints.txt opentelemetry-sdk==1.45.1 opentelemetry-exporter-otlp-proto-http==1.45.1
 COPY voice/ voice/
